@@ -7,6 +7,7 @@ A powerful, cross-platform clipboard manager built with Go and Fyne that automat
 ## ✨ Features
 
 ### Core Functionality
+
 - **🔄 Automatic Clipboard Monitoring**: Captures all clipboard content in real-time (500ms intervals)
 - **💾 Persistent Storage**: Saves clipboard history to JSON file, restored on restart
 - **🔍 Real-time Search**: Instantly filter clipboard history with live search
@@ -15,6 +16,7 @@ A powerful, cross-platform clipboard manager built with Go and Fyne that automat
 - **📊 Live Statistics**: Shows current item count in status bar
 
 ### Smart Features
+
 - **🚫 Duplicate Prevention**: Automatically prevents duplicate entries, moves existing items to top
 - **💡 Memory Management**: Limits history to 1000 items to prevent memory bloat
 - **📏 Content Filtering**: Ignores empty clipboard and very large content (>10KB)
@@ -23,6 +25,7 @@ A powerful, cross-platform clipboard manager built with Go and Fyne that automat
 - **🔒 Thread-Safe**: Proper synchronization for reliable multi-threaded operation
 
 ### User Interface
+
 - **🎯 Clean Design**: Intuitive layout with search bar, list view, and action buttons
 - **🖼️ Custom Icon Support**: Load your own icon.png for personalized branding
 - **📱 Responsive Layout**: Adapts to different window sizes
@@ -31,15 +34,18 @@ A powerful, cross-platform clipboard manager built with Go and Fyne that automat
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Go 1.19 or later
 - Git (for cloning)
 
 ### Installation
 
 #### Option 1: Download Pre-built Binaries
+
 Visit the [Releases](https://github.com/yourusername/fyclip/releases) page and download the appropriate binary for your platform.
 
 #### Option 2: Build from Source
+
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/fyclip.git
@@ -52,7 +58,10 @@ go mod tidy
 go run main.go
 
 # Or build executable
-go build -o fyclip main.go
+fyne install -icon icon.png
+
+# release
+fyne package
 ```
 
 ## 🔧 Build Instructions
@@ -60,6 +69,7 @@ go build -o fyclip main.go
 ### For All Platforms
 
 #### Windows
+
 ```bash
 # Build for Windows (from any platform)
 GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" -o fyclip.exe main.go
@@ -71,6 +81,7 @@ GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui" -o fyclip.exe main.g
 ```
 
 #### macOS
+
 ```bash
 # Build for macOS (64-bit Intel)
 GOOS=darwin GOARCH=amd64 go build -o fyclip-mac-intel main.go
@@ -86,6 +97,7 @@ cp icon.png FyClip.app/Contents/Resources/
 ```
 
 #### Linux
+
 ```bash
 # Build for Linux (64-bit)
 GOOS=linux GOARCH=amd64 go build -o fyclip-linux main.go
@@ -101,12 +113,14 @@ GOOS=linux GOARCH=arm64 go build -o fyclip-linux-arm64 main.go
 ```
 
 #### FreeBSD
+
 ```bash
 # Build for FreeBSD
 GOOS=freebsd GOARCH=amd64 go build -o fyclip-freebsd main.go
 ```
 
 ### Cross-Compilation Script
+
 Create a `build.sh` script for building all platforms at once:
 
 ```bash
@@ -147,6 +161,7 @@ echo "Build complete! Check the builds/ directory."
 ```
 
 ## 📁 File Structure
+
 ```
 fyclip/
 ├── main.go              # Main application code
@@ -173,7 +188,8 @@ fyclip/
 
 4. **Copy Items**: Select any item from the list and click "Copy Selected"
 
-5. **Manage Items**: 
+5. **Manage Items**:
+
    - Delete individual items with "Delete Selected"
    - Clear all history with "Clear All"
 
@@ -189,9 +205,11 @@ fyclip/
 ## ⚙️ Configuration
 
 ### Custom Icon
+
 Place an `icon.png` file in the same directory as the executable to use a custom icon.
 
 ### Memory Limits
+
 - Maximum clipboard content size: 10KB per item
 - Maximum history items: 1000 entries
 - Monitoring interval: 500ms
@@ -199,6 +217,7 @@ Place an `icon.png` file in the same directory as the executable to use a custom
 ## 🔧 Development
 
 ### Dependencies
+
 ```bash
 # Core dependencies
 go get fyne.io/fyne/v2/app
@@ -207,13 +226,15 @@ go get fyne.io/fyne/v2/container
 ```
 
 ### Running Tests
+
 ```bash
 go test ./...
 ```
 
 ### Code Structure
+
 - **Thread-safe design**: Uses mutexes for concurrent access
-- **Clean separation**: UI components separated from business logic  
+- **Clean separation**: UI components separated from business logic
 - **Error handling**: Comprehensive error handling throughout
 - **Resource management**: Proper cleanup and shutdown handling
 
@@ -222,32 +243,39 @@ go test ./...
 ### Common Issues
 
 **Application won't start**
+
 - Ensure you have the required Go version (1.19+)
 - Check that all dependencies are installed: `go mod tidy`
 
 **Clipboard not monitored**
+
 - Some Linux distributions require additional permissions
 - Try running with elevated privileges if needed
 
 **Icon not showing**
+
 - Ensure `icon.png` is in the same directory as the executable
 - Check that the PNG file is valid and not corrupted
 
 **Performance issues**
+
 - Clear clipboard history if it becomes too large
 - Check available system memory
 
 ### Platform-Specific Notes
 
 **Windows**
+
 - Windows Defender might flag the executable initially
 - Use `-ldflags="-H windowsgui"` to hide console window
 
 **macOS**
+
 - May require approval for accessibility permissions
 - Create proper app bundle for distribution
 
 **Linux**
+
 - Some desktop environments may need additional clipboard access
 - Install required system libraries: `apt-get install libgl1-mesa-dev xorg-dev`
 
