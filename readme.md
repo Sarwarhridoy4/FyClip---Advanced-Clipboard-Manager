@@ -41,8 +41,7 @@ A powerful, cross-platform clipboard manager built with Go and Fyne that automat
 ### Installation
 
 #### Option 1: Download Pre-built Binaries
-
-Visit the [Releases](https://github.com/yourusername/fyclip/releases) page and download the appropriate binary for your platform.
+Visit the [Releases](https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases) page and download the appropriate binary for your platform.
 
 #### Option 2: Build from Source
 
