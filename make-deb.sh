@@ -9,7 +9,7 @@
 APP_NAME="fyclip"
 VERSION=${1:-"1.0.0"}   # Default 1.0.0 if no version is passed
 ARCH="amd64"
-MAINTAINER="Your Name <you@example.com>"
+MAINTAINER="Sarwar Hossain <sarwarhridoy4@gmail.com>"
 DESCRIPTION="FyClip - Advanced Clipboard Manager
  A cross-platform clipboard manager built with Go and Fyne."
 
