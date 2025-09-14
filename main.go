@@ -323,7 +323,7 @@ func main() {
 	myApp.Settings().SetTheme(theme.DarkTheme()) // Dark mode
 	myApp.SetIcon(loadIcon())
 
-	myWindow := myApp.NewWindow("Clipboard Manager")
+	myWindow := myApp.NewWindow("FYClip - Clipboard Manager")
 	myWindow.Resize(fyne.NewSize(800, 500))
 
 	// Clipboard manager
