@@ -431,34 +431,51 @@ func main() {
 	// Clipboard monitor
 	cm.startClipboardMonitor()
 
-	// System Tray
-	if desk, ok := myApp.(desktop.App); ok {
-		autoStartItem := fyne.NewMenuItem("", nil)
-		updateAutoStartLabel := func() {
-			if isAutoStartEnabled() {
-				autoStartItem.Label = "Disable AutoStart"
-			} else {
-				autoStartItem.Label = "Enable AutoStart"
-			}
-		}
-		updateAutoStartLabel()
-		autoStartItem.Action = func() {
-			execPath, _ := os.Executable()
-			if isAutoStartEnabled() {
-				if err := disableAutoStart(); err != nil {
-					log.Println("Error disabling autostart:", err)
-				}
-			} else {
-				if err := enableAutoStart(execPath); err != nil {
-					log.Println("Error enabling autostart:", err)
-				}
-			}
-			updateAutoStartLabel()
-			desk.SetSystemTrayMenu(buildTrayMenu(myWindow, myApp, autoStartItem))
-		}
-		desk.SetSystemTrayMenu(buildTrayMenu(myWindow, myApp, autoStartItem))
-		desk.SetSystemTrayIcon(loadIcon())
-	}
+	// System Tray Integration
+if desk, ok := myApp.(desktop.App); ok {
+    // AutoStart menu item
+    autoStartItem := fyne.NewMenuItem("", nil)
+    updateAutoStartLabel := func() {
+        if isAutoStartEnabled() {
+            autoStartItem.Label = "Disable AutoStart"
+        } else {
+            autoStartItem.Label = "Enable AutoStart"
+        }
+    }
+    updateAutoStartLabel()
+
+    autoStartItem.Action = func() {
+        execPath, _ := os.Executable()
+        if isAutoStartEnabled() {
+            if err := disableAutoStart(); err != nil {
+                log.Println("Error disabling autostart:", err)
+            }
+        } else {
+            if err := enableAutoStart(execPath); err != nil {
+                log.Println("Error enabling autostart:", err)
+            }
+        }
+        updateAutoStartLabel()
+        desk.SetSystemTrayMenu(buildTrayMenu(myWindow, myApp, autoStartItem))
+    }
+
+    // Build and set the tray menu
+    trayMenu := fyne.NewMenu("FyClip",
+        fyne.NewMenuItem("Show", func() {
+            myWindow.Show()
+        }),
+        autoStartItem,
+        fyne.NewMenuItem("Quit", func() {
+            cm.shutdown()      // Stop clipboard monitoring
+            myApp.Quit()       // Quit app
+        }),
+    )
+    desk.SetSystemTrayMenu(trayMenu)
+
+    // Use embedded icon for system tray
+    desk.SetSystemTrayIcon(loadIcon())
+}
+
 
 	myWindow.SetCloseIntercept(func() { myWindow.Hide() })
 	myWindow.ShowAndRun()
