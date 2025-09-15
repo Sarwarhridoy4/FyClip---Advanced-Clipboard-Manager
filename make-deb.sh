@@ -2,11 +2,12 @@
 # ============================================================
 # FyClip Build & Package Script (Fully Automated)
 # Usage: ./build-all.sh [version]
-# Installs necessary tools, resizes icons, and builds .deb + AppImage
+# Ensures tray icon works by including icon.png and setting AppID
 # ============================================================
 
 APP_NAME="fyclip"
 VERSION=${1:-"1.0.0"}
+APP_ID="com.sarwar.fyclip"   # Unique AppID used by Fyne
 
 # --- Map uname -m to Debian and AppImage architectures ---
 ARCH_RAW=$(uname -m)
@@ -47,26 +48,33 @@ if [ -f "${APP_NAME}.tar.xz" ]; then
 fi
 
 # ============================================================
-# Step 3: Build binary if missing
+# Step 3: Build binary with AppID if missing
 # ============================================================
 if [ ! -f "${APP_NAME}" ]; then
-    echo "⚙️  Building binary with app-id..."
-    go build -ldflags="-X 'main.AppID=com.sarwar.fyclip'" -o ${APP_NAME}
+    echo "⚙️  Building binary with AppID: ${APP_ID}..."
+    go build -ldflags="-X 'main.AppID=${APP_ID}'" -o ${APP_NAME}
 fi
 
-
 # ============================================================
-# Step 4: Create .deb package
+# Step 4: Create .deb package with full icon support
 # ============================================================
 echo "📦 Creating .deb package..."
 mkdir -p ${APP_NAME}-deb/DEBIAN
 mkdir -p ${APP_NAME}-deb/usr/local/bin
 mkdir -p ${APP_NAME}-deb/usr/share/applications
-mkdir -p ${APP_NAME}-deb/usr/share/icons/hicolor/64x64/apps
 
+# Copy binary
 cp ${APP_NAME} ${APP_NAME}-deb/usr/local/bin/
-cp icon.png ${APP_NAME}-deb/usr/share/icons/hicolor/64x64/apps/${APP_NAME}.png
 
+# Ensure icon.png is included in all standard icon sizes (tray + menu)
+ICON_SIZES=(16 22 24 32 48 64 128 256)
+for SIZE in "${ICON_SIZES[@]}"; do
+    ICON_DIR=${APP_NAME}-deb/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps
+    mkdir -p ${ICON_DIR}
+    cp icon.png ${ICON_DIR}/${APP_NAME}.png
+done
+
+# Control file
 cat <<EOF > ${APP_NAME}-deb/DEBIAN/control
 Package: ${APP_NAME}
 Version: ${VERSION}
@@ -79,22 +87,27 @@ Description: ${DESCRIPTION_SHORT}
  ${DESCRIPTION_LONG}
 EOF
 
+# Desktop entry (include X-AppID for tray icon)
 cat <<EOF > ${APP_NAME}-deb/usr/share/applications/${APP_NAME}.desktop
 [Desktop Entry]
-Name=${APP_NAME}
-Exec=${APP_NAME}
+Name=FyClip
+Exec=/usr/local/bin/${APP_NAME}
 Icon=${APP_NAME}
 Type=Application
 Categories=Utility;
 Comment=${DESCRIPTION_LONG}
+StartupNotify=true
+X-GNOME-UsesNotifications=true
+X-AppID=${APP_ID}
 EOF
 
+# Build .deb
 dpkg-deb --build ${APP_NAME}-deb
 mv ${APP_NAME}-deb.deb ${APP_NAME}_${VERSION}_${ARCH}.deb
 echo "✅ .deb package created: ${APP_NAME}_${VERSION}_${ARCH}.deb"
 
 # ============================================================
-# Step 5: Create AppImage
+# Step 5: Create AppImage (with AppID support)
 # ============================================================
 echo "📦 Creating AppImage..."
 mkdir -p FyClip.AppDir/usr/bin
@@ -106,23 +119,25 @@ cp ${APP_NAME} FyClip.AppDir/
 chmod +x FyClip.AppDir/${APP_NAME}
 ln -sf ${APP_NAME} FyClip.AppDir/AppRun
 
-# Create desktop file in AppDir root
+# Desktop entry in AppDir
 cat <<EOF > FyClip.AppDir/${APP_NAME}.desktop
 [Desktop Entry]
-Name=${APP_NAME}
+Name=FyClip
 Exec=${APP_NAME}
 Icon=${APP_NAME}
 Type=Application
 Categories=Utility;
 Comment=${DESCRIPTION_LONG}
+StartupNotify=true
+X-GNOME-UsesNotifications=true
+X-AppID=${APP_ID}
 EOF
 
-# Ensure icon exists in AppDir root (required by AppImage)
+# Copy icon.png to AppDir root for tray support
 cp icon.png FyClip.AppDir/${APP_NAME}.png
 
 # Resize icons for menus
-SIZES=(16 32 48 64 128 256)
-for SIZE in "${SIZES[@]}"; do
+for SIZE in "${ICON_SIZES[@]}"; do
     mkdir -p FyClip.AppDir/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps
     convert icon.png -resize ${SIZE}x${SIZE} FyClip.AppDir/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps/${APP_NAME}.png
 done
@@ -143,3 +158,4 @@ echo "✅ AppImage created: ${APP_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
 echo "🎉 All done! Packages:"
 echo "  - Debian package: ${APP_NAME}_${VERSION}_${ARCH}.deb"
 echo "  - Universal AppImage: ${APP_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
+
