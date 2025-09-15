@@ -161,3 +161,26 @@ FyClip---Advanced-Clipboard-Manager/
 ---
 
 **FyClip** - Making clipboard management effortless across all platforms! 🚀
+
+# Change Log
+
+## [1.2.0] - 2025-09-15
+
+### Added
+- **System Tray Support**: FyClip now has a tray icon with menu options:
+  - **Show**: Restore the main window.
+  - **Enable/Disable AutoStart**: Toggle automatic startup on system boot.
+  - **Quit**: Exit the application completely.
+- **Auto-Hide on Close**: Closing the window now hides the app to the system tray instead of quitting.
+- **Cross-Platform Auto-Start**: Automatically start FyClip on login for Linux, Windows, and macOS.
+- **System Theme Awareness**: Retains the user’s system dark/light theme for the app.
+
+### Changed
+- Main window no longer exits the app on close; now it hides to tray.
+- Updated tray menu dynamically reflects the AutoStart state.
+
+### Fixed
+- Minor UI refresh issues when selecting or updating clipboard items.
+
+### Notes
+- Version 1.2.0 enhances background usability by integrating system tray features and auto-start capabilities while keeping clipboard monitoring fully functional.
