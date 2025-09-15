@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -13,14 +16,83 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
-// File to store history
+// ---------------------- AutoStart Helpers ----------------------
+
+func autoStartPath() string {
+	usr, _ := user.Current()
+	switch runtime.GOOS {
+	case "linux":
+		return filepath.Join(usr.HomeDir, ".config", "autostart", "fyclip.desktop")
+	case "windows":
+		return filepath.Join(os.Getenv("APPDATA"),
+			"Microsoft", "Windows", "Start Menu", "Programs", "Startup", "fyclip.lnk")
+	case "darwin":
+		return filepath.Join(usr.HomeDir, "Library", "LaunchAgents", "com.fyclip.plist")
+	}
+	return ""
+}
+
+func isAutoStartEnabled() bool {
+	_, err := os.Stat(autoStartPath())
+	return err == nil
+}
+
+func enableAutoStart(execPath string) error {
+	path := autoStartPath()
+	switch runtime.GOOS {
+	case "linux":
+		content := fmt.Sprintf(`[Desktop Entry]
+Type=Application
+Exec=%s
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=FyClip
+Comment=Clipboard Manager
+`, execPath)
+		os.MkdirAll(filepath.Dir(path), 0755)
+		return os.WriteFile(path, []byte(content), 0644)
+	case "windows":
+		cmd := fmt.Sprintf(`$ws = New-Object -ComObject WScript.Shell;
+$lnk = $ws.CreateShortcut("%s");
+$lnk.TargetPath = "%s";
+$lnk.Save()`, path, execPath)
+		return exec.Command("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", cmd).Run()
+	case "darwin":
+		content := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.fyclip</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>%s</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+</dict>
+</plist>`, execPath)
+		os.MkdirAll(filepath.Dir(path), 0755)
+		return os.WriteFile(path, []byte(content), 0644)
+	}
+	return nil
+}
+
+func disableAutoStart() error {
+	return os.Remove(autoStartPath())
+}
+
+// ---------------------- Clipboard Manager ----------------------
+
 const historyFile = "clipboard_history.json"
 
-// ClipboardManager manages the clipboard history with thread safety
 type ClipboardManager struct {
 	mu            sync.RWMutex
 	history       []string
@@ -29,7 +101,6 @@ type ClipboardManager struct {
 	selectedIndex int
 	searchQuery   string
 
-	// UI components
 	historyList  *widget.List
 	searchEntry  *widget.Entry
 	statusLabel  *widget.Label
@@ -37,20 +108,17 @@ type ClipboardManager struct {
 	window       fyne.Window
 	app          fyne.App
 
-	// Control channels
 	shutdownChan chan struct{}
 	running      bool
 	lastCopied   time.Time
 }
 
-// NewClipboardManager creates a new clipboard manager instance
 func NewClipboardManager(window fyne.Window, app fyne.App) *ClipboardManager {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.Printf("Warning: Could not get home directory: %v", err)
 		homeDir = "."
 	}
-
 	cm := &ClipboardManager{
 		historyPath:   filepath.Join(homeDir, historyFile),
 		selectedIndex: -1,
@@ -59,19 +127,14 @@ func NewClipboardManager(window fyne.Window, app fyne.App) *ClipboardManager {
 		shutdownChan:  make(chan struct{}),
 		running:       true,
 	}
-
-	// Load history from disk
 	cm.loadHistory()
 	cm.updateFiltered()
-
 	return cm
 }
 
-// loadHistory loads clipboard history from file
 func (cm *ClipboardManager) loadHistory() {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-
 	data, err := os.ReadFile(cm.historyPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -80,39 +143,32 @@ func (cm *ClipboardManager) loadHistory() {
 		cm.history = []string{}
 		return
 	}
-
 	if err := json.Unmarshal(data, &cm.history); err != nil {
 		log.Printf("Warning: Could not parse history file: %v", err)
 		cm.history = []string{}
-		return
 	}
 }
 
-// saveHistory saves clipboard history to file
 func (cm *ClipboardManager) saveHistory() {
 	cm.mu.RLock()
 	historyCopy := make([]string, len(cm.history))
 	copy(historyCopy, cm.history)
 	cm.mu.RUnlock()
-
 	go func() {
 		data, err := json.MarshalIndent(historyCopy, "", "  ")
 		if err != nil {
 			log.Printf("Error marshaling history: %v", err)
 			return
 		}
-
 		if err := os.WriteFile(cm.historyPath, data, 0644); err != nil {
 			log.Printf("Error saving history: %v", err)
 		}
 	}()
 }
 
-// updateFiltered updates filtered list based on search query
 func (cm *ClipboardManager) updateFiltered() {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-
 	if cm.searchQuery == "" {
 		cm.filtered = make([]string, len(cm.history))
 		copy(cm.filtered, cm.history)
@@ -128,83 +184,65 @@ func (cm *ClipboardManager) updateFiltered() {
 	cm.selectedIndex = -1
 }
 
-// addToHistory adds a new item
 func (cm *ClipboardManager) addToHistory(content string) bool {
 	if content == "" || len(content) > 10000 {
 		return false
 	}
-
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-
 	if len(cm.history) > 0 && cm.history[len(cm.history)-1] == content {
 		return false
 	}
-
-	// Remove duplicate elsewhere
 	for i := len(cm.history) - 1; i >= 0; i-- {
 		if cm.history[i] == content {
 			cm.history = append(cm.history[:i], cm.history[i+1:]...)
 			break
 		}
 	}
-
 	cm.history = append(cm.history, content)
 	if len(cm.history) > 1000 {
 		cm.history = cm.history[1:]
 	}
-
 	return true
 }
 
-// deleteSelected removes selected item
 func (cm *ClipboardManager) deleteSelected() bool {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-
 	if cm.selectedIndex < 0 || cm.selectedIndex >= len(cm.filtered) {
 		return false
 	}
-
 	targetItem := cm.filtered[cm.selectedIndex]
-
 	for i, item := range cm.history {
 		if item == targetItem {
 			cm.history = append(cm.history[:i], cm.history[i+1:]...)
 			break
 		}
 	}
-
 	cm.selectedIndex = -1
 	return true
 }
 
-// clearHistory clears all clipboard history
 func (cm *ClipboardManager) clearHistory() {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-
 	cm.history = []string{}
 	cm.filtered = []string{}
 	cm.selectedIndex = -1
 }
 
-// getFilteredCount returns filtered item count
 func (cm *ClipboardManager) getFilteredCount() int {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return len(cm.filtered)
 }
 
-// getFilteredItem returns item for display
 func (cm *ClipboardManager) getFilteredItem(index int) string {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-
 	if index < 0 || index >= len(cm.filtered) {
 		return ""
 	}
-
 	item := cm.filtered[index]
 	if len(item) > 100 {
 		return item[:97] + "..."
@@ -212,25 +250,21 @@ func (cm *ClipboardManager) getFilteredItem(index int) string {
 	return strings.ReplaceAll(item, "\n", " ")
 }
 
-// getSelectedItem returns currently selected
 func (cm *ClipboardManager) getSelectedItem() string {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-
 	if cm.selectedIndex < 0 || cm.selectedIndex >= len(cm.filtered) {
 		return ""
 	}
 	return cm.filtered[cm.selectedIndex]
 }
 
-// setSelectedIndex sets selected index
 func (cm *ClipboardManager) setSelectedIndex(index int) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.selectedIndex = index
 }
 
-// setSearchQuery sets search query
 func (cm *ClipboardManager) setSearchQuery(query string) {
 	cm.mu.Lock()
 	cm.searchQuery = query
@@ -238,12 +272,10 @@ func (cm *ClipboardManager) setSearchQuery(query string) {
 	cm.updateFiltered()
 }
 
-// refreshUI updates history list and status
 func (cm *ClipboardManager) refreshUI() {
 	if !cm.running {
 		return
 	}
-
 	go func() {
 		time.Sleep(10 * time.Millisecond)
 		if cm.historyList != nil && cm.running {
@@ -263,12 +295,10 @@ func (cm *ClipboardManager) refreshUI() {
 	}()
 }
 
-// shutdown gracefully stops manager
 func (cm *ClipboardManager) shutdown() {
 	cm.mu.Lock()
 	cm.running = false
 	cm.mu.Unlock()
-
 	select {
 	case <-cm.shutdownChan:
 	default:
@@ -276,20 +306,17 @@ func (cm *ClipboardManager) shutdown() {
 	}
 }
 
-// startClipboardMonitor monitors clipboard
 func (cm *ClipboardManager) startClipboardMonitor() {
 	go func() {
 		var lastContent string
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
-
 		for {
 			select {
 			case <-ticker.C:
 				if !cm.running {
 					return
 				}
-
 				content := cm.window.Clipboard().Content()
 				if content != "" && content != lastContent {
 					lastContent = content
@@ -307,53 +334,41 @@ func (cm *ClipboardManager) startClipboardMonitor() {
 	}()
 }
 
-// loadIcon loads icon.png
 func loadIcon() fyne.Resource {
 	iconPath := "icon.png"
 	if data, err := os.ReadFile(iconPath); err == nil {
 		return fyne.NewStaticResource("icon.png", data)
 	}
 	log.Printf("Icon file 'icon.png' not found")
-	return nil
+	return theme.ContentPasteIcon() // fallback
 }
 
+// ---------------------- Main ----------------------
 
 func main() {
-	myApp := app.New()
-	myApp.Settings().SetTheme(theme.DarkTheme()) // Dark mode
+	myApp := app.NewWithID("com.example.fyclip")
+	myApp.Settings().SetTheme(theme.DarkTheme())
 	myApp.SetIcon(loadIcon())
 
 	myWindow := myApp.NewWindow("FYClip - Clipboard Manager")
 	myWindow.Resize(fyne.NewSize(800, 500))
 
-	// Clipboard manager
 	cm := NewClipboardManager(myWindow, myApp)
 
-	// Preview panel
+	// Preview
 	preview := widget.NewMultiLineEntry()
 	preview.SetPlaceHolder("Preview selected item...")
 	cm.previewEntry = preview
 
-	// History list
+	// History List
 	historyList := widget.NewList(
 		func() int { return cm.getFilteredCount() },
 		func() fyne.CanvasObject { return widget.NewLabel("") },
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			label := o.(*widget.Label)
-			item := cm.getFilteredItem(i)
-			if strings.HasPrefix(item, "http://") || strings.HasPrefix(item, "https://") {
-				label.SetText(item)
-			} else {
-				label.SetText(item)
-			}
+			o.(*widget.Label).SetText(cm.getFilteredItem(i))
 		},
 	)
 	cm.historyList = historyList
-
-	historyList.OnSelected = func(id widget.ListItemID) {
-		cm.setSelectedIndex(id)
-		preview.SetText(cm.getSelectedItem())
-	}
 	historyList.OnSelected = func(id widget.ListItemID) {
 		cm.setSelectedIndex(id)
 		if selectedItem := cm.getSelectedItem(); selectedItem != "" {
@@ -363,7 +378,7 @@ func main() {
 		}
 	}
 
-	// Search entry
+	// Search
 	searchEntry := widget.NewEntry()
 	searchEntry.SetPlaceHolder("Search clipboard history...")
 	searchEntry.OnChanged = func(query string) {
@@ -398,13 +413,7 @@ func main() {
 		}),
 	)
 
-	// Status label
-	statusLabel := widget.NewLabel(fmt.Sprintf(
-		"Total: %d | Showing: %d | Last copied: %s",
-		len(cm.history),
-		cm.getFilteredCount(),
-		"",
-	))
+	statusLabel := widget.NewLabel("")
 	cm.statusLabel = statusLabel
 
 	// Layout
@@ -412,22 +421,56 @@ func main() {
 	split.SetOffset(0.4)
 
 	content := container.NewBorder(
-		searchEntry,                       // top
-		container.NewVBox(toolbar, statusLabel), // bottom
+		searchEntry,
+		container.NewVBox(toolbar, statusLabel),
 		nil, nil,
-		split, // center
+		split,
 	)
-
 	myWindow.SetContent(content)
 
-	// Start clipboard monitoring
+	// Clipboard monitor
 	cm.startClipboardMonitor()
 
-	// Window close
-	myWindow.SetCloseIntercept(func() {
-		cm.shutdown()
-		myWindow.Close()
-	})
+	// System Tray
+	if desk, ok := myApp.(desktop.App); ok {
+		autoStartItem := fyne.NewMenuItem("", nil)
+		updateAutoStartLabel := func() {
+			if isAutoStartEnabled() {
+				autoStartItem.Label = "Disable AutoStart"
+			} else {
+				autoStartItem.Label = "Enable AutoStart"
+			}
+		}
+		updateAutoStartLabel()
+		autoStartItem.Action = func() {
+			execPath, _ := os.Executable()
+			if isAutoStartEnabled() {
+				if err := disableAutoStart(); err != nil {
+					log.Println("Error disabling autostart:", err)
+				}
+			} else {
+				if err := enableAutoStart(execPath); err != nil {
+					log.Println("Error enabling autostart:", err)
+				}
+			}
+			updateAutoStartLabel()
+			desk.SetSystemTrayMenu(buildTrayMenu(myWindow, myApp, autoStartItem))
+		}
+		desk.SetSystemTrayMenu(buildTrayMenu(myWindow, myApp, autoStartItem))
+		desk.SetSystemTrayIcon(loadIcon())
+	}
 
+	myWindow.SetCloseIntercept(func() { myWindow.Hide() })
 	myWindow.ShowAndRun()
+}
+
+func buildTrayMenu(w fyne.Window, a fyne.App, autoStartItem *fyne.MenuItem) *fyne.Menu {
+	return fyne.NewMenu("FyClip",
+		fyne.NewMenuItem("Show", func() { w.Show() }),
+		autoStartItem,
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Quit", func() {
+			a.Quit()
+		}),
+	)
 }
