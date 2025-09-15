@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "FyClip - Clipboard Manager"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "Sarwar Hossain"
 #define MyAppURL "https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager"
 #define MyAppExeName "fyclip.exe"
@@ -10,7 +10,7 @@
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-AppId={{F8EC2E1B-6E0E-4361-9A5A-3E193D7840B6}
+AppId={{0153998F-6477-411C-8AEC-DCA46EA7717F}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 ;AppVerName={#MyAppName} {#MyAppVersion}
@@ -29,12 +29,13 @@ ArchitecturesAllowed=x64compatible
 ; meaning it should use the native 64-bit Program Files directory and
 ; the 64-bit view of the registry.
 ArchitecturesInstallIn64BitMode=x64compatible
-DefaultGroupName={#MyAppName}
-AllowNoIcons=yes
+DisableProgramGroupPage=yes
+LicenseFile=G:\Development\FyClip---Advanced-Clipboard-Manager\Licence
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
-OutputDir=G:\Development\FyClip---Advanced-Clipboard-ManagerFyClip
-OutputBaseFilename=setup
+PrivilegesRequiredOverridesAllowed=dialog
+OutputDir=G:\Development\FyClip---Advanced-Clipboard-Manager
+OutputBaseFilename=fyclip_setup
 SetupIconFile=G:\Development\FyClip---Advanced-Clipboard-Manager\icon.ico
 SolidCompression=yes
 WizardStyle=modern
@@ -47,12 +48,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "G:\Development\FyClip---Advanced-Clipboard-Manager\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "G:\Development\FyClip---Advanced-Clipboard-Manager\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "G:\Development\FyClip---Advanced-Clipboard-Manager\icon.png"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\{cm:ProgramOnTheWeb,{#MyAppName}}"; Filename: "{#MyAppURL}"
-Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]

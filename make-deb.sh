@@ -50,9 +50,10 @@ fi
 # Step 3: Build binary if missing
 # ============================================================
 if [ ! -f "${APP_NAME}" ]; then
-    echo "⚙️  Building binary..."
-    go build -o ${APP_NAME}
+    echo "⚙️  Building binary with app-id..."
+    go build -ldflags="-X 'main.AppID=com.sarwar.fyclip'" -o ${APP_NAME}
 fi
+
 
 # ============================================================
 # Step 4: Create .deb package
