@@ -346,7 +346,7 @@ func loadIcon() fyne.Resource {
 // ---------------------- Main ----------------------
 
 func main() {
-	myApp := app.NewWithID("com.example.fyclip")
+	myApp := app.NewWithID("com.sarwar.fyclip")
 	myApp.Settings().SetTheme(theme.DarkTheme())
 	myApp.SetIcon(loadIcon())
 
