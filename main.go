@@ -1,12 +1,12 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"image"
-	"image/png"
-	"bytes"
+
 	"log"
 	"os"
 	"os/exec"
@@ -24,6 +24,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"golang.design/x/clipboard"
 )
 
 // ---------------------- AutoStart Helpers ----------------------
@@ -117,25 +118,23 @@ type ClipboardItem struct {
 const historyFile = "clipboard_history.json"
 
 type ClipboardManager struct {
-	mu            sync.RWMutex
-	history       []ClipboardItem
-	filtered      []ClipboardItem
-	historyPath   string
-	selectedIndex int
-	searchQuery   string
-
-	historyList  *widget.List
-	searchEntry  *widget.Entry
-	statusLabel  *widget.Label
-	previewEntry *widget.Entry
-	previewImage *canvas.Image
+	mu               sync.RWMutex
+	history          []ClipboardItem
+	filtered         []ClipboardItem
+	historyPath      string
+	selectedIndex    int
+	searchQuery      string
+	historyList      *widget.List
+	searchEntry      *widget.Entry
+	statusLabel      *widget.Label
+	previewEntry     *widget.Entry
+	previewImage     *canvas.Image
 	previewContainer *fyne.Container
-	window       fyne.Window
-	app          fyne.App
-
-	shutdownChan chan struct{}
-	running      bool
-	lastCopied   time.Time
+	window           fyne.Window
+	app              fyne.App
+	shutdownChan     chan struct{}
+	running          bool
+	lastCopied       time.Time
 }
 
 func NewClipboardManager(window fyne.Window, app fyne.App) *ClipboardManager {
@@ -194,11 +193,11 @@ func (cm *ClipboardManager) saveHistory() {
 func (cm *ClipboardManager) updateFiltered() {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-	
+
 	// Sort history: pinned items first, then by timestamp (newest first)
 	sortedHistory := make([]ClipboardItem, len(cm.history))
 	copy(sortedHistory, cm.history)
-	
+
 	// Separate pinned and unpinned items
 	var pinnedItems, unpinnedItems []ClipboardItem
 	for _, item := range sortedHistory {
@@ -208,10 +207,10 @@ func (cm *ClipboardManager) updateFiltered() {
 			unpinnedItems = append(unpinnedItems, item)
 		}
 	}
-	
+
 	// Combine: pinned first, then unpinned (newest first)
 	sortedHistory = append(pinnedItems, unpinnedItems...)
-	
+
 	if cm.searchQuery == "" {
 		cm.filtered = make([]ClipboardItem, len(sortedHistory))
 		copy(cm.filtered, sortedHistory)
@@ -231,23 +230,35 @@ func (cm *ClipboardManager) addToHistory(content string, itemType ClipboardItemT
 	if content == "" {
 		return false
 	}
-	
+
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-	
-	// Check for duplicate (only check content, not image data for performance)
-	if len(cm.history) > 0 && cm.history[len(cm.history)-1].Content == content {
+
+	// Check for duplicate
+	var duplicate bool
+	if itemType == TypeText {
+		if len(cm.history) > 0 && cm.history[len(cm.history)-1].Content == content && cm.history[len(cm.history)-1].Type == itemType {
+			duplicate = true
+		}
+	} else {
+		if len(cm.history) > 0 && cm.history[len(cm.history)-1].ImageData == imageData && cm.history[len(cm.history)-1].Type == itemType {
+			duplicate = true
+		}
+	}
+	if duplicate {
 		return false
 	}
-	
+
 	// Remove existing duplicate
 	for i := len(cm.history) - 1; i >= 0; i-- {
-		if cm.history[i].Content == content && cm.history[i].Type == itemType {
+		if (itemType == TypeText && cm.history[i].Content == content) ||
+			(itemType == TypeImage && cm.history[i].ImageData == imageData) &&
+			cm.history[i].Type == itemType {
 			cm.history = append(cm.history[:i], cm.history[i+1:]...)
 			break
 		}
 	}
-	
+
 	// Create new item
 	item := ClipboardItem{
 		ID:        fmt.Sprintf("%d", time.Now().UnixNano()),
@@ -257,9 +268,9 @@ func (cm *ClipboardManager) addToHistory(content string, itemType ClipboardItemT
 		Timestamp: time.Now(),
 		Pinned:    false,
 	}
-	
+
 	cm.history = append(cm.history, item)
-	
+
 	// Keep only last 1000 unpinned items (pinned items are kept)
 	unpinnedCount := 0
 	for i := len(cm.history) - 1; i >= 0; i-- {
@@ -270,7 +281,7 @@ func (cm *ClipboardManager) addToHistory(content string, itemType ClipboardItemT
 			}
 		}
 	}
-	
+
 	return true
 }
 
@@ -297,6 +308,15 @@ func (cm *ClipboardManager) deleteSelected() bool {
 		return false
 	}
 	targetItem := cm.filtered[cm.selectedIndex]
+	if targetItem.Pinned {
+		fyne.Do(func() {
+			cm.app.SendNotification(&fyne.Notification{
+				Title:   "Cannot Delete",
+				Content: "Pinned items cannot be deleted. Please unpin first.",
+			})
+		})
+		return false
+	}
 	for i, item := range cm.history {
 		if item.ID == targetItem.ID {
 			cm.history = append(cm.history[:i], cm.history[i+1:]...)
@@ -304,6 +324,18 @@ func (cm *ClipboardManager) deleteSelected() bool {
 		}
 	}
 	cm.selectedIndex = -1
+	// Clear preview
+	fyne.Do(func() {
+		if cm.previewEntry != nil {
+			cm.previewEntry.SetText("")
+			cm.previewEntry.SetPlaceHolder("Preview selected item...")
+			cm.previewEntry.Show()
+		}
+		if cm.previewImage != nil {
+			cm.previewImage.Resource = theme.BrokenImageIcon()
+			cm.previewImage.Hide()
+		}
+	})
 	return true
 }
 
@@ -320,6 +352,18 @@ func (cm *ClipboardManager) clearHistory() {
 	cm.history = pinnedItems
 	cm.filtered = []ClipboardItem{}
 	cm.selectedIndex = -1
+	// Clear preview
+	fyne.Do(func() {
+		if cm.previewEntry != nil {
+			cm.previewEntry.SetText("")
+			cm.previewEntry.SetPlaceHolder("Preview selected item...")
+			cm.previewEntry.Show()
+		}
+		if cm.previewImage != nil {
+			cm.previewImage.Resource = theme.BrokenImageIcon()
+			cm.previewImage.Hide()
+		}
+	})
 }
 
 func (cm *ClipboardManager) getFilteredCount() int {
@@ -363,7 +407,7 @@ func (cm *ClipboardManager) refreshUI() {
 	if !cm.running {
 		return
 	}
-	
+
 	// Use fyne.Do to ensure UI updates happen on the main thread
 	fyne.Do(func() {
 		if cm.historyList != nil && cm.running {
@@ -380,7 +424,7 @@ func (cm *ClipboardManager) refreshUI() {
 			historyLen := len(cm.history)
 			filteredCount := len(cm.filtered)
 			cm.mu.RUnlock()
-			
+
 			cm.statusLabel.SetText(fmt.Sprintf(
 				"Total: %d | Pinned: %d | Showing: %d | Last copied: %s",
 				historyLen,
@@ -397,12 +441,12 @@ func (cm *ClipboardManager) updatePreview() {
 	if !cm.running || cm.selectedIndex < 0 {
 		return
 	}
-	
+
 	selectedItem := cm.getSelectedItem()
 	if selectedItem.ID == "" {
 		return
 	}
-	
+
 	switch selectedItem.Type {
 	case TypeText:
 		if cm.previewEntry != nil {
@@ -414,9 +458,10 @@ func (cm *ClipboardManager) updatePreview() {
 		}
 	case TypeImage:
 		if cm.previewEntry != nil {
-			cm.previewEntry.SetText(fmt.Sprintf("Image copied at %s\nSize: %d bytes", 
+			size := len(selectedItem.ImageData) * 3 / 4 // Approximate decoded size
+			cm.previewEntry.SetText(fmt.Sprintf("Image copied at %s\nSize: ~%d bytes",
 				selectedItem.Timestamp.Format("2006-01-02 15:04:05"),
-				len(selectedItem.ImageData)))
+				size))
 			cm.previewEntry.Show()
 		}
 		if cm.previewImage != nil && selectedItem.ImageData != "" {
@@ -445,7 +490,8 @@ func (cm *ClipboardManager) shutdown() {
 
 func (cm *ClipboardManager) startClipboardMonitor() {
 	go func() {
-		var lastContent string
+		var lastText string
+		var lastImageHash string
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 		for {
@@ -454,24 +500,43 @@ func (cm *ClipboardManager) startClipboardMonitor() {
 				if !cm.running {
 					return
 				}
-				
-				// Check for text content
-				textContent := cm.window.Clipboard().Content()
-				
-				// Process text content
-				if textContent != "" && textContent != lastContent {
-					lastContent = textContent
-					if cm.addToHistory(textContent, TypeText, "") {
-						cm.lastCopied = time.Now()
-						cm.saveHistory()
-						cm.updateFiltered()
-						// Schedule UI update on main thread
-						fyne.Do(func() {
-							cm.refreshUI()
-						})
+
+				textBytes := clipboard.Read(clipboard.FmtText)
+				imageBytes := clipboard.Read(clipboard.FmtImage)
+
+				if len(textBytes) > 0 {
+					content := string(textBytes)
+					if content != lastText {
+						lastText = content
+						lastImageHash = ""
+						if cm.addToHistory(content, TypeText, "") {
+							cm.lastCopied = time.Now()
+							cm.saveHistory()
+							cm.updateFiltered()
+							fyne.Do(func() {
+								cm.refreshUI()
+							})
+						}
+					}
+				} else if len(imageBytes) > 0 {
+					sum := sha256.Sum256(imageBytes)
+					hash := hex.EncodeToString(sum[:])
+					if hash != lastImageHash {
+						lastImageHash = hash
+						lastText = ""
+						base64Data := base64.StdEncoding.EncodeToString(imageBytes)
+						content := fmt.Sprintf("Image (%d bytes)", len(imageBytes))
+						if cm.addToHistory(content, TypeImage, base64Data) {
+							cm.lastCopied = time.Now()
+							cm.saveHistory()
+							cm.updateFiltered()
+							fyne.Do(func() {
+								cm.refreshUI()
+							})
+						}
 					}
 				}
-				
+
 			case <-cm.shutdownChan:
 				return
 			}
@@ -479,24 +544,7 @@ func (cm *ClipboardManager) startClipboardMonitor() {
 	}()
 }
 
-// Helper function to encode image to PNG bytes
-func encodeImageToPNG(img image.Image) ([]byte, error) {
-	var buf bytes.Buffer
-	err := png.Encode(&buf, img)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
 
-// Helper function to decode base64 image data to image.Image
-func decodeImageFromPNG(data string) (image.Image, error) {
-	imageBytes, err := base64.StdEncoding.DecodeString(data)
-	if err != nil {
-		return nil, err
-	}
-	return png.Decode(bytes.NewReader(imageBytes))
-}
 
 func loadIcon() fyne.Resource {
 	iconPath := "icon.png"
@@ -517,7 +565,7 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 	} else {
 		pinIcon = theme.RadioButtonIcon()
 	}
-	
+
 	pinButton := widget.NewButtonWithIcon("", pinIcon, func() {
 		go func() {
 			if cm.togglePin(index) {
@@ -530,7 +578,7 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 		}()
 	})
 	pinButton.Resize(fyne.NewSize(24, 24))
-	
+
 	// Create type icon
 	var typeIcon fyne.Resource
 	switch item.Type {
@@ -539,34 +587,34 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 	case TypeImage:
 		typeIcon = theme.MediaPhotoIcon()
 	}
-	
+
 	typeLabel := widget.NewIcon(typeIcon)
-	
+
 	// Create content label with padding
 	displayText := item.Content
 	if len(displayText) > 80 {
 		displayText = displayText[:77] + "..."
 	}
 	displayText = strings.ReplaceAll(displayText, "\n", " ")
-	
+
 	contentLabel := widget.NewLabel(displayText)
-	
+
 	// Create timestamp label
 	timeLabel := widget.NewLabel(item.Timestamp.Format("15:04"))
 	timeLabel.TextStyle.Monospace = true
-	
-	// Create horizontal container with padding
+
+	// Create horizontal container with pin button first
 	content := container.NewHBox(
+		pinButton,
 		typeLabel,
 		contentLabel,
 		widget.NewLabel(""), // Spacer
 		timeLabel,
-		pinButton,
 	)
-	
+
 	// Add padding around the content
 	paddedContent := container.NewPadded(content)
-	
+
 	return container.NewBorder(nil, nil, nil, nil, paddedContent)
 }
 
@@ -577,6 +625,11 @@ func main() {
 	myApp.Settings().SetTheme(theme.DarkTheme())
 	myApp.SetIcon(loadIcon())
 
+	err := clipboard.Init()
+	if err != nil {
+		log.Printf("Warning: Clipboard init failed: %v. Image support may be unavailable.", err)
+	}
+
 	myWindow := myApp.NewWindow("FYClip - Clipboard Manager")
 	myWindow.Resize(fyne.NewSize(900, 600))
 
@@ -586,20 +639,20 @@ func main() {
 	previewText := widget.NewMultiLineEntry()
 	previewText.SetPlaceHolder("Preview selected item...")
 	cm.previewEntry = previewText
-	
+
 	previewImage := canvas.NewImageFromResource(theme.BrokenImageIcon())
 	previewImage.Hide()
 	cm.previewImage = previewImage
-	
+
 	// Preview container that can switch between text and image
-	previewContainer := container.NewBorder(nil, nil, nil, nil, 
+	previewContainer := container.NewBorder(nil, nil, nil, nil,
 		container.NewStack(previewText, previewImage))
 	cm.previewContainer = previewContainer
 
 	// History List with custom rendering
 	historyList := widget.NewList(
 		func() int { return cm.getFilteredCount() },
-		func() fyne.CanvasObject { 
+		func() fyne.CanvasObject {
 			return container.NewBorder(nil, nil, nil, nil, widget.NewLabel("Loading..."))
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
@@ -607,10 +660,10 @@ func main() {
 			if item.ID == "" {
 				return
 			}
-			
+
 			// Create new content for this item
 			newContent := createListItem(item, i, cm)
-			
+
 			// Update the container with new item data
 			if border := o.(*fyne.Container); border != nil {
 				border.Objects = newContent.Objects
@@ -619,18 +672,20 @@ func main() {
 		},
 	)
 	cm.historyList = historyList
-	
+
 	historyList.OnSelected = func(id widget.ListItemID) {
 		cm.setSelectedIndex(id)
 		selectedItem := cm.getSelectedItem()
 		if selectedItem.ID != "" {
-			switch selectedItem.Type {
-			case TypeText:
-				myWindow.Clipboard().SetContent(selectedItem.Content)
-			case TypeImage:
-				// For images, we'll copy the description text for now
-				// since Fyne doesn't support setting image content to clipboard directly
-				myWindow.Clipboard().SetContent(selectedItem.Content)
+			if selectedItem.Type == TypeText {
+				clipboard.Write(clipboard.FmtText, []byte(selectedItem.Content))
+			} else if selectedItem.Type == TypeImage && selectedItem.ImageData != "" {
+				data, err := base64.StdEncoding.DecodeString(selectedItem.ImageData)
+				if err == nil {
+					clipboard.Write(clipboard.FmtImage, data)
+				} else {
+					log.Printf("Error decoding image for copy: %v", err)
+				}
 			}
 			cm.lastCopied = time.Now()
 			fyne.Do(func() {
@@ -656,12 +711,15 @@ func main() {
 		widget.NewToolbarAction(theme.ContentCopyIcon(), func() {
 			selectedItem := cm.getSelectedItem()
 			if selectedItem.ID != "" {
-				switch selectedItem.Type {
-				case TypeText:
-					myWindow.Clipboard().SetContent(selectedItem.Content)
-				case TypeImage:
-					// For images, copy the description text since Fyne doesn't support image clipboard directly
-					myWindow.Clipboard().SetContent(selectedItem.Content)
+				if selectedItem.Type == TypeText {
+					clipboard.Write(clipboard.FmtText, []byte(selectedItem.Content))
+				} else if selectedItem.Type == TypeImage && selectedItem.ImageData != "" {
+					data, err := base64.StdEncoding.DecodeString(selectedItem.ImageData)
+					if err == nil {
+						clipboard.Write(clipboard.FmtImage, data)
+					} else {
+						log.Printf("Error decoding image for copy: %v", err)
+					}
 				}
 				cm.lastCopied = time.Now()
 				fyne.Do(func() {
@@ -760,8 +818,8 @@ func main() {
 			}),
 			autoStartItem,
 			fyne.NewMenuItem("Quit", func() {
-				cm.shutdown()      // Stop clipboard monitoring
-				myApp.Quit()       // Quit app
+				cm.shutdown() // Stop clipboard monitoring
+				myApp.Quit()  // Quit app
 			}),
 		)
 		desk.SetSystemTrayMenu(trayMenu)
