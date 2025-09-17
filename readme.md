@@ -164,9 +164,35 @@ FyClip---Advanced-Clipboard-Manager/
 
 # Change Log
 
+## [1.3.0] - 2025-09-17
+
+### Added
+
+- **🖼️ Cross-Platform Image Support**: Full image clipboard handling for Linux, Windows, and macOS using `golang.design/x/clipboard` library.
+- **📌 Enhanced Pinning**: Pin button now appears first in list items for easier access. Pinned items are visually distinct and protected from deletion.
+- **🛡️ Pin Protection**: Pinned items cannot be deleted until unpinned first, with user notification for attempted deletions.
+- **🧹 Preview Clearing**: Automatically clears the preview panel (text and image) after deleting an item or clearing history.
+
+### Changed
+
+- **UI Layout**: Pin icon repositioned before type icon in history list for improved usability.
+- **Duplicate Detection**: Improved deduplication for images using SHA256 hashing to prevent identical image entries.
+- **Preview Handling**: Better image size approximation and error handling in preview display.
+
+### Fixed
+
+- **Clipboard Crashes**: Resolved Windows-specific clipboard access errors when handling images.
+- **Preview Persistence**: Fixed stale preview content remaining after item deletion.
+- **Thread Safety**: Ensured all UI updates (including preview clearing) run on the main thread using `fyne.Do`.
+
+### Notes
+
+- Version 1.3.0 focuses on robust image support across all platforms and user-requested UX improvements for pinning and preview management. Requires `go get golang.design/x/clipboard` for building.
+
 ## [1.2.0] - 2025-09-15
 
 ### Added
+
 - **System Tray Support**: FyClip now has a tray icon with menu options:
   - **Show**: Restore the main window.
   - **Enable/Disable AutoStart**: Toggle automatic startup on system boot.
@@ -176,11 +202,14 @@ FyClip---Advanced-Clipboard-Manager/
 - **System Theme Awareness**: Retains the user’s system dark/light theme for the app.
 
 ### Changed
+
 - Main window no longer exits the app on close; now it hides to tray.
 - Updated tray menu dynamically reflects the AutoStart state.
 
 ### Fixed
+
 - Minor UI refresh issues when selecting or updating clipboard items.
 
 ### Notes
+
 - Version 1.2.0 enhances background usability by integrating system tray features and auto-start capabilities while keeping clipboard monitoring fully functional.
