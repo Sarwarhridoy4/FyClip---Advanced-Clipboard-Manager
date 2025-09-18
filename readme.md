@@ -4,6 +4,9 @@ A powerful, cross-platform clipboard manager built with Go and Fyne that automat
 
 ![FyClip Screenshot](screenshot.png)
 
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager?style=for-the-badge&logo=github)](https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases)
+
+
 ## ✨ Features
 
 ### Core Functionality
@@ -72,7 +75,7 @@ fyne package
 
 ---
 
-## 🔧 Build Instructions
+## 🔧 Build Instructions(via Go Build Tool)
 
 ### Windows
 
@@ -97,6 +100,64 @@ GOOS=linux GOARCH=arm64 go build -o fyclip-linux-arm64
 ```
 
 ---
+Got it ✅
+Here’s a **README section** you can add for packaging your Fyne app with versioning:
+
+---
+
+# 📦 Packaging FyClip (Fyne)
+
+To distribute FyClip across platforms, use the built-in [`fyne package`](https://developer.fyne.io/started/packaging) command.
+This allows you to set the **App ID**, **Version**, and **Icon** during build.
+
+## 🛠 Packaging Commands
+
+### Windows
+
+```bash
+fyne package -os windows \
+  --app-id com.sarwar.fyclip \
+  --app-version 1.0.0 \
+  --icon icon.png \
+  --release
+```
+
+### Linux
+
+```bash
+fyne package -os linux \
+  --app-id com.sarwar.fyclip \
+  --app-version 1.0.0 \
+  --icon icon.png \
+  --release
+```
+
+### macOS
+
+```bash
+fyne package -os darwin \
+  --app-id com.sarwar.fyclip \
+  --app-version 1.0.0 \
+  --icon icon.png \
+  --release
+```
+
+---
+
+## 📋 Notes
+
+* `--app-id` must be **unique** (reverse-DNS style recommended, e.g., `com.sarwar.fyclip`).
+* `--app-version` is displayed in app metadata and installers.
+* `--icon` should be a PNG (for Windows, Fyne will convert automatically).
+* `--release` ensures optimized builds suitable for distribution.
+
+---
+
+✨ Now you can package **cross-platform installers** for FyClip with version control.
+
+---
+
+
 
 ## 📁 File Structure
 
