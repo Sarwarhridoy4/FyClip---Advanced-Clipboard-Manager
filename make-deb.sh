@@ -5,7 +5,7 @@
 # Features:
 #   ✅ Tray icon support (icons in hicolor paths)
 #   ✅ Multi-size screenshots (software centers)
-#   ✅ Automatic version from Git tags
+#   ✅ Version prompt (defaults to latest Git tag or 1.0.0)
 #   ✅ Git commit hash embedded in binary
 #   ✅ AppID support
 #   ✅ Builds .deb and AppImage packages
@@ -23,13 +23,20 @@
 APP_NAME="fyclip"
 APP_ID="com.sarwar.fyclip"   # Unique AppID used by Fyne
 
-# --- Determine version from Git or argument ---
+# --- Determine version from argument, Git tag, or prompt (fallback 1.0.0) ---
 if git rev-parse --git-dir > /dev/null 2>&1; then
-    VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "${1:-1.0.0}")
+    DEFAULT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0")
     GIT_HASH=$(git rev-parse --short HEAD)
 else
-    VERSION=${1:-"1.0.0"}
+    DEFAULT_VERSION="1.0.0"
     GIT_HASH="unknown"
+fi
+
+if [ -n "$1" ]; then
+    VERSION="$1"
+else
+    read -p "Enter version [default: ${DEFAULT_VERSION}]: " VERSION
+    VERSION=${VERSION:-"$DEFAULT_VERSION"}
 fi
 
 # --- Map uname -m to Debian and AppImage architectures ---
@@ -57,6 +64,7 @@ sudo apt-get update
 sudo apt-get install -y imagemagick wget dpkg-dev golang-go
 sudo go mod init ${APP_NAME}
 sudo go mod tidy
+
 # =====================================================================
 # Step 1: Clean previous builds
 # =====================================================================
