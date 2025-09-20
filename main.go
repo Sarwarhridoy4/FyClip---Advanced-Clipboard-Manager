@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-
 	"log"
 	"os"
 	"os/exec"
@@ -25,7 +24,12 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"golang.design/x/clipboard"
+
+	_ "embed" // For embedding icon
 )
+
+//go:embed icon.png
+var iconBytes []byte
 
 // ---------------------- AutoStart Helpers ----------------------
 
@@ -135,6 +139,8 @@ type ClipboardManager struct {
 	shutdownChan     chan struct{}
 	running          bool
 	lastCopied       time.Time
+	useXclip         bool // Fallback for Linux X11
+	useWlclip        bool // Fallback for Linux Wayland
 }
 
 func NewClipboardManager(window fyne.Window, app fyne.App) *ClipboardManager {
@@ -488,6 +494,70 @@ func (cm *ClipboardManager) shutdown() {
 	}
 }
 
+func (cm *ClipboardManager) readClipboardText() []byte {
+	if cm.useWlclip {
+		out, err := exec.Command("wl-paste").Output()
+		if err != nil {
+			return nil
+		}
+		return out
+	} else if cm.useXclip {
+		out, err := exec.Command("xclip", "-o", "-selection", "clipboard").Output()
+		if err != nil {
+			return nil
+		}
+		return out
+	}
+	return clipboard.Read(clipboard.FmtText)
+}
+
+func (cm *ClipboardManager) readClipboardImage() []byte {
+	if cm.useWlclip {
+		out, err := exec.Command("wl-paste", "--type", "image/png").Output()
+		if err != nil {
+			return nil
+		}
+		return out
+	} else if cm.useXclip {
+		out, err := exec.Command("xclip", "-selection", "clipboard", "-t", "image/png", "-o").Output()
+		if err != nil {
+			return nil
+		}
+		return out
+	}
+	return clipboard.Read(clipboard.FmtImage)
+}
+
+func (cm *ClipboardManager) writeClipboardText(data []byte) {
+	if cm.useWlclip {
+		cmd := exec.Command("wl-copy")
+		cmd.Stdin = strings.NewReader(string(data))
+		_ = cmd.Run()
+		return
+	} else if cm.useXclip {
+		cmd := exec.Command("xclip", "-i", "-selection", "clipboard")
+		cmd.Stdin = strings.NewReader(string(data))
+		_ = cmd.Run()
+		return
+	}
+	clipboard.Write(clipboard.FmtText, data)
+}
+
+func (cm *ClipboardManager) writeClipboardImage(data []byte) {
+	if cm.useWlclip {
+		cmd := exec.Command("wl-copy", "--type", "image/png")
+		cmd.Stdin = strings.NewReader(string(data))
+		_ = cmd.Run()
+		return
+	} else if cm.useXclip {
+		cmd := exec.Command("xclip", "-selection", "clipboard", "-t", "image/png", "-i")
+		cmd.Stdin = strings.NewReader(string(data))
+		_ = cmd.Run()
+		return
+	}
+	clipboard.Write(clipboard.FmtImage, data)
+}
+
 func (cm *ClipboardManager) startClipboardMonitor() {
 	go func() {
 		var lastText string
@@ -501,8 +571,11 @@ func (cm *ClipboardManager) startClipboardMonitor() {
 					return
 				}
 
-				textBytes := clipboard.Read(clipboard.FmtText)
-				imageBytes := clipboard.Read(clipboard.FmtImage)
+				textBytes := cm.readClipboardText()
+				imageBytes := []byte{}
+				if len(textBytes) == 0 {
+					imageBytes = cm.readClipboardImage()
+				}
 
 				if len(textBytes) > 0 {
 					content := string(textBytes)
@@ -544,14 +617,11 @@ func (cm *ClipboardManager) startClipboardMonitor() {
 	}()
 }
 
-
-
 func loadIcon() fyne.Resource {
-	iconPath := "icon.png"
-	if data, err := os.ReadFile(iconPath); err == nil {
-		return fyne.NewStaticResource("icon.png", data)
+	if len(iconBytes) > 0 {
+		return fyne.NewStaticResource("icon.png", iconBytes)
 	}
-	log.Printf("Icon file 'icon.png' not found")
+	log.Printf("Embedded icon not found, falling back to theme icon")
 	return theme.ContentPasteIcon() // fallback
 }
 
@@ -626,14 +696,35 @@ func main() {
 	myApp.SetIcon(loadIcon())
 
 	err := clipboard.Init()
+	useFallback := runtime.GOOS == "linux" && err != nil
 	if err != nil {
-		log.Printf("Warning: Clipboard init failed: %v. Image support may be unavailable.", err)
+		log.Printf("Warning: Native clipboard init failed: %v. Image support may be unavailable without fallback.", err)
 	}
 
 	myWindow := myApp.NewWindow("FYClip - Clipboard Manager")
 	myWindow.Resize(fyne.NewSize(900, 600))
 
 	cm := NewClipboardManager(myWindow, myApp)
+
+	if useFallback {
+		if os.Getenv("XDG_SESSION_TYPE") == "wayland" {
+			_, wlErr := exec.LookPath("wl-paste")
+			if wlErr == nil {
+				cm.useWlclip = true
+				log.Println("Using wl-clipboard fallback for Wayland.")
+			} else {
+				log.Println("wl-clipboard not found; install it for clipboard support on Wayland.")
+			}
+		} else {
+			_, xErr := exec.LookPath("xclip")
+			if xErr == nil {
+				cm.useXclip = true
+				log.Println("Using xclip fallback for X11.")
+			} else {
+				log.Println("xclip not found; install it for clipboard support on X11.")
+			}
+		}
+	}
 
 	// Preview components
 	previewText := widget.NewMultiLineEntry()
@@ -678,11 +769,11 @@ func main() {
 		selectedItem := cm.getSelectedItem()
 		if selectedItem.ID != "" {
 			if selectedItem.Type == TypeText {
-				clipboard.Write(clipboard.FmtText, []byte(selectedItem.Content))
+				cm.writeClipboardText([]byte(selectedItem.Content))
 			} else if selectedItem.Type == TypeImage && selectedItem.ImageData != "" {
 				data, err := base64.StdEncoding.DecodeString(selectedItem.ImageData)
 				if err == nil {
-					clipboard.Write(clipboard.FmtImage, data)
+					cm.writeClipboardImage(data)
 				} else {
 					log.Printf("Error decoding image for copy: %v", err)
 				}
@@ -712,11 +803,11 @@ func main() {
 			selectedItem := cm.getSelectedItem()
 			if selectedItem.ID != "" {
 				if selectedItem.Type == TypeText {
-					clipboard.Write(clipboard.FmtText, []byte(selectedItem.Content))
+					cm.writeClipboardText([]byte(selectedItem.Content))
 				} else if selectedItem.Type == TypeImage && selectedItem.ImageData != "" {
 					data, err := base64.StdEncoding.DecodeString(selectedItem.ImageData)
 					if err == nil {
-						clipboard.Write(clipboard.FmtImage, data)
+						cm.writeClipboardImage(data)
 					} else {
 						log.Printf("Error decoding image for copy: %v", err)
 					}
