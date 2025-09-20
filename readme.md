@@ -100,10 +100,7 @@ GOOS=linux GOARCH=arm64 go build -o fyclip-linux-arm64
 ```
 
 ---
-Got it ✅
-Here’s a **README section** you can add for packaging your Fyne app with versioning:
 
----
 
 # 📦 Packaging FyClip (Fyne)
 
