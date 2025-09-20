@@ -33,7 +33,7 @@ LicenseFile=C:\Users\Sarwar_Hossain\Desktop\FyClip---Advanced-Clipboard-Manager\
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-OutputDir=G:\Development\FyClip---Advanced-Clipboard-Manager
+OutputDir=C:\Users\Sarwar_Hossain\Desktop\FyClip---Advanced-Clipboard-Manager
 OutputBaseFilename=FyClip_setup
 SetupIconFile=C:\Users\Sarwar_Hossain\Desktop\FyClip---Advanced-Clipboard-Manager\icon.ico
 SolidCompression=yes
