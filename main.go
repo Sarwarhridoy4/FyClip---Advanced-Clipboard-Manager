@@ -6,6 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"log"
 	"os"
 	"os/exec"
@@ -20,10 +23,14 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"golang.design/x/clipboard"
+
+	fynetooltip "github.com/dweymouth/fyne-tooltip"
+	ttwidget "github.com/dweymouth/fyne-tooltip/widget"
 
 	_ "embed" // For embedding icon
 )
@@ -372,6 +379,91 @@ func (cm *ClipboardManager) clearHistory() {
 	})
 }
 
+func (cm *ClipboardManager) saveImageAs(filename string, format string) {
+	if cm.selectedIndex < 0 {
+		return
+	}
+	selectedItem := cm.getSelectedItem()
+	if selectedItem.Type != TypeImage || selectedItem.ImageData == "" {
+		fyne.Do(func() {
+			cm.app.SendNotification(&fyne.Notification{
+				Title:   "Error",
+				Content: "No image selected or image data is empty.",
+			})
+		})
+		return
+	}
+
+	data, err := base64.StdEncoding.DecodeString(selectedItem.ImageData)
+	if err != nil {
+		log.Printf("Error decoding image data: %v", err)
+		fyne.Do(func() {
+			cm.app.SendNotification(&fyne.Notification{
+				Title:   "Error",
+				Content: "Failed to decode image data.",
+			})
+		})
+		return
+	}
+
+	img, _, err := image.Decode(strings.NewReader(string(data)))
+	if err != nil {
+		log.Printf("Error decoding image: %v", err)
+		fyne.Do(func() {
+			cm.app.SendNotification(&fyne.Notification{
+				Title:   "Error",
+				Content: "Failed to decode image format.",
+			})
+		})
+		return
+	}
+
+	file, err := os.Create(filename)
+	if err != nil {
+		log.Printf("Error creating file: %v", err)
+		fyne.Do(func() {
+			cm.app.SendNotification(&fyne.Notification{
+				Title:   "Error",
+				Content: "Failed to create file.",
+			})
+		})
+		return
+	}
+	defer file.Close()
+
+	switch format {
+	case "png":
+		if err := png.Encode(file, img); err != nil {
+			log.Printf("Error encoding PNG: %v", err)
+			fyne.Do(func() {
+				cm.app.SendNotification(&fyne.Notification{
+					Title:   "Error",
+					Content: "Failed to save image as PNG.",
+				})
+			})
+			return
+		}
+	case "jpeg":
+		if err := jpeg.Encode(file, img, &jpeg.Options{Quality: 90}); err != nil {
+			log.Printf("Error encoding JPEG: %v", err)
+			fyne.Do(func() {
+				cm.app.SendNotification(&fyne.Notification{
+					Title:   "Error",
+					Content: "Failed to save image as JPEG.",
+				})
+			})
+			return
+		}
+	}
+
+	fyne.Do(func() {
+		cm.app.SendNotification(&fyne.Notification{
+			Title:   "Success",
+			Content: fmt.Sprintf("Image saved as %s", filename),
+		})
+	})
+}
+
 func (cm *ClipboardManager) getFilteredCount() int {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -636,7 +728,7 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 		pinIcon = theme.RadioButtonIcon()
 	}
 
-	pinButton := widget.NewButtonWithIcon("", pinIcon, func() {
+	pinButton := ttwidget.NewButtonWithIcon("", pinIcon, func() {
 		go func() {
 			if cm.togglePin(index) {
 				cm.saveHistory()
@@ -667,10 +759,10 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 	}
 	displayText = strings.ReplaceAll(displayText, "\n", " ")
 
-	contentLabel := widget.NewLabel(displayText)
+	contentLabel := ttwidget.NewLabel(displayText)
 
 	// Create timestamp label
-	timeLabel := widget.NewLabel(item.Timestamp.Format("15:04"))
+	timeLabel := ttwidget.NewLabel(item.Timestamp.Format("15:04"))
 	timeLabel.TextStyle.Monospace = true
 
 	// Create horizontal container with pin button first
@@ -686,6 +778,48 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 	paddedContent := container.NewPadded(content)
 
 	return container.NewBorder(nil, nil, nil, nil, paddedContent)
+}
+
+// ---------------------- About Window ----------------------
+
+func createAboutWindow(app fyne.App) fyne.Window {
+	aboutWindow := app.NewWindow("About FYClip")
+	aboutWindow.Resize(fyne.NewSize(400, 300))
+
+	content := container.NewVBox(
+		ttwidget.NewLabel("FYClip - Advanced Clipboard Manager"),
+		ttwidget.NewLabel(""),
+		ttwidget.NewLabel("Developed by: Sarwar Hossain"),
+		ttwidget.NewLabel("Email: sarwarhridoy4@gmail.com"),
+		ttwidget.NewHyperlink("GitHub Profile", nil),
+	)
+
+	content.Objects[4].(*ttwidget.Hyperlink).SetURLFromString("https://github.com/Sarwarhridoy4")
+	content.Objects[4].(*ttwidget.Hyperlink).SetText("github.com/Sarwarhridoy4")
+
+	aboutWindow.SetContent(container.NewCenter(content))
+	return aboutWindow
+}
+
+// ---------------------- Helper for Showing Popup with Auto-Dismiss ----------------------
+
+func showActionPopup(window fyne.Window, message string) {
+	popupContent := widget.NewCard("", "", widget.NewLabel(message))
+	popup := widget.NewPopUp(popupContent, window.Canvas())
+
+	// Position popup below the toolbar (adjust based on content size)
+	contentPos := window.Content().Position()
+	popupPos := contentPos.Add(fyne.NewPos(10, 40)) // Offset from top-left
+	popup.Move(popupPos)
+	popup.Resize(fyne.NewSize(200, 40))
+	popup.Show()
+
+	// Auto-dismiss after 2 seconds
+	time.AfterFunc(2*time.Second, func() {
+		fyne.Do(func() {
+			popup.Hide()
+		})
+	})
 }
 
 // ---------------------- Main ----------------------
@@ -797,64 +931,124 @@ func main() {
 	}
 	cm.searchEntry = searchEntry
 
-	// Toolbar with pin toggle
-	toolbar := widget.NewToolbar(
-		widget.NewToolbarAction(theme.ContentCopyIcon(), func() {
-			selectedItem := cm.getSelectedItem()
-			if selectedItem.ID != "" {
-				if selectedItem.Type == TypeText {
-					cm.writeClipboardText([]byte(selectedItem.Content))
-				} else if selectedItem.Type == TypeImage && selectedItem.ImageData != "" {
-					data, err := base64.StdEncoding.DecodeString(selectedItem.ImageData)
-					if err == nil {
-						cm.writeClipboardImage(data)
-					} else {
-						log.Printf("Error decoding image for copy: %v", err)
-					}
+	// Toolbar with tooltips and popups
+	copyButton := ttwidget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
+		selectedItem := cm.getSelectedItem()
+		if selectedItem.ID != "" {
+			if selectedItem.Type == TypeText {
+				cm.writeClipboardText([]byte(selectedItem.Content))
+			} else if selectedItem.Type == TypeImage && selectedItem.ImageData != "" {
+				data, err := base64.StdEncoding.DecodeString(selectedItem.ImageData)
+				if err == nil {
+					cm.writeClipboardImage(data)
+				} else {
+					log.Printf("Error decoding image for copy: %v", err)
 				}
-				cm.lastCopied = time.Now()
-				fyne.Do(func() {
-					cm.refreshUI()
-				})
 			}
-		}),
-		widget.NewToolbarAction(theme.ViewRefreshIcon(), func() {
-			if cm.selectedIndex >= 0 {
-				go func() {
-					if cm.togglePin(cm.selectedIndex) {
-						cm.saveHistory()
-						cm.updateFiltered()
-						fyne.Do(func() {
-							cm.refreshUI()
-						})
-					}
-				}()
-			}
-		}),
-		widget.NewToolbarAction(theme.DeleteIcon(), func() {
+			cm.lastCopied = time.Now()
+			fyne.Do(func() {
+				cm.refreshUI()
+				showActionPopup(myWindow, "Copied to clipboard!")
+			})
+		}
+	})
+	copyButton.SetToolTip("Copy selected item to clipboard")
+
+	pinButton := ttwidget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
+		if cm.selectedIndex >= 0 {
 			go func() {
-				if cm.deleteSelected() {
+				if cm.togglePin(cm.selectedIndex) {
 					cm.saveHistory()
 					cm.updateFiltered()
+					pinStatus := "Pinned"
+					if !cm.getSelectedItem().Pinned {
+						pinStatus = "Unpinned"
+					}
 					fyne.Do(func() {
 						cm.refreshUI()
-						historyList.UnselectAll()
+						showActionPopup(myWindow, pinStatus+" item!")
 					})
 				}
 			}()
-		}),
-		widget.NewToolbarAction(theme.DocumentIcon(), func() {
-			go func() {
-				cm.clearHistory()
+		}
+	})
+	pinButton.SetToolTip("Toggle pin for selected item")
+
+	deleteButton := ttwidget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+		go func() {
+			if cm.deleteSelected() {
 				cm.saveHistory()
 				cm.updateFiltered()
 				fyne.Do(func() {
 					cm.refreshUI()
 					historyList.UnselectAll()
+					showActionPopup(myWindow, "Deleted selected item!")
 				})
-			}()
-		}),
+			}
+		}()
+	})
+	deleteButton.SetToolTip("Delete selected item")
+
+	clearButton := ttwidget.NewButtonWithIcon("", theme.DocumentIcon(), func() {
+		go func() {
+			cm.clearHistory()
+			cm.saveHistory()
+			cm.updateFiltered()
+			fyne.Do(func() {
+				cm.refreshUI()
+				historyList.UnselectAll()
+				showActionPopup(myWindow, "Cleared clipboard history!")
+			})
+		}()
+	})
+	clearButton.SetToolTip("Clear all unpinned items")
+
+	saveButton := ttwidget.NewButtonWithIcon("", theme.DownloadIcon(), func() {
+		if cm.selectedIndex < 0 || cm.getSelectedItem().Type != TypeImage {
+			fyne.Do(func() {
+				cm.app.SendNotification(&fyne.Notification{
+					Title:   "Error",
+					Content: "Please select an image to save.",
+				})
+			})
+			return
+		}
+		fyne.Do(func() {
+			dialog.ShowFileSave(func(writer fyne.URIWriteCloser, err error) {
+				if err != nil || writer == nil {
+					return
+				}
+				defer writer.Close()
+				uri := writer.URI()
+				filename := uri.Path()
+				if !strings.HasSuffix(strings.ToLower(filename), ".png") && !strings.HasSuffix(strings.ToLower(filename), ".jpg") && !strings.HasSuffix(strings.ToLower(filename), ".jpeg") {
+					filename += ".png"
+				}
+				format := "png"
+				if strings.HasSuffix(strings.ToLower(filename), ".jpg") || strings.HasSuffix(strings.ToLower(filename), ".jpeg") {
+					format = "jpeg"
+				}
+				cm.saveImageAs(filename, format)
+				fyne.Do(func() {
+					showActionPopup(myWindow, "Image saved successfully!")
+				})
+			}, myWindow)
+		})
+	})
+	saveButton.SetToolTip("Save selected image as PNG/JPEG")
+
+	buttonsBox := container.NewHBox(copyButton, pinButton, deleteButton, clearButton, saveButton)
+
+	// Menu bar with About option
+	menu := fyne.NewMainMenu(
+		fyne.NewMenu("Help",
+			fyne.NewMenuItem("About", func() {
+				aboutWindow := createAboutWindow(myApp)
+				aboutWindow.Show()
+			}),
+		),
 	)
+	myWindow.SetMainMenu(menu)
 
 	statusLabel := widget.NewLabel("")
 	cm.statusLabel = statusLabel
@@ -865,11 +1059,13 @@ func main() {
 
 	content := container.NewBorder(
 		searchEntry,
-		container.NewVBox(toolbar, statusLabel),
+		container.NewVBox(buttonsBox, statusLabel),
 		nil, nil,
 		split,
 	)
-	myWindow.SetContent(content)
+
+	// Add tooltip layer to the window content
+	myWindow.SetContent(fynetooltip.AddWindowToolTipLayer(content, myWindow.Canvas()))
 
 	// Clipboard monitor
 	cm.startClipboardMonitor()
@@ -919,7 +1115,10 @@ func main() {
 		desk.SetSystemTrayIcon(loadIcon())
 	}
 
-	myWindow.SetCloseIntercept(func() { myWindow.Hide() })
+	myWindow.SetCloseIntercept(func() {
+		myWindow.Hide()
+		fynetooltip.DestroyWindowToolTipLayer(myWindow.Canvas())
+	})
 	myWindow.ShowAndRun()
 }
 
