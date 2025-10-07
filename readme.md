@@ -67,7 +67,7 @@ go mod tidy
 go run main.go
 
 # Or build executable
-fyne install -icon icon.png
+fyne install
 
 # Release package
 fyne package
@@ -112,41 +112,22 @@ This allows you to set the **App ID**, **Version**, and **Icon** during build.
 ### Windows
 
 ```bash
-fyne package -os windows \
-  --app-id com.sarwar.fyclip \
-  --app-version 1.0.0 \
-  --icon icon.png \
-  --release
+fyne package -os windows --release
 ```
 
 ### Linux
 
 ```bash
-fyne package -os linux \
-  --app-id com.sarwar.fyclip \
-  --app-version 1.0.0 \
-  --icon icon.png \
-  --release
+fyne package -os linux --release
 ```
 
 ### macOS
 
 ```bash
-fyne package -os darwin \
-  --app-id com.sarwar.fyclip \
-  --app-version 1.0.0 \
-  --icon icon.png \
-  --release
+fyne package -os darwin --release
 ```
 
 ---
-
-## 📋 Notes
-
-* `--app-id` must be **unique** (reverse-DNS style recommended, e.g., `com.sarwar.fyclip`).
-* `--app-version` is displayed in app metadata and installers.
-* `--icon` should be a PNG (for Windows, Fyne will convert automatically).
-* `--release` ensures optimized builds suitable for distribution.
 
 ---
 
