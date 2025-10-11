@@ -1,0 +1,9 @@
+[Details]
+Name = "FyClip"
+ID = "com.sarwar.fyclip"
+Version = "1.3.0"
+Build = 0
+Icon = "icon.png"
+
+[Migrations]
+fyneDo = true
