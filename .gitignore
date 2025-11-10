@@ -12,3 +12,7 @@ fyclip_setup.exe
 fyclip_1.3.0_amd64.deb
 fyclip_1.3.0_x86_64.AppImage
 FyClip.tar.xz
+*.deb
+*.AppImage
+*.exe
+*.tar.xz
