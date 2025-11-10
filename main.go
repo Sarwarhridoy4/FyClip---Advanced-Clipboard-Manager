@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -29,10 +30,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"golang.design/x/clipboard"
 
-	fynetooltip "github.com/dweymouth/fyne-tooltip"
-	ttwidget "github.com/dweymouth/fyne-tooltip/widget"
-
-	_ "embed" // For embedding icon
+	_ "embed"
 )
 
 //go:embed icon.png
@@ -41,13 +39,21 @@ var iconBytes []byte
 // ---------------------- AutoStart Helpers ----------------------
 
 func autoStartPath() string {
-	usr, _ := user.Current()
+	usr, err := user.Current()
+	if err != nil {
+		log.Printf("Warning: Could not get current user: %v", err)
+		return ""
+	}
 	switch runtime.GOOS {
 	case "linux":
 		return filepath.Join(usr.HomeDir, ".config", "autostart", "fyclip.desktop")
 	case "windows":
-		return filepath.Join(os.Getenv("APPDATA"),
-			"Microsoft", "Windows", "Start Menu", "Programs", "Startup", "fyclip.lnk")
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			log.Printf("Warning: APPDATA environment variable not set")
+			return ""
+		}
+		return filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "fyclip.lnk")
 	case "darwin":
 		return filepath.Join(usr.HomeDir, "Library", "LaunchAgents", "com.fyclip.plist")
 	}
@@ -55,12 +61,20 @@ func autoStartPath() string {
 }
 
 func isAutoStartEnabled() bool {
-	_, err := os.Stat(autoStartPath())
+	path := autoStartPath()
+	if path == "" {
+		return false
+	}
+	_, err := os.Stat(path)
 	return err == nil
 }
 
 func enableAutoStart(execPath string) error {
 	path := autoStartPath()
+	if path == "" {
+		return fmt.Errorf("could not determine autostart path")
+	}
+
 	switch runtime.GOOS {
 	case "linux":
 		content := fmt.Sprintf(`[Desktop Entry]
@@ -72,7 +86,9 @@ X-GNOME-Autostart-enabled=true
 Name=FyClip
 Comment=Clipboard Manager
 `, execPath)
-		os.MkdirAll(filepath.Dir(path), 0755)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return fmt.Errorf("failed to create autostart directory: %w", err)
+		}
 		return os.WriteFile(path, []byte(content), 0644)
 	case "windows":
 		cmd := fmt.Sprintf(`$ws = New-Object -ComObject WScript.Shell;
@@ -96,14 +112,23 @@ $lnk.Save()`, path, execPath)
 	<true/>
 </dict>
 </plist>`, execPath)
-		os.MkdirAll(filepath.Dir(path), 0755)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return fmt.Errorf("failed to create launch agents directory: %w", err)
+		}
 		return os.WriteFile(path, []byte(content), 0644)
 	}
-	return nil
+	return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 }
 
 func disableAutoStart() error {
-	return os.Remove(autoStartPath())
+	path := autoStartPath()
+	if path == "" {
+		return fmt.Errorf("could not determine autostart path")
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove autostart file: %w", err)
+	}
+	return nil
 }
 
 // ---------------------- Clipboard Item Types ----------------------
@@ -119,7 +144,8 @@ type ClipboardItem struct {
 	ID        string            `json:"id"`
 	Type      ClipboardItemType `json:"type"`
 	Content   string            `json:"content"`
-	ImageData string            `json:"image_data,omitempty"` // Base64 encoded
+	ImageData string            `json:"image_data,omitempty"`
+	ImageType string            `json:"image_type,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
 	Pinned    bool              `json:"pinned"`
 }
@@ -129,25 +155,28 @@ type ClipboardItem struct {
 const historyFile = "clipboard_history.json"
 
 type ClipboardManager struct {
-	mu               sync.RWMutex
-	history          []ClipboardItem
-	filtered         []ClipboardItem
-	historyPath      string
-	selectedIndex    int
-	searchQuery      string
-	historyList      *widget.List
-	searchEntry      *widget.Entry
-	statusLabel      *widget.Label
-	previewEntry     *widget.Entry
-	previewImage     *canvas.Image
-	previewContainer *fyne.Container
-	window           fyne.Window
-	app              fyne.App
-	shutdownChan     chan struct{}
-	running          bool
-	lastCopied       time.Time
-	useXclip         bool // Fallback for Linux X11
-	useWlclip        bool // Fallback for Linux Wayland
+	mu                   sync.RWMutex
+	history              []ClipboardItem
+	filtered             []ClipboardItem
+	historyPath          string
+	selectedIndex        int
+	searchQuery          string
+	historyList          *widget.List
+	searchEntry          *widget.Entry
+	statusLabel          *widget.Label
+	previewEntry         *widget.Entry
+	previewImage         *canvas.Image
+	previewContainer     *fyne.Container
+	window               fyne.Window
+	app                  fyne.App
+	shutdownChan         chan struct{}
+	running              bool
+	lastCopied           time.Time
+	useXclip             bool
+	useWlclip            bool
+	programmaticCopy     bool
+	lastProgrammaticHash string
+	clipboardAvailable   bool
 }
 
 func NewClipboardManager(window fyne.Window, app fyne.App) *ClipboardManager {
@@ -157,12 +186,13 @@ func NewClipboardManager(window fyne.Window, app fyne.App) *ClipboardManager {
 		homeDir = "."
 	}
 	cm := &ClipboardManager{
-		historyPath:   filepath.Join(homeDir, historyFile),
-		selectedIndex: -1,
-		window:        window,
-		app:           app,
-		shutdownChan:  make(chan struct{}),
-		running:       true,
+		historyPath:        filepath.Join(homeDir, historyFile),
+		selectedIndex:      -1,
+		window:             window,
+		app:                app,
+		shutdownChan:       make(chan struct{}),
+		running:            true,
+		clipboardAvailable: true,
 	}
 	cm.loadHistory()
 	cm.updateFiltered()
@@ -191,6 +221,7 @@ func (cm *ClipboardManager) saveHistory() {
 	historyCopy := make([]ClipboardItem, len(cm.history))
 	copy(historyCopy, cm.history)
 	cm.mu.RUnlock()
+	
 	go func() {
 		data, err := json.MarshalIndent(historyCopy, "", "  ")
 		if err != nil {
@@ -207,11 +238,9 @@ func (cm *ClipboardManager) updateFiltered() {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	// Sort history: pinned items first, then by timestamp (newest first)
 	sortedHistory := make([]ClipboardItem, len(cm.history))
 	copy(sortedHistory, cm.history)
 
-	// Separate pinned and unpinned items
 	var pinnedItems, unpinnedItems []ClipboardItem
 	for _, item := range sortedHistory {
 		if item.Pinned {
@@ -221,7 +250,6 @@ func (cm *ClipboardManager) updateFiltered() {
 		}
 	}
 
-	// Combine: pinned first, then unpinned (newest first)
 	sortedHistory = append(pinnedItems, unpinnedItems...)
 
 	if cm.searchQuery == "" {
@@ -239,7 +267,7 @@ func (cm *ClipboardManager) updateFiltered() {
 	cm.selectedIndex = -1
 }
 
-func (cm *ClipboardManager) addToHistory(content string, itemType ClipboardItemType, imageData string) bool {
+func (cm *ClipboardManager) addToHistory(content string, itemType ClipboardItemType, imageData string, imageType string) bool {
 	if content == "" {
 		return false
 	}
@@ -264,27 +292,26 @@ func (cm *ClipboardManager) addToHistory(content string, itemType ClipboardItemT
 
 	// Remove existing duplicate
 	for i := len(cm.history) - 1; i >= 0; i-- {
-		if (itemType == TypeText && cm.history[i].Content == content) ||
-			(itemType == TypeImage && cm.history[i].ImageData == imageData) &&
-			cm.history[i].Type == itemType {
+		if (itemType == TypeText && cm.history[i].Content == content && cm.history[i].Type == itemType) ||
+			(itemType == TypeImage && cm.history[i].ImageData == imageData && cm.history[i].Type == itemType) {
 			cm.history = append(cm.history[:i], cm.history[i+1:]...)
 			break
 		}
 	}
 
-	// Create new item
 	item := ClipboardItem{
 		ID:        fmt.Sprintf("%d", time.Now().UnixNano()),
 		Type:      itemType,
 		Content:   content,
 		ImageData: imageData,
+		ImageType: imageType,
 		Timestamp: time.Now(),
 		Pinned:    false,
 	}
 
 	cm.history = append(cm.history, item)
 
-	// Keep only last 1000 unpinned items (pinned items are kept)
+	// Keep only last 1000 unpinned items
 	unpinnedCount := 0
 	for i := len(cm.history) - 1; i >= 0; i-- {
 		if !cm.history[i].Pinned {
@@ -323,10 +350,12 @@ func (cm *ClipboardManager) deleteSelected() bool {
 	targetItem := cm.filtered[cm.selectedIndex]
 	if targetItem.Pinned {
 		fyne.Do(func() {
-			cm.app.SendNotification(&fyne.Notification{
-				Title:   "Cannot Delete",
-				Content: "Pinned items cannot be deleted. Please unpin first.",
-			})
+			if cm.app != nil {
+				cm.app.SendNotification(&fyne.Notification{
+					Title:   "Cannot Delete",
+					Content: "Pinned items cannot be deleted. Please unpin first.",
+				})
+			}
 		})
 		return false
 	}
@@ -337,7 +366,6 @@ func (cm *ClipboardManager) deleteSelected() bool {
 		}
 	}
 	cm.selectedIndex = -1
-	// Clear preview
 	fyne.Do(func() {
 		if cm.previewEntry != nil {
 			cm.previewEntry.SetText("")
@@ -355,7 +383,6 @@ func (cm *ClipboardManager) deleteSelected() bool {
 func (cm *ClipboardManager) clearHistory() {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-	// Keep only pinned items
 	var pinnedItems []ClipboardItem
 	for _, item := range cm.history {
 		if item.Pinned {
@@ -365,7 +392,6 @@ func (cm *ClipboardManager) clearHistory() {
 	cm.history = pinnedItems
 	cm.filtered = []ClipboardItem{}
 	cm.selectedIndex = -1
-	// Clear preview
 	fyne.Do(func() {
 		if cm.previewEntry != nil {
 			cm.previewEntry.SetText("")
@@ -386,10 +412,12 @@ func (cm *ClipboardManager) saveImageAs(filename string, format string) {
 	selectedItem := cm.getSelectedItem()
 	if selectedItem.Type != TypeImage || selectedItem.ImageData == "" {
 		fyne.Do(func() {
-			cm.app.SendNotification(&fyne.Notification{
-				Title:   "Error",
-				Content: "No image selected or image data is empty.",
-			})
+			if cm.app != nil {
+				cm.app.SendNotification(&fyne.Notification{
+					Title:   "Error",
+					Content: "No image selected or image data is empty.",
+				})
+			}
 		})
 		return
 	}
@@ -398,10 +426,12 @@ func (cm *ClipboardManager) saveImageAs(filename string, format string) {
 	if err != nil {
 		log.Printf("Error decoding image data: %v", err)
 		fyne.Do(func() {
-			cm.app.SendNotification(&fyne.Notification{
-				Title:   "Error",
-				Content: "Failed to decode image data.",
-			})
+			if cm.app != nil {
+				cm.app.SendNotification(&fyne.Notification{
+					Title:   "Error",
+					Content: "Failed to decode image data.",
+				})
+			}
 		})
 		return
 	}
@@ -410,10 +440,12 @@ func (cm *ClipboardManager) saveImageAs(filename string, format string) {
 	if err != nil {
 		log.Printf("Error decoding image: %v", err)
 		fyne.Do(func() {
-			cm.app.SendNotification(&fyne.Notification{
-				Title:   "Error",
-				Content: "Failed to decode image format.",
-			})
+			if cm.app != nil {
+				cm.app.SendNotification(&fyne.Notification{
+					Title:   "Error",
+					Content: "Failed to decode image format.",
+				})
+			}
 		})
 		return
 	}
@@ -422,10 +454,12 @@ func (cm *ClipboardManager) saveImageAs(filename string, format string) {
 	if err != nil {
 		log.Printf("Error creating file: %v", err)
 		fyne.Do(func() {
-			cm.app.SendNotification(&fyne.Notification{
-				Title:   "Error",
-				Content: "Failed to create file.",
-			})
+			if cm.app != nil {
+				cm.app.SendNotification(&fyne.Notification{
+					Title:   "Error",
+					Content: "Failed to create file.",
+				})
+			}
 		})
 		return
 	}
@@ -436,31 +470,37 @@ func (cm *ClipboardManager) saveImageAs(filename string, format string) {
 		if err := png.Encode(file, img); err != nil {
 			log.Printf("Error encoding PNG: %v", err)
 			fyne.Do(func() {
-				cm.app.SendNotification(&fyne.Notification{
-					Title:   "Error",
-					Content: "Failed to save image as PNG.",
-				})
+				if cm.app != nil {
+					cm.app.SendNotification(&fyne.Notification{
+						Title:   "Error",
+						Content: "Failed to save image as PNG.",
+					})
+				}
 			})
 			return
 		}
-	case "jpeg":
-		if err := jpeg.Encode(file, img, &jpeg.Options{Quality: 90}); err != nil {
+	case "jpeg", "jpg":
+		if err := jpeg.Encode(file, img, &jpeg.Options{Quality: 95}); err != nil {
 			log.Printf("Error encoding JPEG: %v", err)
 			fyne.Do(func() {
-				cm.app.SendNotification(&fyne.Notification{
-					Title:   "Error",
-					Content: "Failed to save image as JPEG.",
-				})
+				if cm.app != nil {
+					cm.app.SendNotification(&fyne.Notification{
+						Title:   "Error",
+						Content: "Failed to save image as JPEG.",
+					})
+				}
 			})
 			return
 		}
 	}
 
 	fyne.Do(func() {
-		cm.app.SendNotification(&fyne.Notification{
-			Title:   "Success",
-			Content: fmt.Sprintf("Image saved as %s", filename),
-		})
+		if cm.app != nil {
+			cm.app.SendNotification(&fyne.Notification{
+				Title:   "Success",
+				Content: fmt.Sprintf("Image saved as %s", filepath.Base(filename)),
+			})
+		}
 	})
 }
 
@@ -506,7 +546,6 @@ func (cm *ClipboardManager) refreshUI() {
 		return
 	}
 
-	// Use fyne.Do to ensure UI updates happen on the main thread
 	fyne.Do(func() {
 		if cm.historyList != nil && cm.running {
 			cm.historyList.Refresh()
@@ -556,8 +595,13 @@ func (cm *ClipboardManager) updatePreview() {
 		}
 	case TypeImage:
 		if cm.previewEntry != nil {
-			size := len(selectedItem.ImageData) * 3 / 4 // Approximate decoded size
-			cm.previewEntry.SetText(fmt.Sprintf("Image copied at %s\nSize: ~%d bytes",
+			size := len(selectedItem.ImageData) * 3 / 4
+			imageTypeStr := strings.ToUpper(selectedItem.ImageType)
+			if imageTypeStr == "" {
+				imageTypeStr = "PNG"
+			}
+			cm.previewEntry.SetText(fmt.Sprintf("%s Image copied at %s\nSize: ~%d bytes",
+				imageTypeStr,
 				selectedItem.Timestamp.Format("2006-01-02 15:04:05"),
 				size))
 			cm.previewEntry.Show()
@@ -587,75 +631,201 @@ func (cm *ClipboardManager) shutdown() {
 }
 
 func (cm *ClipboardManager) readClipboardText() []byte {
+	if !cm.clipboardAvailable {
+		return nil
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in readClipboardText: %v", r)
+		}
+	}()
+
 	if cm.useWlclip {
-		out, err := exec.Command("wl-paste").Output()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "wl-paste", "-n")
+		out, err := cmd.Output()
 		if err != nil {
 			return nil
 		}
 		return out
 	} else if cm.useXclip {
-		out, err := exec.Command("xclip", "-o", "-selection", "clipboard").Output()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "xclip", "-o", "-selection", "clipboard")
+		out, err := cmd.Output()
 		if err != nil {
 			return nil
 		}
 		return out
 	}
+	
 	return clipboard.Read(clipboard.FmtText)
 }
 
-func (cm *ClipboardManager) readClipboardImage() []byte {
-	if cm.useWlclip {
-		out, err := exec.Command("wl-paste", "--type", "image/png").Output()
-		if err != nil {
-			return nil
-		}
-		return out
-	} else if cm.useXclip {
-		out, err := exec.Command("xclip", "-selection", "clipboard", "-t", "image/png", "-o").Output()
-		if err != nil {
-			return nil
-		}
-		return out
+func (cm *ClipboardManager) readClipboardImage() ([]byte, string) {
+	if !cm.clipboardAvailable {
+		return nil, ""
 	}
-	return clipboard.Read(clipboard.FmtImage)
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in readClipboardImage: %v", r)
+		}
+	}()
+
+	if cm.useWlclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "wl-paste", "-t", "image/png", "-n")
+		out, err := cmd.Output()
+		if err == nil && len(out) > 0 {
+			return out, "png"
+		}
+		
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel2()
+		cmd2 := exec.CommandContext(ctx2, "wl-paste", "-t", "image/jpeg", "-n")
+		out, err = cmd2.Output()
+		if err == nil && len(out) > 0 {
+			return out, "jpeg"
+		}
+		return nil, ""
+	} else if cm.useXclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "xclip", "-selection", "clipboard", "-t", "image/png", "-o")
+		out, err := cmd.Output()
+		if err == nil && len(out) > 0 {
+			return out, "png"
+		}
+		
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel2()
+		cmd2 := exec.CommandContext(ctx2, "xclip", "-selection", "clipboard", "-t", "image/jpeg", "-o")
+		out, err = cmd2.Output()
+		if err == nil && len(out) > 0 {
+			return out, "jpeg"
+		}
+		return nil, ""
+	}
+
+	imgData := clipboard.Read(clipboard.FmtImage)
+	if len(imgData) > 0 {
+		imgType := "png"
+		if len(imgData) > 8 {
+			if imgData[0] == 0x89 && imgData[1] == 0x50 && imgData[2] == 0x4E && imgData[3] == 0x47 {
+				imgType = "png"
+			} else if imgData[0] == 0xFF && imgData[1] == 0xD8 {
+				imgType = "jpeg"
+			}
+		}
+		return imgData, imgType
+	}
+	return nil, ""
 }
 
 func (cm *ClipboardManager) writeClipboardText(data []byte) {
-	if cm.useWlclip {
-		cmd := exec.Command("wl-copy")
-		cmd.Stdin = strings.NewReader(string(data))
-		_ = cmd.Run()
-		return
-	} else if cm.useXclip {
-		cmd := exec.Command("xclip", "-i", "-selection", "clipboard")
-		cmd.Stdin = strings.NewReader(string(data))
-		_ = cmd.Run()
+	if !cm.clipboardAvailable {
 		return
 	}
-	clipboard.Write(clipboard.FmtText, data)
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in writeClipboardText: %v", r)
+		}
+	}()
+
+	cm.mu.Lock()
+	cm.programmaticCopy = true
+	sum := sha256.Sum256(data)
+	cm.lastProgrammaticHash = hex.EncodeToString(sum[:])
+	cm.mu.Unlock()
+
+	if cm.useWlclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "wl-copy")
+		cmd.Stdin = strings.NewReader(string(data))
+		_ = cmd.Run()
+	} else if cm.useXclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "xclip", "-i", "-selection", "clipboard")
+		cmd.Stdin = strings.NewReader(string(data))
+		_ = cmd.Run()
+	} else {
+		clipboard.Write(clipboard.FmtText, data)
+	}
+
+	time.AfterFunc(200*time.Millisecond, func() {
+		cm.mu.Lock()
+		cm.programmaticCopy = false
+		cm.lastProgrammaticHash = ""
+		cm.mu.Unlock()
+	})
 }
 
 func (cm *ClipboardManager) writeClipboardImage(data []byte) {
-	if cm.useWlclip {
-		cmd := exec.Command("wl-copy", "--type", "image/png")
-		cmd.Stdin = strings.NewReader(string(data))
-		_ = cmd.Run()
-		return
-	} else if cm.useXclip {
-		cmd := exec.Command("xclip", "-selection", "clipboard", "-t", "image/png", "-i")
-		cmd.Stdin = strings.NewReader(string(data))
-		_ = cmd.Run()
+	if !cm.clipboardAvailable {
 		return
 	}
-	clipboard.Write(clipboard.FmtImage, data)
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in writeClipboardImage: %v", r)
+		}
+	}()
+
+	cm.mu.Lock()
+	cm.programmaticCopy = true
+	sum := sha256.Sum256(data)
+	cm.lastProgrammaticHash = hex.EncodeToString(sum[:])
+	cm.mu.Unlock()
+
+	if cm.useWlclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "wl-copy", "--type", "image/png")
+		cmd.Stdin = strings.NewReader(string(data))
+		_ = cmd.Run()
+	} else if cm.useXclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "xclip", "-selection", "clipboard", "-t", "image/png", "-i")
+		cmd.Stdin = strings.NewReader(string(data))
+		_ = cmd.Run()
+	} else {
+		clipboard.Write(clipboard.FmtImage, data)
+	}
+
+	time.AfterFunc(200*time.Millisecond, func() {
+		cm.mu.Lock()
+		cm.programmaticCopy = false
+		cm.lastProgrammaticHash = ""
+		cm.mu.Unlock()
+	})
 }
 
 func (cm *ClipboardManager) startClipboardMonitor() {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic in clipboard monitor: %v", r)
+				// Restart monitor after panic
+				time.Sleep(1 * time.Second)
+				if cm.running {
+					cm.startClipboardMonitor()
+				}
+			}
+		}()
+
 		var lastText string
 		var lastImageHash string
-		ticker := time.NewTicker(500 * time.Millisecond)
+		ticker := time.NewTicker(300 * time.Millisecond)
 		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ticker.C:
@@ -663,18 +833,32 @@ func (cm *ClipboardManager) startClipboardMonitor() {
 					return
 				}
 
+				cm.mu.RLock()
+				isProgrammatic := cm.programmaticCopy
+				programmaticHash := cm.lastProgrammaticHash
+				cm.mu.RUnlock()
+
+				if isProgrammatic {
+					continue
+				}
+
 				textBytes := cm.readClipboardText()
-				imageBytes := []byte{}
+				var imageBytes []byte
+				var imageType string
+
 				if len(textBytes) == 0 {
-					imageBytes = cm.readClipboardImage()
+					imageBytes, imageType = cm.readClipboardImage()
 				}
 
 				if len(textBytes) > 0 {
 					content := string(textBytes)
-					if content != lastText {
+					sum := sha256.Sum256(textBytes)
+					hash := hex.EncodeToString(sum[:])
+
+					if content != lastText && hash != programmaticHash {
 						lastText = content
 						lastImageHash = ""
-						if cm.addToHistory(content, TypeText, "") {
+						if cm.addToHistory(content, TypeText, "", "") {
 							cm.lastCopied = time.Now()
 							cm.saveHistory()
 							cm.updateFiltered()
@@ -686,12 +870,13 @@ func (cm *ClipboardManager) startClipboardMonitor() {
 				} else if len(imageBytes) > 0 {
 					sum := sha256.Sum256(imageBytes)
 					hash := hex.EncodeToString(sum[:])
-					if hash != lastImageHash {
+
+					if hash != lastImageHash && hash != programmaticHash {
 						lastImageHash = hash
 						lastText = ""
 						base64Data := base64.StdEncoding.EncodeToString(imageBytes)
 						content := fmt.Sprintf("Image (%d bytes)", len(imageBytes))
-						if cm.addToHistory(content, TypeImage, base64Data) {
+						if cm.addToHistory(content, TypeImage, base64Data, imageType) {
 							cm.lastCopied = time.Now()
 							cm.saveHistory()
 							cm.updateFiltered()
@@ -714,13 +899,12 @@ func loadIcon() fyne.Resource {
 		return fyne.NewStaticResource("icon.png", iconBytes)
 	}
 	log.Printf("Embedded icon not found, falling back to theme icon")
-	return theme.ContentPasteIcon() // fallback
+	return theme.ContentPasteIcon()
 }
 
 // ---------------------- Custom List Item Widget ----------------------
 
 func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.Container {
-	// Create pin button
 	var pinIcon fyne.Resource
 	if item.Pinned {
 		pinIcon = theme.ConfirmIcon()
@@ -728,7 +912,7 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 		pinIcon = theme.RadioButtonIcon()
 	}
 
-	pinButton := ttwidget.NewButtonWithIcon("", pinIcon, func() {
+	pinButton := widget.NewButtonWithIcon("", pinIcon, func() {
 		go func() {
 			if cm.togglePin(index) {
 				cm.saveHistory()
@@ -741,7 +925,6 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 	})
 	pinButton.Resize(fyne.NewSize(24, 24))
 
-	// Create type icon
 	var typeIcon fyne.Resource
 	switch item.Type {
 	case TypeText:
@@ -752,29 +935,25 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 
 	typeLabel := widget.NewIcon(typeIcon)
 
-	// Create content label with padding
 	displayText := item.Content
 	if len(displayText) > 80 {
 		displayText = displayText[:77] + "..."
 	}
 	displayText = strings.ReplaceAll(displayText, "\n", " ")
 
-	contentLabel := ttwidget.NewLabel(displayText)
+	contentLabel := widget.NewLabel(displayText)
 
-	// Create timestamp label
-	timeLabel := ttwidget.NewLabel(item.Timestamp.Format("15:04"))
+	timeLabel := widget.NewLabel(item.Timestamp.Format("15:04"))
 	timeLabel.TextStyle.Monospace = true
 
-	// Create horizontal container with pin button first
 	content := container.NewHBox(
 		pinButton,
 		typeLabel,
 		contentLabel,
-		widget.NewLabel(""), // Spacer
+		widget.NewLabel(""),
 		timeLabel,
 	)
 
-	// Add padding around the content
 	paddedContent := container.NewPadded(content)
 
 	return container.NewBorder(nil, nil, nil, nil, paddedContent)
@@ -783,38 +962,46 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 // ---------------------- About Window ----------------------
 
 func createAboutWindow(app fyne.App) fyne.Window {
-	aboutWindow := app.NewWindow("About FYClip")
+	aboutWindow := app.NewWindow("About FyClip")
 	aboutWindow.Resize(fyne.NewSize(400, 300))
 
+	title := widget.NewLabel("FyClip - Advanced Clipboard Manager")
+	title.TextStyle.Bold = true
+
+	hyperlink := widget.NewHyperlink("github.com/Sarwarhridoy4", nil)
+	if err := hyperlink.SetURLFromString("https://github.com/Sarwarhridoy4"); err != nil {
+		log.Printf("Warning: Failed to set hyperlink URL: %v", err)
+	}
+
 	content := container.NewVBox(
-		ttwidget.NewLabel("FYClip - Advanced Clipboard Manager"),
-		ttwidget.NewLabel(""),
-		ttwidget.NewLabel("Developed by: Sarwar Hossain"),
-		ttwidget.NewLabel("Email: sarwarhridoy4@gmail.com"),
-		ttwidget.NewHyperlink("GitHub Profile", nil),
+		title,
+		widget.NewLabel(""),
+		widget.NewLabel("Developed by: Sarwar Hossain"),
+		widget.NewLabel("Email: sarwarhridoy4@gmail.com"),
+		hyperlink,
 	)
 
-	content.Objects[4].(*ttwidget.Hyperlink).SetURLFromString("https://github.com/Sarwarhridoy4")
-	content.Objects[4].(*ttwidget.Hyperlink).SetText("github.com/Sarwarhridoy4")
-
-	aboutWindow.SetContent(container.NewCenter(content))
+	aboutWindow.SetContent(content)
 	return aboutWindow
 }
 
 // ---------------------- Helper for Showing Popup with Auto-Dismiss ----------------------
 
 func showActionPopup(window fyne.Window, message string) {
+	if window == nil || window.Canvas() == nil {
+		log.Printf("Warning: Cannot show popup - window or canvas is nil")
+		return
+	}
+
 	popupContent := widget.NewCard("", "", widget.NewLabel(message))
 	popup := widget.NewPopUp(popupContent, window.Canvas())
 
-	// Position popup below the toolbar (adjust based on content size)
 	contentPos := window.Content().Position()
-	popupPos := contentPos.Add(fyne.NewPos(10, 40)) // Offset from top-left
+	popupPos := contentPos.Add(fyne.NewPos(10, 40))
 	popup.Move(popupPos)
 	popup.Resize(fyne.NewSize(200, 40))
 	popup.Show()
 
-	// Auto-dismiss after 2 seconds
 	time.AfterFunc(2*time.Second, func() {
 		fyne.Do(func() {
 			popup.Hide()
@@ -822,32 +1009,111 @@ func showActionPopup(window fyne.Window, message string) {
 	})
 }
 
+// ---------------------- Copy Item to Clipboard ----------------------
+
+func (cm *ClipboardManager) copyItemToClipboard(item ClipboardItem) {
+	if item.ID == "" {
+		return
+	}
+
+	if item.Type == TypeText {
+		cm.writeClipboardText([]byte(item.Content))
+	} else if item.Type == TypeImage && item.ImageData != "" {
+		data, err := base64.StdEncoding.DecodeString(item.ImageData)
+		if err == nil {
+			cm.writeClipboardImage(data)
+		} else {
+			log.Printf("Error decoding image for copy: %v", err)
+			fyne.Do(func() {
+				if cm.app != nil {
+					cm.app.SendNotification(&fyne.Notification{
+						Title:   "Error",
+						Content: "Failed to copy image to clipboard.",
+					})
+				}
+			})
+			return
+		}
+	}
+	cm.lastCopied = time.Now()
+}
+
+// ---------------------- Build Tray Menu ----------------------
+
+func buildTrayMenu(w fyne.Window, a fyne.App, autoStartItem *fyne.MenuItem, cm *ClipboardManager) *fyne.Menu {
+	return fyne.NewMenu("FyClip",
+		fyne.NewMenuItem("Show", func() {
+			if w != nil {
+				w.Show()
+			}
+		}),
+		autoStartItem,
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Quit", func() {
+			if cm != nil {
+				cm.shutdown()
+			}
+			if a != nil {
+				a.Quit()
+			}
+		}),
+	)
+}
+
 // ---------------------- Main ----------------------
 
 func main() {
+	// Setup logging
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
+	// Recover from any panics
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Fatal panic in main: %v", r)
+			time.Sleep(3 * time.Second) // Give time to see the error
+		}
+	}()
+
 	myApp := app.NewWithID("com.sarwar.fyclip")
+	if myApp == nil {
+		log.Fatal("Failed to create application")
+		return
+	}
+
 	myApp.Settings().SetTheme(theme.DarkTheme())
 	myApp.SetIcon(loadIcon())
 
+	// Initialize clipboard with error handling
 	err := clipboard.Init()
 	useFallback := runtime.GOOS == "linux" && err != nil
 	if err != nil {
-		log.Printf("Warning: Native clipboard init failed: %v. Image support may be unavailable without fallback.", err)
+		log.Printf("Warning: Native clipboard init failed: %v. Attempting fallback methods.", err)
 	}
 
-	myWindow := myApp.NewWindow("FYClip - Clipboard Manager")
+	myWindow := myApp.NewWindow("FyClip - Clipboard Manager")
+	if myWindow == nil {
+		log.Fatal("Failed to create window")
+		return
+	}
 	myWindow.Resize(fyne.NewSize(900, 600))
 
 	cm := NewClipboardManager(myWindow, myApp)
+	if cm == nil {
+		log.Fatal("Failed to create clipboard manager")
+		return
+	}
 
+	// Setup clipboard fallback methods for Linux
 	if useFallback {
-		if os.Getenv("XDG_SESSION_TYPE") == "wayland" {
+		sessionType := os.Getenv("XDG_SESSION_TYPE")
+		if sessionType == "wayland" || sessionType == "" {
 			_, wlErr := exec.LookPath("wl-paste")
 			if wlErr == nil {
 				cm.useWlclip = true
 				log.Println("Using wl-clipboard fallback for Wayland.")
 			} else {
-				log.Println("wl-clipboard not found; install it for clipboard support on Wayland.")
+				log.Println("Warning: wl-clipboard not found. Install wl-clipboard package for clipboard support on Wayland.")
+				cm.clipboardAvailable = false
 			}
 		} else {
 			_, xErr := exec.LookPath("xclip")
@@ -855,7 +1121,8 @@ func main() {
 				cm.useXclip = true
 				log.Println("Using xclip fallback for X11.")
 			} else {
-				log.Println("xclip not found; install it for clipboard support on X11.")
+				log.Println("Warning: xclip not found. Install xclip package for clipboard support on X11.")
+				cm.clipboardAvailable = false
 			}
 		}
 	}
@@ -863,13 +1130,13 @@ func main() {
 	// Preview components
 	previewText := widget.NewMultiLineEntry()
 	previewText.SetPlaceHolder("Preview selected item...")
+	previewText.Wrapping = fyne.TextWrapWord
 	cm.previewEntry = previewText
 
 	previewImage := canvas.NewImageFromResource(theme.BrokenImageIcon())
 	previewImage.Hide()
 	cm.previewImage = previewImage
 
-	// Preview container that can switch between text and image
 	previewContainer := container.NewBorder(nil, nil, nil, nil,
 		container.NewStack(previewText, previewImage))
 	cm.previewContainer = previewContainer
@@ -886,11 +1153,9 @@ func main() {
 				return
 			}
 
-			// Create new content for this item
 			newContent := createListItem(item, i, cm)
 
-			// Update the container with new item data
-			if border := o.(*fyne.Container); border != nil {
+			if border, ok := o.(*fyne.Container); ok && border != nil {
 				border.Objects = newContent.Objects
 				border.Refresh()
 			}
@@ -898,25 +1163,12 @@ func main() {
 	)
 	cm.historyList = historyList
 
+	// Update preview on selection
 	historyList.OnSelected = func(id widget.ListItemID) {
 		cm.setSelectedIndex(id)
-		selectedItem := cm.getSelectedItem()
-		if selectedItem.ID != "" {
-			if selectedItem.Type == TypeText {
-				cm.writeClipboardText([]byte(selectedItem.Content))
-			} else if selectedItem.Type == TypeImage && selectedItem.ImageData != "" {
-				data, err := base64.StdEncoding.DecodeString(selectedItem.ImageData)
-				if err == nil {
-					cm.writeClipboardImage(data)
-				} else {
-					log.Printf("Error decoding image for copy: %v", err)
-				}
-			}
-			cm.lastCopied = time.Now()
-			fyne.Do(func() {
-				cm.refreshUI()
-			})
-		}
+		fyne.Do(func() {
+			cm.updatePreview()
+		})
 	}
 
 	// Search
@@ -926,42 +1178,36 @@ func main() {
 		cm.setSearchQuery(query)
 		fyne.Do(func() {
 			cm.refreshUI()
-			historyList.UnselectAll()
+			if historyList != nil {
+				historyList.UnselectAll()
+			}
 		})
 	}
 	cm.searchEntry = searchEntry
 
-	// Toolbar with tooltips and popups
-	copyButton := ttwidget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
+	// Toolbar buttons
+	copyButton := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
 		selectedItem := cm.getSelectedItem()
 		if selectedItem.ID != "" {
-			if selectedItem.Type == TypeText {
-				cm.writeClipboardText([]byte(selectedItem.Content))
-			} else if selectedItem.Type == TypeImage && selectedItem.ImageData != "" {
-				data, err := base64.StdEncoding.DecodeString(selectedItem.ImageData)
-				if err == nil {
-					cm.writeClipboardImage(data)
-				} else {
-					log.Printf("Error decoding image for copy: %v", err)
-				}
-			}
-			cm.lastCopied = time.Now()
+			cm.copyItemToClipboard(selectedItem)
 			fyne.Do(func() {
 				cm.refreshUI()
 				showActionPopup(myWindow, "Copied to clipboard!")
 			})
+		} else {
+			showActionPopup(myWindow, "No item selected!")
 		}
 	})
-	copyButton.SetToolTip("Copy selected item to clipboard")
 
-	pinButton := ttwidget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
+	pinButton := widget.NewButtonWithIcon("Pin/Unpin", theme.ViewRefreshIcon(), func() {
 		if cm.selectedIndex >= 0 {
 			go func() {
 				if cm.togglePin(cm.selectedIndex) {
 					cm.saveHistory()
 					cm.updateFiltered()
+					item := cm.getSelectedItem()
 					pinStatus := "Pinned"
-					if !cm.getSelectedItem().Pinned {
+					if !item.Pinned {
 						pinStatus = "Unpinned"
 					}
 					fyne.Do(func() {
@@ -970,47 +1216,56 @@ func main() {
 					})
 				}
 			}()
+		} else {
+			showActionPopup(myWindow, "No item selected!")
 		}
 	})
-	pinButton.SetToolTip("Toggle pin for selected item")
 
-	deleteButton := ttwidget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+	deleteButton := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {
+		if cm.selectedIndex < 0 {
+			showActionPopup(myWindow, "No item selected!")
+			return
+		}
+
 		go func() {
 			if cm.deleteSelected() {
 				cm.saveHistory()
 				cm.updateFiltered()
 				fyne.Do(func() {
 					cm.refreshUI()
-					historyList.UnselectAll()
+					if historyList != nil {
+						historyList.UnselectAll()
+					}
 					showActionPopup(myWindow, "Deleted selected item!")
 				})
 			}
 		}()
 	})
-	deleteButton.SetToolTip("Delete selected item")
 
-	clearButton := ttwidget.NewButtonWithIcon("", theme.DocumentIcon(), func() {
-		go func() {
-			cm.clearHistory()
-			cm.saveHistory()
-			cm.updateFiltered()
-			fyne.Do(func() {
-				cm.refreshUI()
-				historyList.UnselectAll()
-				showActionPopup(myWindow, "Cleared clipboard history!")
-			})
-		}()
+	clearButton := widget.NewButtonWithIcon("Clear", theme.ContentClearIcon(), func() {
+		dialog.ShowConfirm("Clear History",
+			"Are you sure you want to clear all unpinned items?",
+			func(confirmed bool) {
+				if confirmed {
+					go func() {
+						cm.clearHistory()
+						cm.saveHistory()
+						cm.updateFiltered()
+						fyne.Do(func() {
+							cm.refreshUI()
+							if historyList != nil {
+								historyList.UnselectAll()
+							}
+							showActionPopup(myWindow, "Cleared clipboard history!")
+						})
+					}()
+				}
+			}, myWindow)
 	})
-	clearButton.SetToolTip("Clear all unpinned items")
 
-	saveButton := ttwidget.NewButtonWithIcon("", theme.DownloadIcon(), func() {
+	saveButton := widget.NewButtonWithIcon("Save Image", theme.DocumentSaveIcon(), func() {
 		if cm.selectedIndex < 0 || cm.getSelectedItem().Type != TypeImage {
-			fyne.Do(func() {
-				cm.app.SendNotification(&fyne.Notification{
-					Title:   "Error",
-					Content: "Please select an image to save.",
-				})
-			})
+			showActionPopup(myWindow, "Please select an image!")
 			return
 		}
 		fyne.Do(func() {
@@ -1021,39 +1276,44 @@ func main() {
 				defer writer.Close()
 				uri := writer.URI()
 				filename := uri.Path()
-				if !strings.HasSuffix(strings.ToLower(filename), ".png") && !strings.HasSuffix(strings.ToLower(filename), ".jpg") && !strings.HasSuffix(strings.ToLower(filename), ".jpeg") {
+
+				// Determine format from filename or default to PNG
+				format := "png"
+				lowerFilename := strings.ToLower(filename)
+				if strings.HasSuffix(lowerFilename, ".jpg") || strings.HasSuffix(lowerFilename, ".jpeg") {
+					format = "jpeg"
+				} else if !strings.HasSuffix(lowerFilename, ".png") {
 					filename += ".png"
 				}
-				format := "png"
-				if strings.HasSuffix(strings.ToLower(filename), ".jpg") || strings.HasSuffix(strings.ToLower(filename), ".jpeg") {
-					format = "jpeg"
-				}
+
 				cm.saveImageAs(filename, format)
-				fyne.Do(func() {
-					showActionPopup(myWindow, "Image saved successfully!")
-				})
+				showActionPopup(myWindow, "Image saved successfully!")
 			}, myWindow)
 		})
 	})
-	saveButton.SetToolTip("Save selected image as PNG/JPEG")
 
-	buttonsBox := container.NewHBox(copyButton, pinButton, deleteButton, clearButton, saveButton)
-
-	// Menu bar with About option
-	menu := fyne.NewMainMenu(
-		fyne.NewMenu("Help",
-			fyne.NewMenuItem("About", func() {
-				aboutWindow := createAboutWindow(myApp)
-				aboutWindow.Show()
-			}),
-		),
+	buttonsBox := container.NewHBox(
+		copyButton,
+		pinButton,
+		deleteButton,
+		clearButton,
+		saveButton,
 	)
+
+	// Menu bar
+	aboutItem := fyne.NewMenuItem("About", func() {
+		aboutWindow := createAboutWindow(myApp)
+		aboutWindow.Show()
+	})
+
+	helpMenu := fyne.NewMenu("Help", aboutItem)
+	menu := fyne.NewMainMenu(helpMenu)
 	myWindow.SetMainMenu(menu)
 
 	statusLabel := widget.NewLabel("")
 	cm.statusLabel = statusLabel
 
-	// Layout with adjusted proportions
+	// Layout
 	split := container.NewHSplit(historyList, previewContainer)
 	split.SetOffset(0.5)
 
@@ -1064,15 +1324,16 @@ func main() {
 		split,
 	)
 
-	// Add tooltip layer to the window content
-	myWindow.SetContent(fynetooltip.AddWindowToolTipLayer(content, myWindow.Canvas()))
+	myWindow.SetContent(content)
 
-	// Clipboard monitor
+	// Initial UI refresh
+	cm.refreshUI()
+
+	// Start clipboard monitor
 	cm.startClipboardMonitor()
 
-	// System Tray Integration
+	// System tray setup
 	if desk, ok := myApp.(desktop.App); ok {
-		// AutoStart menu item
 		autoStartItem := fyne.NewMenuItem("", nil)
 		updateAutoStartLabel := func() {
 			if isAutoStartEnabled() {
@@ -1084,51 +1345,35 @@ func main() {
 		updateAutoStartLabel()
 
 		autoStartItem.Action = func() {
-			execPath, _ := os.Executable()
+			execPath, err := os.Executable()
+			if err != nil {
+				log.Printf("Error getting executable path: %v", err)
+				return
+			}
 			if isAutoStartEnabled() {
 				if err := disableAutoStart(); err != nil {
-					log.Println("Error disabling autostart:", err)
+					log.Printf("Error disabling autostart: %v", err)
 				}
 			} else {
 				if err := enableAutoStart(execPath); err != nil {
-					log.Println("Error enabling autostart:", err)
+					log.Printf("Error enabling autostart: %v", err)
 				}
 			}
 			updateAutoStartLabel()
-			desk.SetSystemTrayMenu(buildTrayMenu(myWindow, myApp, autoStartItem))
+			desk.SetSystemTrayMenu(buildTrayMenu(myWindow, myApp, autoStartItem, cm))
 		}
 
-		// Build and set the tray menu
-		trayMenu := fyne.NewMenu("FyClip",
-			fyne.NewMenuItem("Show", func() {
-				myWindow.Show()
-			}),
-			autoStartItem,
-			fyne.NewMenuItem("Quit", func() {
-				cm.shutdown() // Stop clipboard monitoring
-				myApp.Quit()  // Quit app
-			}),
-		)
+		trayMenu := buildTrayMenu(myWindow, myApp, autoStartItem, cm)
 		desk.SetSystemTrayMenu(trayMenu)
-
-		// Use embedded icon for system tray
 		desk.SetSystemTrayIcon(loadIcon())
 	}
 
 	myWindow.SetCloseIntercept(func() {
 		myWindow.Hide()
-		fynetooltip.DestroyWindowToolTipLayer(myWindow.Canvas())
 	})
-	myWindow.ShowAndRun()
-}
 
-func buildTrayMenu(w fyne.Window, a fyne.App, autoStartItem *fyne.MenuItem) *fyne.Menu {
-	return fyne.NewMenu("FyClip",
-		fyne.NewMenuItem("Show", func() { w.Show() }),
-		autoStartItem,
-		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Quit", func() {
-			a.Quit()
-		}),
-	)
+	myWindow.ShowAndRun()
+
+	// Cleanup on exit
+	cm.shutdown()
 }
