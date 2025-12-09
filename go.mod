@@ -5,7 +5,7 @@ go 1.24
 toolchain go1.24.10
 
 require (
-	fyne.io/fyne/v2 v2.7.0
+	fyne.io/fyne/v2 v2.7.1
 	golang.design/x/clipboard v0.7.1
 )
 
