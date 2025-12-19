@@ -177,6 +177,8 @@ type ClipboardManager struct {
 	programmaticCopy     bool
 	lastProgrammaticHash string
 	clipboardAvailable   bool
+	uiUpdateChan         chan struct{} // new: channel to signal UI needs update
+	debounceTimer        *time.Timer   // new: for debouncing rapid updates
 }
 
 func NewClipboardManager(window fyne.Window, app fyne.App) *ClipboardManager {
@@ -193,7 +195,11 @@ func NewClipboardManager(window fyne.Window, app fyne.App) *ClipboardManager {
 		shutdownChan:       make(chan struct{}),
 		running:            true,
 		clipboardAvailable: true,
+		uiUpdateChan:       make(chan struct{}, 100), // buffered to avoid blocking
+		debounceTimer:      time.NewTimer(time.Hour), // initially inactive
 	}
+	cm.debounceTimer.Stop()
+	go cm.uiUpdateDispatcher()
 	cm.loadHistory()
 	cm.updateFiltered()
 	return cm
@@ -541,37 +547,65 @@ func (cm *ClipboardManager) setSearchQuery(query string) {
 	cm.updateFiltered()
 }
 
-func (cm *ClipboardManager) refreshUI() {
-	if !cm.running {
-		return
+func (cm *ClipboardManager) triggerUIUpdate() {
+	if cm.running {
+		select {
+		case cm.uiUpdateChan <- struct{}{}:
+		default:
+			// channel full → already queued
+		}
 	}
+}
 
-	fyne.Do(func() {
-		if cm.historyList != nil && cm.running {
-			cm.historyList.Refresh()
-		}
-		if cm.statusLabel != nil && cm.running {
-			pinnedCount := 0
-			cm.mu.RLock()
-			for _, item := range cm.history {
-				if item.Pinned {
-					pinnedCount++
-				}
+func (cm *ClipboardManager) uiUpdateDispatcher() {
+	for {
+		select {
+		case <-cm.uiUpdateChan:
+			// Drain channel quickly to catch multiple signals
+			for len(cm.uiUpdateChan) > 0 {
+				<-cm.uiUpdateChan
 			}
-			historyLen := len(cm.history)
-			filteredCount := len(cm.filtered)
-			cm.mu.RUnlock()
 
-			cm.statusLabel.SetText(fmt.Sprintf(
-				"Total: %d | Pinned: %d | Showing: %d | Last copied: %s",
-				historyLen,
-				pinnedCount,
-				filteredCount,
-				cm.lastCopied.Format("15:04:05"),
-			))
+			// Debounce: reset timer
+			if cm.debounceTimer == nil {
+				continue
+			}
+			cm.debounceTimer.Reset(100 * time.Millisecond) // adjust if needed (50-150ms works well)
+
+		case <-cm.debounceTimer.C:
+			if !cm.running {
+				return
+			}
+			fyne.Do(func() {
+				if cm.historyList != nil {
+					cm.historyList.Refresh() // only when data/length changed
+				}
+				if cm.statusLabel != nil {
+					// update status text...
+					pinnedCount := 0
+					cm.mu.RLock()
+					for _, item := range cm.history {
+						if item.Pinned {
+							pinnedCount++
+						}
+					}
+					historyLen := len(cm.history)
+					filteredCount := len(cm.filtered)
+					lastTime := cm.lastCopied.Format("15:04:05")
+					cm.mu.RUnlock()
+
+					cm.statusLabel.SetText(fmt.Sprintf(
+						"Total: %d | Pinned: %d | Showing: %d | Last copied: %s",
+						historyLen, pinnedCount, filteredCount, lastTime,
+					))
+				}
+				cm.updatePreview()
+			})
+
+		case <-cm.shutdownChan:
+			return
 		}
-		cm.updatePreview()
-	})
+	}
 }
 
 func (cm *ClipboardManager) updatePreview() {
@@ -627,6 +661,9 @@ func (cm *ClipboardManager) shutdown() {
 	case <-cm.shutdownChan:
 	default:
 		close(cm.shutdownChan)
+	}
+	if cm.debounceTimer != nil {
+		cm.debounceTimer.Stop()
 	}
 }
 
@@ -862,9 +899,7 @@ func (cm *ClipboardManager) startClipboardMonitor() {
 							cm.lastCopied = time.Now()
 							cm.saveHistory()
 							cm.updateFiltered()
-							fyne.Do(func() {
-								cm.refreshUI()
-							})
+							cm.triggerUIUpdate()
 						}
 					}
 				} else if len(imageBytes) > 0 {
@@ -880,9 +915,7 @@ func (cm *ClipboardManager) startClipboardMonitor() {
 							cm.lastCopied = time.Now()
 							cm.saveHistory()
 							cm.updateFiltered()
-							fyne.Do(func() {
-								cm.refreshUI()
-							})
+							cm.triggerUIUpdate()
 						}
 					}
 				}
@@ -917,9 +950,7 @@ func createListItem(item ClipboardItem, index int, cm *ClipboardManager) *fyne.C
 			if cm.togglePin(index) {
 				cm.saveHistory()
 				cm.updateFiltered()
-				fyne.Do(func() {
-					cm.refreshUI()
-				})
+				cm.triggerUIUpdate()
 			}
 		}()
 	})
@@ -1176,12 +1207,10 @@ func main() {
 	searchEntry.SetPlaceHolder("Search clipboard history...")
 	searchEntry.OnChanged = func(query string) {
 		cm.setSearchQuery(query)
-		fyne.Do(func() {
-			cm.refreshUI()
-			if historyList != nil {
-				historyList.UnselectAll()
-			}
-		})
+		cm.triggerUIUpdate()
+		if historyList != nil {
+			historyList.UnselectAll()
+		}
 	}
 	cm.searchEntry = searchEntry
 
@@ -1190,10 +1219,8 @@ func main() {
 		selectedItem := cm.getSelectedItem()
 		if selectedItem.ID != "" {
 			cm.copyItemToClipboard(selectedItem)
-			fyne.Do(func() {
-				cm.refreshUI()
-				showActionPopup(myWindow, "Copied to clipboard!")
-			})
+			cm.triggerUIUpdate()
+			showActionPopup(myWindow, "Copied to clipboard!")
 		} else {
 			showActionPopup(myWindow, "No item selected!")
 		}
@@ -1210,10 +1237,8 @@ func main() {
 					if !item.Pinned {
 						pinStatus = "Unpinned"
 					}
-					fyne.Do(func() {
-						cm.refreshUI()
-						showActionPopup(myWindow, pinStatus+" item!")
-					})
+					cm.triggerUIUpdate()
+					showActionPopup(myWindow, pinStatus+" item!")
 				}
 			}()
 		} else {
@@ -1231,13 +1256,11 @@ func main() {
 			if cm.deleteSelected() {
 				cm.saveHistory()
 				cm.updateFiltered()
-				fyne.Do(func() {
-					cm.refreshUI()
-					if historyList != nil {
-						historyList.UnselectAll()
-					}
-					showActionPopup(myWindow, "Deleted selected item!")
-				})
+				cm.triggerUIUpdate()
+				if historyList != nil {
+					historyList.UnselectAll()
+				}
+				showActionPopup(myWindow, "Deleted selected item!")
 			}
 		}()
 	})
@@ -1251,45 +1274,42 @@ func main() {
 						cm.clearHistory()
 						cm.saveHistory()
 						cm.updateFiltered()
-						fyne.Do(func() {
-							cm.refreshUI()
-							if historyList != nil {
-								historyList.UnselectAll()
-							}
-							showActionPopup(myWindow, "Cleared clipboard history!")
-						})
+						cm.triggerUIUpdate()
+						if historyList != nil {
+							historyList.UnselectAll()
+						}
+						showActionPopup(myWindow, "Cleared clipboard history!")
 					}()
 				}
 			}, myWindow)
 	})
 
 	saveButton := widget.NewButtonWithIcon("Save Image", theme.DocumentSaveIcon(), func() {
-		if cm.selectedIndex < 0 || cm.getSelectedItem().Type != TypeImage {
+		selected := cm.getSelectedItem()
+		if cm.selectedIndex < 0 || selected.Type != TypeImage {
 			showActionPopup(myWindow, "Please select an image!")
 			return
 		}
-		fyne.Do(func() {
-			dialog.ShowFileSave(func(writer fyne.URIWriteCloser, err error) {
-				if err != nil || writer == nil {
-					return
-				}
-				defer writer.Close()
-				uri := writer.URI()
-				filename := uri.Path()
 
-				// Determine format from filename or default to PNG
-				format := "png"
-				lowerFilename := strings.ToLower(filename)
-				if strings.HasSuffix(lowerFilename, ".jpg") || strings.HasSuffix(lowerFilename, ".jpeg") {
-					format = "jpeg"
-				} else if !strings.HasSuffix(lowerFilename, ".png") {
-					filename += ".png"
-				}
+		dialog.ShowFileSave(func(writer fyne.URIWriteCloser, err error) {
+			if err != nil || writer == nil {
+				return
+			}
+			defer writer.Close()
 
-				cm.saveImageAs(filename, format)
-				showActionPopup(myWindow, "Image saved successfully!")
-			}, myWindow)
-		})
+			filename := writer.URI().Path()
+			ext := strings.ToLower(filepath.Ext(filename))
+
+			format := "png"
+			if ext == ".jpg" || ext == ".jpeg" {
+				format = "jpeg"
+			} else if ext != ".png" {
+				filename += ".png" // default
+			}
+
+			go cm.saveImageAs(filename, format) // run in background to not block UI
+			showActionPopup(myWindow, fmt.Sprintf("Saving as %s...", strings.ToUpper(format)))
+		}, myWindow)
 	})
 
 	buttonsBox := container.NewHBox(
@@ -1327,7 +1347,7 @@ func main() {
 	myWindow.SetContent(content)
 
 	// Initial UI refresh
-	cm.refreshUI()
+	cm.triggerUIUpdate()
 
 	// Start clipboard monitor
 	cm.startClipboardMonitor()
