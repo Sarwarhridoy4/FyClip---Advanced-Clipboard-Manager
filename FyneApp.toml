@@ -1,0 +1,8 @@
+[Details]
+Name = "FyClip---Advanced-Clipboard-Manager"
+ID = "FyClip___Advanced_Clipboard_Manager"
+Version = "1.4.0"
+Build = 0
+
+[Migrations]
+fyneDo = true
