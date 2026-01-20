@@ -5,7 +5,6 @@ updates:
     directory: "/"         # Path where go.mod exists
     schedule:
       interval: "daily"
-    
 
   # Optional: Update GitHub Actions if your project uses them
   - package-ecosystem: "github-actions"
