@@ -19,7 +19,7 @@ import (
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
 )
 
-const maxPreviewImageSize = 5 * 1024 * 1024 // 5MB
+const maxPreviewImageSize = 5 * 1024 * 1024 // 5 MB
 
 // PreviewPane displays preview of selected item
 type PreviewPane struct {
@@ -34,11 +34,11 @@ type PreviewPane struct {
 func NewPreviewPane(manager *clipboard.Manager) *PreviewPane {
 	pp := &PreviewPane{manager: manager}
 
-	// Rich text preview (selectable + copyable)
+	// Selectable + copyable text preview
 	pp.text = widget.NewRichText()
 	pp.text.Wrapping = fyne.TextWrapWord
 
-	// Image preview
+	// Image placeholder (will be replaced dynamically)
 	pp.image = canvas.NewImageFromResource(theme.BrokenImageIcon())
 	pp.image.FillMode = canvas.ImageFillContain
 	pp.image.Hide()
@@ -102,7 +102,7 @@ func (pp *PreviewPane) setPlaceholder() {
 	pp.text.Refresh()
 }
 
-// ---------------- IMAGE ----------------
+// ---------------- IMAGE (OPTION A) ----------------
 
 func (pp *PreviewPane) showImage(item clipboard.Item) {
 	pp.text.Hide()
@@ -119,9 +119,12 @@ func (pp *PreviewPane) showImage(item clipboard.Item) {
 		return
 	}
 
-	pp.image.Image = img
+	// IMPORTANT:
+	// Re-create the canvas.Image from image.Image
+	// Resource-backed images cannot switch to Image-backed
+	pp.image = canvas.NewImageFromImage(img)
+	pp.image.FillMode = canvas.ImageFillContain
 	pp.image.Show()
-	pp.image.Refresh()
 
 	pp.metaText.Text = fmt.Sprintf(
 		"%s • %dx%d • %d KB • %s",
@@ -132,7 +135,12 @@ func (pp *PreviewPane) showImage(item clipboard.Item) {
 		item.Timestamp.Format("2006-01-02 15:04:05"),
 	)
 	pp.metaText.Show()
-	pp.metaText.Refresh()
+
+	// Replace the stacked image container
+	pp.container.Objects[1] =
+		container.NewBorder(nil, pp.metaText, nil, nil, pp.image)
+
+	pp.container.Refresh()
 }
 
 // ---------------- CLEAR ----------------
@@ -144,6 +152,7 @@ func (pp *PreviewPane) clear() {
 	pp.setPlaceholder()
 }
 
+// ---------------- SYNTAX HIGHLIGHTING ----------------
 
 func syntaxHighlight(text string) []widget.RichTextSegment {
 	lower := strings.ToLower(strings.TrimSpace(text))
