@@ -2,6 +2,8 @@
 
 A modular, high-performance clipboard manager built with Go and Fyne v2.5+.
 
+**Current Version**: 1.5.0
+
 ## Features
 
 - 📋 **Clipboard History**: Automatically saves text and images
@@ -51,17 +53,20 @@ fyclip/
 ## Requirements
 
 - Go 1.21 or later
+- Fyne v2.5+
 - For Linux:
   - X11: `xclip` package
   - Wayland: `wl-clipboard` package
+- For Windows: No additional dependencies
+- For macOS: No additional dependencies
 
 ## Installation
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/Sarwarhridoy4/fyclip.git
-cd fyclip
+git clone https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager.git
+cd FyClip---Advanced-Clipboard-Manager
 ```
 
 ### 2. Install dependencies
@@ -116,25 +121,42 @@ sudo dnf install wl-clipboard
 
 ## Building for Release
 
-### Linux
+### Using Fyne Packaging (Recommended)
+
+Package the application for distribution:
+
+```bash
+# Linux (AppImage)
+fyne package -os linux -icon icon.png
+
+# Windows (NSIS installer)
+fyne package -os windows -icon icon.png
+
+# macOS (DMG)
+fyne package -os darwin -icon icon.png
+```
+
+### Manual Build
+
+#### Linux
 
 ```bash
 go build -ldflags="-s -w" -o fyclip
 ```
 
-### Windows
+#### Windows
 
 ```bash
 go build -ldflags="-s -w -H=windowsgui" -o fyclip.exe
 ```
 
-### macOS
+#### macOS
 
 ```bash
 go build -ldflags="-s -w" -o fyclip
 ```
 
-## Cross-Platform Build
+### Cross-Platform Build
 
 Use `fyne-cross` for easy cross-compilation:
 
