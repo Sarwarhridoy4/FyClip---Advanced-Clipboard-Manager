@@ -12,7 +12,7 @@ import (
 
 const (
 	MaxHistoryItems = 1000
-	UpdateDebounce  = 100 * time.Millisecond
+	UpdateDebounce  = 50 * time.Millisecond
 )
 
 // Manager handles clipboard history and operations
@@ -97,7 +97,7 @@ func (m *Manager) loadHistory() error {
 	return nil
 }
 
-// saveHistory persists history to storage
+// saveHistory persists history to storage (internal)
 func (m *Manager) saveHistory() {
 	m.mu.RLock()
 	items := make([]Item, len(m.history))
@@ -111,6 +111,11 @@ func (m *Manager) saveHistory() {
 			}
 		}
 	}()
+}
+
+// SaveHistory is a public method to force save history
+func (m *Manager) SaveHistory() {
+	m.saveHistory()
 }
 
 // AddItem adds a new item to history
@@ -275,51 +280,72 @@ func (m *Manager) SetSelected(index int) {
 // TogglePin toggles the pin status of an item
 func (m *Manager) TogglePin(index int) bool {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	
 	if index < 0 || index >= len(m.filtered) {
+		m.mu.Unlock()
 		return false
 	}
 	
 	targetID := m.filtered[index].ID
+	found := false
 	for i := range m.history {
 		if m.history[i].ID == targetID {
 			m.history[i].Pinned = !m.history[i].Pinned
-			return true
+			found = true
+			break
 		}
 	}
-	return false
+	
+	m.mu.Unlock()
+	
+	if found {
+		m.updateFiltered()
+		m.triggerUpdate()
+	}
+	
+	return found
 }
 
 // Delete removes an item
 func (m *Manager) Delete(index int) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	
 	if index < 0 || index >= len(m.filtered) {
+		m.mu.Unlock()
 		return fmt.Errorf("invalid index")
 	}
 	
 	targetItem := m.filtered[index]
 	if targetItem.Pinned {
+		m.mu.Unlock()
 		return fmt.Errorf("cannot delete pinned items")
 	}
 	
+	found := false
 	for i, item := range m.history {
 		if item.ID == targetItem.ID {
 			m.history = append(m.history[:i], m.history[i+1:]...)
-			m.selectedIndex = -1
-			return nil
+			found = true
+			break
 		}
 	}
 	
-	return fmt.Errorf("item not found")
+	m.selectedIndex = -1
+	m.mu.Unlock()
+	
+	if found {
+		m.updateFiltered()
+		m.triggerUpdate()
+	} else {
+		return fmt.Errorf("item not found")
+	}
+	
+	return nil
 }
 
 // ClearUnpinned removes all unpinned items
 func (m *Manager) ClearUnpinned() {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	
 	var pinned []Item
 	for _, item := range m.history {
@@ -330,6 +356,10 @@ func (m *Manager) ClearUnpinned() {
 	
 	m.history = pinned
 	m.selectedIndex = -1
+	m.mu.Unlock()
+	
+	m.updateFiltered()
+	m.triggerUpdate()
 }
 
 // CopyToClipboard copies an item to the system clipboard
@@ -347,6 +377,10 @@ func (m *Manager) CopyToClipboard(index int) error {
 			m.monitor.SetProgrammaticCopy([]byte(item.ImageData))
 		}
 	}
+	
+	m.mu.Lock()
+	m.lastCopied = time.Now()
+	m.mu.Unlock()
 	
 	if item.Type == TypeText {
 		return m.native.WriteText([]byte(item.Content))

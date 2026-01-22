@@ -2,18 +2,21 @@
 package ui
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"image"
 	"image/jpeg"
+	_ "image/jpeg" // Register decoder
 	"image/png"
+	_ "image/png" // Register decoder
 	"os"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
 )
 
@@ -83,22 +86,26 @@ func SaveImage(item clipboard.Item, filename, format string) error {
 		return fmt.Errorf("no image data available")
 	}
 	
+	// Decode base64 data
 	data, err := base64.StdEncoding.DecodeString(item.ImageData)
 	if err != nil {
 		return fmt.Errorf("failed to decode image: %w", err)
 	}
 	
-	img, _, err := image.Decode(strings.NewReader(string(data)))
+	// Decode image
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("failed to decode image format: %w", err)
 	}
 	
+	// Create output file
 	file, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 	defer file.Close()
 	
+	// Encode in requested format
 	switch format {
 	case "png":
 		if err := png.Encode(file, img); err != nil {

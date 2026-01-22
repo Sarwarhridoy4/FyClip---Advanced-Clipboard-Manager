@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
 )
 
@@ -78,18 +77,33 @@ func (t *Toolbar) onPin() {
 		return
 	}
 	
-	go func() {
-		if t.manager.TogglePin(index) {
-			item, _ := t.manager.GetItem(index)
-			status := "Pinned"
-			if !item.Pinned {
-				status = "Unpinned"
-			}
-			
-			t.manager.Shutdown() // Force save
-			ShowNotification(t.app, status+" item!")
+	// Get current state before toggling
+	item, ok := t.manager.GetItem(index)
+	if !ok {
+		ShowNotification(t.app, "Failed to get item!")
+		return
+	}
+	
+	currentlyPinned := item.Pinned
+	
+	// Toggle the pin
+	if t.manager.TogglePin(index) {
+		t.manager.SaveHistory()
+		
+		// Show appropriate message
+		if currentlyPinned {
+			ShowNotification(t.app, "Item unpinned!")
+		} else {
+			ShowNotification(t.app, "Item pinned!")
 		}
-	}()
+		
+		// Force list refresh
+		if t.list != nil {
+			t.list.Refresh()
+		}
+	} else {
+		ShowNotification(t.app, "Failed to toggle pin!")
+	}
 }
 
 // onDelete handles delete button
@@ -100,16 +114,20 @@ func (t *Toolbar) onDelete() {
 		return
 	}
 	
-	go func() {
-		if err := t.manager.Delete(index); err != nil {
-			ShowNotification(t.app, err.Error())
-			return
-		}
-		
-		t.manager.Shutdown() // Force save
+	if err := t.manager.Delete(index); err != nil {
+		ShowNotification(t.app, err.Error())
+		return
+	}
+	
+	t.manager.SaveHistory()
+	
+	// Unselect and refresh
+	if t.list != nil {
 		t.list.UnselectAll()
-		ShowNotification(t.app, "Deleted item!")
-	}()
+		t.list.Refresh()
+	}
+	
+	ShowNotification(t.app, "Item deleted!")
 }
 
 // onClear handles clear button
@@ -122,12 +140,16 @@ func (t *Toolbar) onClear() {
 				return
 			}
 			
-			go func() {
-				t.manager.ClearUnpinned()
-				t.manager.Shutdown() // Force save
+			t.manager.ClearUnpinned()
+			t.manager.SaveHistory()
+			
+			// Unselect and refresh
+			if t.list != nil {
 				t.list.UnselectAll()
-				ShowNotification(t.app, "Cleared history!")
-			}()
+				t.list.Refresh()
+			}
+			
+			ShowNotification(t.app, "History cleared!")
 		},
 		t.window,
 	)
@@ -157,12 +179,10 @@ func (t *Toolbar) onSaveImage() {
 			filename += ".png"
 		}
 		
-		go func() {
-			if err := SaveImage(item, filename, format); err != nil {
-				ShowNotification(t.app, fmt.Sprintf("Save failed: %v", err))
-				return
-			}
-			ShowNotification(t.app, fmt.Sprintf("Saved as %s", filepath.Base(filename)))
-		}()
+		if err := SaveImage(item, filename, format); err != nil {
+			ShowNotification(t.app, fmt.Sprintf("Save failed: %v", err))
+			return
+		}
+		ShowNotification(t.app, fmt.Sprintf("Saved as %s", filepath.Base(filename)))
 	}, t.window)
 }

@@ -1,4 +1,3 @@
-// File: internal/ui/preview.go
 package ui
 
 import (
@@ -19,42 +18,53 @@ import (
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
 )
 
-const maxPreviewImageSize = 5 * 1024 * 1024 // 5 MB
-
 // PreviewPane displays preview of selected item
 type PreviewPane struct {
 	manager   *clipboard.Manager
 	text      *widget.RichText
+	scroll    *container.Scroll
 	image     *canvas.Image
-	metaText  *canvas.Text
+	copyBtn   *widget.Button
 	container *fyne.Container
+
+	rawText string
 }
 
 // NewPreviewPane creates a new preview pane
 func NewPreviewPane(manager *clipboard.Manager) *PreviewPane {
-	pp := &PreviewPane{manager: manager}
+	pp := &PreviewPane{
+		manager: manager,
+	}
 
-	// Selectable + copyable text preview
+	// Markdown-capable rich text
 	pp.text = widget.NewRichText()
 	pp.text.Wrapping = fyne.TextWrapWord
 
-	// Image placeholder (will be replaced dynamically)
+	pp.scroll = container.NewVScroll(pp.text)
+	pp.scroll.Hide()
+
 	pp.image = canvas.NewImageFromResource(theme.BrokenImageIcon())
 	pp.image.FillMode = canvas.ImageFillContain
 	pp.image.Hide()
 
-	// Metadata overlay
-	pp.metaText = canvas.NewText("", theme.ForegroundColor())
-	pp.metaText.TextSize = theme.TextSize() - 2
-	pp.metaText.Alignment = fyne.TextAlignLeading
-	pp.metaText.Hide()
+	pp.copyBtn = widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
+		if pp.rawText == "" {
+			return
+		}
+		fyne.CurrentApp().Clipboard().SetContent(pp.rawText)
+	})
+	pp.copyBtn.Importance = widget.LowImportance
+	pp.copyBtn.Hide()
 
-	pp.container = container.NewStack(
-		pp.text,
-		container.NewBorder(nil, pp.metaText, nil, nil, pp.image),
+	pp.container = container.NewBorder(
+		container.NewHBox(layoutSpacer(), pp.copyBtn),
+		nil,
+		nil,
+		nil,
+		container.NewStack(pp.scroll, pp.image),
 	)
 
-	pp.setPlaceholder()
+	pp.showPlaceholder()
 	return pp
 }
 
@@ -79,127 +89,91 @@ func (pp *PreviewPane) Refresh() {
 	}
 }
 
-// ---------------- TEXT ----------------
-
+// showText renders markdown text with scrollbar
 func (pp *PreviewPane) showText(item clipboard.Item) {
 	pp.image.Hide()
-	pp.metaText.Hide()
-	pp.text.Show()
+	pp.copyBtn.Show()
 
-	pp.text.Segments = syntaxHighlight(item.Content)
+	pp.rawText = item.Content
+	pp.text.ParseMarkdown(item.Content)
+
+	pp.scroll.Show()
+	pp.scroll.ScrollToTop()
 	pp.text.Refresh()
 }
 
-func (pp *PreviewPane) setPlaceholder() {
-	pp.text.Segments = []widget.RichTextSegment{
-		&widget.TextSegment{
-			Text: "Select an item to preview...",
-			Style: widget.RichTextStyle{
-				ColorName: theme.ColorNameDisabled,
-			},
-		},
-	}
-	pp.text.Refresh()
-}
-
-// ---------------- IMAGE (OPTION A) ----------------
-
+// showImage displays image preview
 func (pp *PreviewPane) showImage(item clipboard.Item) {
-	pp.text.Hide()
+	pp.copyBtn.Hide()
+	pp.rawText = ""
 
-	raw, err := base64.StdEncoding.DecodeString(item.ImageData)
-	if err != nil || len(raw) == 0 || len(raw) > maxPreviewImageSize {
+	if item.ImageData == "" {
 		pp.clear()
 		return
 	}
 
-	img, format, err := image.Decode(bytes.NewReader(raw))
+	imageBytes, err := base64.StdEncoding.DecodeString(item.ImageData)
 	if err != nil {
-		pp.clear()
+		pp.showImageError(item, "Failed to decode image data")
 		return
 	}
 
-	// IMPORTANT:
-	// Re-create the canvas.Image from image.Image
-	// Resource-backed images cannot switch to Image-backed
-	pp.image = canvas.NewImageFromImage(img)
-	pp.image.FillMode = canvas.ImageFillContain
-	pp.image.Show()
+	_, format, err := image.DecodeConfig(bytes.NewReader(imageBytes))
+	if err != nil {
+		pp.showImageError(item, "Invalid image format")
+		return
+	}
 
-	pp.metaText.Text = fmt.Sprintf(
-		"%s • %dx%d • %d KB • %s",
+	size := item.Size()
+	info := fmt.Sprintf(
+		"**%s Image**\n\nCopied: %s\nSize: ~%d bytes\nFormat: %s",
 		strings.ToUpper(format),
-		img.Bounds().Dx(),
-		img.Bounds().Dy(),
-		len(raw)/1024,
 		item.Timestamp.Format("2006-01-02 15:04:05"),
+		size,
+		format,
 	)
-	pp.metaText.Show()
 
-	// Replace the stacked image container
-	pp.container.Objects[1] =
-		container.NewBorder(nil, pp.metaText, nil, nil, pp.image)
+	pp.text.ParseMarkdown(info)
+	pp.scroll.Show()
+	pp.scroll.ScrollToTop()
 
-	pp.container.Refresh()
+	pp.image.Resource = fyne.NewStaticResource("preview", imageBytes)
+	pp.image.Show()
+	pp.image.Refresh()
 }
 
-// ---------------- CLEAR ----------------
+// showImageError displays an error for image preview
+func (pp *PreviewPane) showImageError(item clipboard.Item, errMsg string) {
+	pp.copyBtn.Hide()
+	pp.rawText = ""
 
-func (pp *PreviewPane) clear() {
+	info := fmt.Sprintf(
+		"**Image Error**\n\nCopied: %s\nSize: ~%d bytes\n\n❌ %s",
+		item.Timestamp.Format("2006-01-02 15:04:05"),
+		item.Size(),
+		errMsg,
+	)
+
+	pp.text.ParseMarkdown(info)
+	pp.scroll.Show()
+	pp.scroll.ScrollToTop()
 	pp.image.Hide()
-	pp.metaText.Hide()
-	pp.text.Show()
-	pp.setPlaceholder()
 }
 
-// ---------------- SYNTAX HIGHLIGHTING ----------------
-
-func syntaxHighlight(text string) []widget.RichTextSegment {
-	lower := strings.ToLower(strings.TrimSpace(text))
-
-	switch {
-	case strings.HasPrefix(lower, "{") || strings.HasPrefix(lower, "["):
-		return highlightJSON(text)
-	case strings.Contains(lower, "package ") || strings.Contains(lower, "func "):
-		return highlightCode(text)
-	case strings.HasPrefix(lower, "#!") || strings.Contains(lower, "bash"):
-		return highlightCode(text)
-	default:
-		return plainText(text)
-	}
+// clear clears the preview
+func (pp *PreviewPane) clear() {
+	pp.rawText = ""
+	pp.copyBtn.Hide()
+	pp.showPlaceholder()
+	pp.image.Hide()
 }
 
-func plainText(t string) []widget.RichTextSegment {
-	return []widget.RichTextSegment{
-		&widget.TextSegment{
-			Text: t,
-			Style: widget.RichTextStyle{
-				ColorName: theme.ColorNameForeground,
-			},
-		},
-	}
+func (pp *PreviewPane) showPlaceholder() {
+	pp.text.ParseMarkdown("_Select an item to preview..._")
+	pp.scroll.Show()
+	pp.scroll.ScrollToTop()
 }
 
-func highlightCode(t string) []widget.RichTextSegment {
-	return []widget.RichTextSegment{
-		&widget.TextSegment{
-			Text: t,
-			Style: widget.RichTextStyle{
-				ColorName: theme.ColorNamePrimary,
-				TextStyle: fyne.TextStyle{Monospace: true},
-			},
-		},
-	}
-}
-
-func highlightJSON(t string) []widget.RichTextSegment {
-	return []widget.RichTextSegment{
-		&widget.TextSegment{
-			Text: t,
-			Style: widget.RichTextStyle{
-				ColorName: theme.ColorNameSuccess,
-				TextStyle: fyne.TextStyle{Monospace: true},
-			},
-		},
-	}
+func layoutSpacer() fyne.CanvasObject {
+	return container.NewHBox()
 }
