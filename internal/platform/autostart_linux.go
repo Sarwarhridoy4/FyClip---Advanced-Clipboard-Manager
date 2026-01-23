@@ -1,4 +1,3 @@
-// File: internal/platform/autostart_linux.go
 //go:build linux
 
 package platform
@@ -6,10 +5,22 @@ package platform
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
-// enableLinux creates a .desktop file for autostart on Linux
-func (as *AutoStart) enableLinux() error {
+func getAutoStartPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".config", "autostart", "fyclip.desktop")
+}
+
+func (as *AutoStart) enable() error {
+	if err := os.MkdirAll(filepath.Dir(as.filePath), 0755); err != nil {
+		return err
+	}
+
 	content := fmt.Sprintf(`[Desktop Entry]
 Type=Application
 Exec=%s
@@ -21,4 +32,8 @@ Comment=Clipboard Manager
 `, as.execPath)
 
 	return os.WriteFile(as.filePath, []byte(content), 0644)
+}
+
+func (as *AutoStart) disable() error {
+	return os.Remove(as.filePath)
 }

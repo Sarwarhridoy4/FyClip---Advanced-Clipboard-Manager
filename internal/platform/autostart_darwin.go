@@ -1,4 +1,3 @@
-// File: internal/platform/autostart_darwin.go
 //go:build darwin
 
 package platform
@@ -6,10 +5,27 @@ package platform
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
-// enableDarwin creates a plist file for autostart on macOS
-func (as *AutoStart) enableDarwin() error {
+func getAutoStartPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(
+		home,
+		"Library",
+		"LaunchAgents",
+		"com.fyclip.plist",
+	)
+}
+
+func (as *AutoStart) enable() error {
+	if err := os.MkdirAll(filepath.Dir(as.filePath), 0755); err != nil {
+		return err
+	}
+
 	content := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -27,4 +43,8 @@ func (as *AutoStart) enableDarwin() error {
 </plist>`, as.execPath)
 
 	return os.WriteFile(as.filePath, []byte(content), 0644)
+}
+
+func (as *AutoStart) disable() error {
+	return os.Remove(as.filePath)
 }
