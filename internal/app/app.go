@@ -34,20 +34,25 @@ type App struct {
 // New creates a new FyClip application
 func New() *App {
 	a := &App{}
-	
+
 	// Create Fyne app
 	a.fyneApp = app.NewWithID("com.sarwar.fyclip")
 	if a.fyneApp == nil {
 		return nil
 	}
-	
+
 	a.fyneApp.Settings().SetTheme(theme.DarkTheme())
-	a.fyneApp.SetIcon(a.loadIcon())
-	
+
+	icon := a.loadIcon()
+	a.fyneApp.SetIcon(icon)
+
 	// Create main window
 	a.window = a.fyneApp.NewWindow("FyClip - Clipboard Manager")
 	a.window.Resize(fyne.NewSize(900, 600))
-	
+
+	// CRITICAL: Linux dock icon fix
+	a.window.SetIcon(icon)
+
 	// Initialize clipboard manager
 	var err error
 	a.manager, err = clipboard.NewManager(clipboard.Config{
@@ -69,25 +74,24 @@ func New() *App {
 			})
 		},
 	})
-	
 	if err != nil {
 		log.Printf("Failed to create manager: %v", err)
 		return nil
 	}
-	
+
 	// Create main UI
 	a.mainUI = ui.NewMainWindow(a.window, a.fyneApp, a.manager)
 	a.window.SetContent(a.mainUI.Build())
-	
+
 	// Setup system tray
 	a.tray = tray.New(a.fyneApp, a.window, a.manager)
 	a.tray.Setup()
-	
-	// Handle window close
+
+	// Hide window instead of exit
 	a.window.SetCloseIntercept(func() {
 		a.window.Hide()
 	})
-	
+
 	return a
 }
 
@@ -96,33 +100,28 @@ func (a *App) Run() error {
 	if a == nil || a.window == nil {
 		return fmt.Errorf("application not initialized")
 	}
-	
+
 	defer func() {
 		if a.manager != nil {
 			a.manager.Shutdown()
 		}
 	}()
-	
+
 	a.window.ShowAndRun()
 	return nil
 }
 
-
-// loadIcon loads the application icon (Windows/Linux/macOS safe)
+// loadIcon loads the application icon (cross-platform safe)
 func (a *App) loadIcon() fyne.Resource {
 	switch runtime.GOOS {
 	case "windows":
 		if len(iconICO) > 0 {
 			return fyne.NewStaticResource("icon.ico", iconICO)
 		}
-		log.Printf("Windows icon (.ico) not found, using fallback")
-
 	default: // linux, darwin
 		if len(iconPNG) > 0 {
 			return fyne.NewStaticResource("icon.png", iconPNG)
 		}
-		log.Printf("PNG icon not found, using fallback")
 	}
-
 	return theme.ContentPasteIcon()
 }
