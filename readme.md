@@ -267,6 +267,10 @@ Contributions are welcome! Please:
 3. Make your changes
 4. Submit a pull request
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a history of changes.
+
 ## License
 
 MIT License - See LICENSE file for details
