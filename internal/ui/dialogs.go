@@ -11,10 +11,12 @@ import (
 	"image/png"
 	_ "image/png" // Register decoder
 	"os"
+	// "path/filepath" // Removed unused import
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog" // Added import
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
@@ -78,6 +80,35 @@ func ShowPopup(window fyne.Window, message string, duration time.Duration) {
 			popup.Hide()
 		})
 	})
+}
+
+// ShowImageFormatDialog shows a dialog to select the image format (PNG/JPEG)
+func ShowImageFormatDialog(window fyne.Window, callback func(format string, err error)) {
+	selectedFormat := "png" // Default to PNG
+	
+	radio := widget.NewRadioGroup([]string{"PNG", "JPEG"}, func(s string) {
+		if s == "JPEG" {
+			selectedFormat = "jpeg"
+		} else {
+			selectedFormat = "png"
+		}
+	})
+	radio.SetSelected("PNG") // Set initial selection
+	
+	dialog.ShowCustomConfirm(
+		"Select Image Format",
+		"Save",
+		"Cancel",
+		radio,
+		func(confirmed bool) {
+			if confirmed {
+				callback(selectedFormat, nil)
+			} else {
+				callback("", fmt.Errorf("format selection cancelled"))
+			}
+		},
+		window,
+	)
 }
 
 // SaveImage saves an image item to file

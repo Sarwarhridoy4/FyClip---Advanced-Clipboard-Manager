@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time" // Added import
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -162,27 +163,59 @@ func (t *Toolbar) onSaveImage() {
 		ShowNotification(t.app, "Please select an image!")
 		return
 	}
-	
-	dialog.ShowFileSave(func(writer fyne.URIWriteCloser, err error) {
-		if err != nil || writer == nil {
+
+	// First, ask the user for the desired format
+	ShowImageFormatDialog(t.window, func(selectedFormat string, err error) {
+		if err != nil { // User cancelled format selection
 			return
 		}
-		defer writer.Close()
-		
-		filename := writer.URI().Path()
-		ext := strings.ToLower(filepath.Ext(filename))
-		
-		format := "png"
-		if ext == ".jpg" || ext == ".jpeg" {
-			format = "jpeg"
-		} else if ext != ".png" {
-			filename += ".png"
+
+		// Determine the default extension based on the selected format
+		var defaultExtension string
+		if selectedFormat == "jpeg" {
+			defaultExtension = ".jpeg"
+		} else {
+			defaultExtension = ".png"
 		}
+
+		// Generate a suggested filename with the default extension
+		suggestedFilename := fmt.Sprintf("image_%s%s", time.Now().Format("20060102_150405"), defaultExtension)
 		
-		if err := SaveImage(item, filename, format); err != nil {
-			ShowNotification(t.app, fmt.Sprintf("Save failed: %v", err))
-			return
-		}
-		ShowNotification(t.app, fmt.Sprintf("Saved as %s", filepath.Base(filename)))
-	}, t.window)
+		// Create a file save dialog
+		fileSaveDialog := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
+			if err != nil || writer == nil {
+				return
+			}
+			defer writer.Close()
+
+			filename := writer.URI().Path()
+			// Ensure the filename has the correct extension based on user's initial choice
+			// or if they changed it in the file dialog
+			if !strings.HasSuffix(strings.ToLower(filename), ".png") &&
+				!strings.HasSuffix(strings.ToLower(filename), ".jpg") &&
+				!strings.HasSuffix(strings.ToLower(filename), ".jpeg") {
+				filename += defaultExtension // Append default if no known extension was provided
+			}
+
+			// The actual format to save will be based on the selectedFormat,
+			// or re-evaluated from the final filename if user changed it.
+			formatToSave := selectedFormat
+			ext := strings.ToLower(filepath.Ext(filename))
+			if ext == ".jpg" || ext == ".jpeg" {
+				formatToSave = "jpeg"
+			} else if ext == ".png" {
+				formatToSave = "png"
+			}
+
+
+			if err := SaveImage(item, filename, formatToSave); err != nil {
+				ShowNotification(t.app, fmt.Sprintf("Save failed: %v", err))
+				return
+			}
+			ShowNotification(t.app, fmt.Sprintf("Saved as %s", filepath.Base(filename)))
+		}, t.window)
+		
+		fileSaveDialog.SetFileName(suggestedFilename) // Set the suggested filename
+		fileSaveDialog.Show()
+	})
 }
