@@ -37,7 +37,7 @@ func NewPreviewPane(manager *clipboard.Manager) *PreviewPane {
 	}
 
 	// Markdown-capable rich text
-	pp.text = widget.NewRichText()
+	pp.text = widget.NewRichTextFromMarkdown("_Select an item to preview..._")
 	pp.text.Wrapping = fyne.TextWrapWord
 
 	pp.scroll = container.NewVScroll(pp.text)
@@ -169,7 +169,7 @@ func (pp *PreviewPane) clear() {
 }
 
 func (pp *PreviewPane) showPlaceholder() {
-	pp.text.ParseMarkdown("_Select an item to preview..._")
+	// The RichText is already initialized with the placeholder markdown, so no need to parse again.
 	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
 }

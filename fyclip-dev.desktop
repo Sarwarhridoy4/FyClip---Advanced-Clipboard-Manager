@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=FyClip (Dev)
+GenericName=Clipboard Manager (Development)
+Comment=Advanced Clipboard Manager (Development Version)
+Exec=bash -c "cd /home/sarwar/Desktop/FyClip---Advanced-Clipboard-Manager/ && go run ."
+Icon=/home/sarwar/Desktop/FyClip---Advanced-Clipboard-Manager/icon.png
+Terminal=false
+Categories=Utility;Development;
+StartupNotify=true
+StartupWMClass=com.sarwar.fyclip
+X-GNOME-UsesNotifications=true
