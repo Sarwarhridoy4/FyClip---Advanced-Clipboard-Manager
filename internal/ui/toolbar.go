@@ -201,9 +201,10 @@ func (t *Toolbar) onSaveImage() {
 			// or re-evaluated from the final filename if user changed it.
 			formatToSave := selectedFormat
 			ext := strings.ToLower(filepath.Ext(filename))
-			if ext == ".jpg" || ext == ".jpeg" {
+			switch ext {
+case ".jpg", ".jpeg":
 				formatToSave = "jpeg"
-			} else if ext == ".png" {
+			case ".png":
 				formatToSave = "png"
 			}
 
