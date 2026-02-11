@@ -80,10 +80,7 @@ Place your `icon.png` file in the root directory. If you don't have one, you can
 go mod tidy
 ```
 
-This will automatically download:
-- `fyne.io/fyne/v2` (v2.5.3)
-- `golang.design/x/clipboard` (v0.7.0)
-- All required dependencies
+This will automatically download project dependencies from `go.mod`.
 
 ### 7. Build the Application
 
@@ -229,18 +226,23 @@ The modular architecture provides several performance benefits:
 ### Linux
 
 ```bash
-# Build static binary
-CGO_ENABLED=1 go build -ldflags="-s -w" -o fyclip
+# Recommended: use the project build script
+./build.sh
 
-# Create package structure
-mkdir -p fyclip-linux-amd64
-cp fyclip fyclip-linux-amd64/
-cp icon.png fyclip-linux-amd64/
-cp README.md fyclip-linux-amd64/
-
-# Create archive
-tar -czf fyclip-linux-amd64.tar.gz fyclip-linux-amd64/
+# Optional explicit version
+./build.sh 1.5.1
 ```
+
+This script now follows the official Fyne Linux packaging flow (`fyne package --os linux`) and then generates:
+- `dist/fyclip_<version>_<arch>.deb`
+- `dist/fyclip_<version>_<arch>.AppImage`
+
+Required tools:
+- `go`
+- `fyne` CLI
+- `dpkg-deb`
+- `appimagetool`
+- `tar`
 
 ### Windows
 
@@ -293,6 +295,8 @@ If you encounter issues:
 ## Resources
 
 - [Fyne Documentation](https://docs.fyne.io/)
+- [Fyne Packaging](https://docs.fyne.io/started/packaging.html)
+- [Fyne Metadata](https://docs.fyne.io/started/metadata)
 - [Go Documentation](https://go.dev/doc/)
 - [Project Repository](https://github.com/Sarwarhridoy4/fyclip)
 

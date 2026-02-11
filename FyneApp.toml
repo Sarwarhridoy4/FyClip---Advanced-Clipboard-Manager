@@ -1,8 +1,14 @@
 [Details]
-Name = "FyClip---Advanced-Clipboard-Manager"
-ID = "FyClip___Advanced_Clipboard_Manager"
+Icon = "icon.png"
+Name = "FyClip"
+ID = "com.sarwar.fyclip"
 Version = "1.5.0"
-Build = 1
+Build = 2
+
+[LinuxAndBSD]
+GenericName = "Clipboard Manager"
+Categories = ["Utility"]
+Comment = "Advanced Clipboard Manager"
 
 [Migrations]
 fyneDo = true

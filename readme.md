@@ -1,6 +1,6 @@
 # FyClip - Advanced Clipboard Manager
 
-A modular, high-performance clipboard manager built with Go and Fyne v2.5+.
+A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
 **Current Version**: 1.5.0
 
@@ -10,10 +10,12 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.5+.
 - 📌 **Pin Items**: Keep important items at the top
 - 🔍 **Search**: Quick search through clipboard history
 - 🖼️ **Image Support**: Preview and save clipboard images
+- 📝 **Markdown Preview**: Markdown content renders correctly in preview pane
 - 💾 **Persistent Storage**: History saved across sessions
 - 🚀 **AutoStart**: Launch on system startup
 - 🎨 **Modern UI**: Dark theme with responsive design
 - ⚡ **Performance**: Debounced updates, async operations
+- 🐧 **Linux Packaging**: Official Fyne Linux package pipeline for `.deb` and `.AppImage`
 - 🔒 **Thread-Safe**: Proper concurrency handling
 
 ## Project Structure
@@ -121,19 +123,50 @@ sudo dnf install wl-clipboard
 
 ## Building for Release
 
-### Using Fyne Packaging (Recommended)
+### Linux Debian + AppImage (Recommended)
 
-Package the application for distribution:
+Use the project script, which now follows Fyne's official Linux packaging flow (`fyne package --os linux`) and then builds:
+- Debian package: `dist/fyclip_<version>_<arch>.deb`
+- AppImage: `dist/fyclip_<version>_<arch>.AppImage`
 
 ```bash
-# Linux (AppImage)
-fyne package -os linux -icon icon.png
+./build.sh
+# or pass explicit version
+./build.sh 1.5.1
+```
 
-# Windows (NSIS installer)
-fyne package -os windows -icon icon.png
+Requirements for the script:
+- `go`
+- `fyne` CLI
+- `dpkg-deb`
+- `appimagetool`
+- `tar`
 
-# macOS (DMG)
-fyne package -os darwin -icon icon.png
+Packaging process used by `build.sh`:
+1. Run Fyne official Linux packaging:
+   - `fyne package --os linux --release --name fyclip --icon icon.png`
+   - Generates `fyclip.tar.xz`
+2. Extract Fyne package payload and reuse its generated Linux assets:
+   - Binary in `usr/bin` or `usr/local/bin`
+   - Desktop entry in `usr/share/applications` or `usr/local/share/applications`
+   - Icon in `usr/share/pixmaps` or `usr/local/share/pixmaps`
+3. Build Debian package (`.deb`) from that payload via `dpkg-deb`
+4. Build AppImage (`.AppImage`) from the same payload via `appimagetool`
+5. Place final artifacts in `dist/`
+
+### Fyne Native Packaging
+
+Package using Fyne directly:
+
+```bash
+# Linux tar package (official Fyne output)
+fyne package --os linux --release --name fyclip --icon icon.png
+
+# Windows installer
+fyne package --os windows --release --name fyclip --icon icon.png
+
+# macOS app bundle / dmg
+fyne package --os darwin --release --name fyclip --icon icon.png
 ```
 
 ### Manual Build
@@ -209,10 +242,11 @@ Settings are automatically saved to:
 
 ### Performance Optimizations
 
-- **Debounced Updates**: UI updates are batched (100ms debounce)
+- **Debounced Updates**: UI updates are batched (50ms debounce)
 - **Async Operations**: Storage and clipboard ops don't block UI
 - **Efficient Filtering**: Smart search with early returns
 - **Thread-Safe**: Proper mutex usage throughout
+- **Selection Fast Path**: Selecting list items avoids redundant full-window refreshes
 
 ### Thread Safety
 

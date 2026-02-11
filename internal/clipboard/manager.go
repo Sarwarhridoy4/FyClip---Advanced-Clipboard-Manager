@@ -274,7 +274,6 @@ func (m *Manager) SetSelected(index int) {
 	m.mu.Lock()
 	m.selectedIndex = index
 	m.mu.Unlock()
-	m.triggerUpdate()
 }
 
 // TogglePin toggles the pin status of an item

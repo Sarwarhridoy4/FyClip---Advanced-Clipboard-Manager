@@ -69,7 +69,7 @@ func (hl *HistoryList) createTemplate() fyne.CanvasObject {
 	pinBtn := widget.NewButtonWithIcon("", theme.RadioButtonIcon(), nil)
 	pinBtn.Importance = widget.LowImportance
 	
-	typeIcon := widget.NewIcon(theme.DocumentIcon())
+	typeIcon := widget.NewIcon(theme.FileTextIcon())
 	contentLabel := widget.NewLabel("Template")
 	timeLabel := widget.NewLabel("00:00")
 	timeLabel.TextStyle.Monospace = true
@@ -121,10 +121,11 @@ func (hl *HistoryList) updateItem(index int, obj fyne.CanvasObject) {
 	// Update type icon
 	typeIcon := innerContainer.Objects[1].(*widget.Icon)
 	if item.Type == clipboard.TypeText {
-		typeIcon.SetResource(theme.DocumentIcon())
+		typeIcon.SetResource(preferredDocIcon())
 	} else {
-		typeIcon.SetResource(theme.MediaPhotoIcon())
+		typeIcon.SetResource(theme.FileImageIcon())
 	}
+	typeIcon.Refresh()
 	
 	// Update content label
 	contentLabel := innerContainer.Objects[2].(*widget.Label)
@@ -133,4 +134,11 @@ func (hl *HistoryList) updateItem(index int, obj fyne.CanvasObject) {
 	// Update time label
 	timeLabel := innerContainer.Objects[4].(*widget.Label)
 	timeLabel.SetText(item.Timestamp.Format("15:04"))
+}
+
+func preferredDocIcon() fyne.Resource {
+	if res := theme.FileTextIcon(); res != nil {
+		return res
+	}
+	return theme.DocumentIcon()
 }

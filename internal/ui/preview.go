@@ -28,6 +28,10 @@ type PreviewPane struct {
 	container *fyne.Container
 
 	rawText string
+
+	lastItemID   string
+	lastItemType clipboard.ItemType
+	hasSelection bool
 }
 
 // NewPreviewPane creates a new preview pane
@@ -37,8 +41,7 @@ func NewPreviewPane(manager *clipboard.Manager) *PreviewPane {
 	}
 
 	// Markdown-capable rich text
-	pp.text = widget.NewRichTextFromMarkdown("_Select an item to preview..._")
-	pp.text.Wrapping = fyne.TextWrapWord
+	pp.text = pp.newMarkdownText("_Select an item to preview..._")
 
 	pp.scroll = container.NewVScroll(pp.text)
 	pp.scroll.Hide()
@@ -77,7 +80,14 @@ func (pp *PreviewPane) Build() fyne.CanvasObject {
 func (pp *PreviewPane) Refresh() {
 	item, ok := pp.manager.GetSelected()
 	if !ok {
+		if !pp.hasSelection {
+			return
+		}
 		pp.clear()
+		return
+	}
+
+	if pp.hasSelection && item.ID == pp.lastItemID && item.Type == pp.lastItemType {
 		return
 	}
 
@@ -95,11 +105,11 @@ func (pp *PreviewPane) showText(item clipboard.Item) {
 	pp.copyBtn.Show()
 
 	pp.rawText = item.Content
-	pp.text.ParseMarkdown(item.Content)
+	pp.setMarkdown(item.Content)
 
 	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
-	pp.text.Refresh()
+	pp.markRendered(item)
 }
 
 // showImage displays image preview
@@ -133,13 +143,14 @@ func (pp *PreviewPane) showImage(item clipboard.Item) {
 		format,
 	)
 
-	pp.text.ParseMarkdown(info)
+	pp.setMarkdown(info)
 	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
 
 	pp.image.Resource = fyne.NewStaticResource("preview", imageBytes)
 	pp.image.Show()
 	pp.image.Refresh()
+	pp.markRendered(item)
 }
 
 // showImageError displays an error for image preview
@@ -154,24 +165,48 @@ func (pp *PreviewPane) showImageError(item clipboard.Item, errMsg string) {
 		errMsg,
 	)
 
-	pp.text.ParseMarkdown(info)
+	pp.setMarkdown(info)
 	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
 	pp.image.Hide()
+	pp.markRendered(item)
 }
 
 // clear clears the preview
 func (pp *PreviewPane) clear() {
 	pp.rawText = ""
 	pp.copyBtn.Hide()
+	pp.hasSelection = false
+	pp.lastItemID = ""
 	pp.showPlaceholder()
 	pp.image.Hide()
 }
 
 func (pp *PreviewPane) showPlaceholder() {
-	// The RichText is already initialized with the placeholder markdown, so no need to parse again.
+	pp.setMarkdown("_Select an item to preview..._")
 	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
+}
+
+func (pp *PreviewPane) setMarkdown(markdown string) {
+	normalized := strings.ReplaceAll(markdown, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	pp.text.ParseMarkdown(normalized)
+	pp.text.Refresh()
+}
+
+func (pp *PreviewPane) newMarkdownText(markdown string) *widget.RichText {
+	normalized := strings.ReplaceAll(markdown, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	rt := widget.NewRichTextFromMarkdown(normalized)
+	rt.Wrapping = fyne.TextWrapWord
+	return rt
+}
+
+func (pp *PreviewPane) markRendered(item clipboard.Item) {
+	pp.lastItemID = item.ID
+	pp.lastItemType = item.Type
+	pp.hasSelection = true
 }
 
 func layoutSpacer() fyne.CanvasObject {

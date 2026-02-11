@@ -1,136 +1,111 @@
 #!/bin/bash
 # =====================================================================
 # FyClip Build & Package Script (Debian + AppImage)
-# Fully automated, Linux-correct (dock, launcher, AppImage)
+# Uses Fyne's official Linux package output as the base payload.
 # =====================================================================
 
-set -e
+set -euo pipefail
 
 APP_NAME="fyclip"
 APP_ID="com.sarwar.fyclip"
-ICON_NAME="fyclip"
 AUTHOR="Sarwar Hossain"
 EMAIL="sarwarhridoy4@gmail.com"
+DIST_DIR="dist"
+WORK_DIR="${DIST_DIR}/work"
+FYNE_ROOT="${WORK_DIR}/fyne-root"
+DEB_ROOT="${WORK_DIR}/deb-root"
+APPDIR="${WORK_DIR}/FyClip.AppDir"
+
+require_cmd() {
+    local cmd="$1"
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Missing required tool: ${cmd}" >&2
+        exit 1
+    fi
+}
 
 # ---------------------------------------------------------------------
 # Version detection
 # ---------------------------------------------------------------------
-if git rev-parse --git-dir > /dev/null 2>&1; then
+if git rev-parse --git-dir >/dev/null 2>&1; then
     DEFAULT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0")
-    GIT_HASH=$(git rev-parse --short HEAD)
 else
     DEFAULT_VERSION="1.0.0"
-    GIT_HASH="unknown"
 fi
 
-if [ -n "$1" ]; then
+if [ -n "${1:-}" ]; then
     VERSION="$1"
 else
-    read -p "Enter version [default: ${DEFAULT_VERSION}]: " VERSION
+    read -r -p "Enter version [default: ${DEFAULT_VERSION}]: " VERSION
     VERSION=${VERSION:-"$DEFAULT_VERSION"}
 fi
 
 ARCH_RAW=$(uname -m)
 case "$ARCH_RAW" in
   x86_64) ARCH="amd64"; APPIMAGE_ARCH="x86_64" ;;
-  aarch64) ARCH="arm64"; APPIMAGE_ARCH="arm64" ;;
+  aarch64) ARCH="arm64"; APPIMAGE_ARCH="aarch64" ;;
   armv7l) ARCH="armhf"; APPIMAGE_ARCH="armhf" ;;
-  i386) ARCH="i386"; APPIMAGE_ARCH="i386" ;;
+  i386|i686) ARCH="i386"; APPIMAGE_ARCH="i686" ;;
   *) ARCH="$ARCH_RAW"; APPIMAGE_ARCH="$ARCH_RAW" ;;
 esac
 
-echo "📦 Building ${APP_NAME} ${VERSION} (${GIT_HASH}) for ${ARCH}"
+echo "📦 Building ${APP_NAME} ${VERSION} for ${ARCH}"
 
 # ---------------------------------------------------------------------
-# Dependency helper
+# Requirements
 # ---------------------------------------------------------------------
-install_if_missing() {
-    local cmd="$1"
-    local pkg="$2"
-    if ! command -v "$cmd" &> /dev/null; then
-        echo "⬇️ Installing $pkg..."
-        sudo apt-get update
-        sudo apt-get install -y "$pkg"
-    fi
-}
-
-install_if_missing go golang-go
-install_if_missing git git
-install_if_missing curl curl
-install_if_missing unzip unzip
-install_if_missing xclip xclip
-install_if_missing xsel xsel
-install_if_missing wl-copy wl-clipboard
-install_if_missing dpkg-deb dpkg-dev
-install_if_missing magick imagemagick
+require_cmd go
+require_cmd fyne
+require_cmd tar
+require_cmd dpkg-deb
+require_cmd appimagetool
+require_cmd ldd
 
 # ---------------------------------------------------------------------
-# AppImage tool
+# Build official Fyne Linux package payload
 # ---------------------------------------------------------------------
-if ! command -v appimagetool &> /dev/null; then
-    echo "⬇️ Downloading appimagetool..."
-    wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${APPIMAGE_ARCH}.AppImage -O appimagetool
-    chmod +x appimagetool
-    sudo mv appimagetool /usr/local/bin/appimagetool
+mkdir -p "${DIST_DIR}" "${WORK_DIR}"
+rm -rf "${FYNE_ROOT}" "${DEB_ROOT}" "${APPDIR}"
+rm -f "${DIST_DIR}/${APP_NAME}_${VERSION}_${ARCH}.deb" "${DIST_DIR}/${APP_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
+
+echo "⚙️ Running official Fyne Linux package step..."
+rm -f "${APP_NAME}.tar.xz"
+fyne package --os linux --release --name "${APP_NAME}" --icon icon.png
+
+if [ ! -f "${APP_NAME}.tar.xz" ]; then
+    echo "Fyne packaging failed: ${APP_NAME}.tar.xz not found" >&2
+    exit 1
 fi
 
-# ImageMagick command
-if command -v magick &> /dev/null; then
-    IM_CMD="magick convert"
+mkdir -p "${FYNE_ROOT}"
+tar -xJf "${APP_NAME}.tar.xz" -C "${FYNE_ROOT}"
+
+if [ -d "${FYNE_ROOT}/usr/local" ]; then
+    PREFIX_REL="usr/local"
+elif [ -d "${FYNE_ROOT}/usr" ]; then
+    PREFIX_REL="usr"
 else
-    IM_CMD="convert"
+    echo "Unexpected Fyne payload layout: missing usr or usr/local directories" >&2
+    exit 1
+fi
+
+BIN_PATH="${FYNE_ROOT}/${PREFIX_REL}/bin/${APP_NAME}"
+DESKTOP_PATH="${FYNE_ROOT}/${PREFIX_REL}/share/applications/${APP_ID}.desktop"
+ICON_PATH="${FYNE_ROOT}/${PREFIX_REL}/share/pixmaps/${APP_ID}.png"
+
+if [ ! -f "${BIN_PATH}" ] || [ ! -f "${DESKTOP_PATH}" ] || [ ! -f "${ICON_PATH}" ]; then
+    echo "Fyne payload missing expected binary/desktop/icon assets" >&2
+    exit 1
 fi
 
 # ---------------------------------------------------------------------
-# Go build
-# ---------------------------------------------------------------------
-rm -rf ${APP_NAME}-deb FyClip.AppDir *.deb *.AppImage
-
-go mod tidy
-echo "⚙️ Building Go binary..."
-go build \
-  -ldflags="-X 'main.AppID=${APP_ID}' -X 'main.GitCommit=${GIT_HASH}'" \
-  -o ${APP_NAME}
-
-# ---------------------------------------------------------------------
-# Debian package
+# Debian package from official payload
 # ---------------------------------------------------------------------
 echo "📦 Creating Debian package..."
+mkdir -p "${DEB_ROOT}/DEBIAN"
+cp -a "${FYNE_ROOT}/usr" "${DEB_ROOT}/"
 
-ICON_SIZES=(16 22 24 32 48 64 128 256 512)
-
-mkdir -p ${APP_NAME}-deb/DEBIAN
-mkdir -p ${APP_NAME}-deb/usr/bin
-mkdir -p ${APP_NAME}-deb/usr/share/applications
-mkdir -p ${APP_NAME}-deb/usr/share/icons/hicolor
-mkdir -p ${APP_NAME}-deb/usr/share/pixmaps
-
-cp ${APP_NAME} ${APP_NAME}-deb/usr/bin/
-
-for SIZE in "${ICON_SIZES[@]}"; do
-    DIR=${APP_NAME}-deb/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps
-    mkdir -p ${DIR}
-    $IM_CMD icon.png -resize ${SIZE}x${SIZE} ${DIR}/${ICON_NAME}.png
-done
-
-cp icon.png ${APP_NAME}-deb/usr/share/pixmaps/${ICON_NAME}.png
-
-cat <<EOF > ${APP_NAME}-deb/usr/share/applications/${APP_NAME}.desktop
-[Desktop Entry]
-Type=Application
-Name=FyClip
-GenericName=Clipboard Manager
-Comment=Advanced Clipboard Manager
-Exec=${APP_NAME}
-Icon=${ICON_NAME}
-Terminal=false
-Categories=Utility;
-StartupNotify=true
-StartupWMClass=FyClip
-X-GNOME-UsesNotifications=true
-EOF
-
-cat <<EOF > ${APP_NAME}-deb/DEBIAN/control
+cat <<EOF > "${DEB_ROOT}/DEBIAN/control"
 Package: ${APP_NAME}
 Version: ${VERSION}
 Section: utils
@@ -141,60 +116,42 @@ Depends: libgl1, libx11-6, libxcursor1, libxrandr2, libxinerama1, libxi6, libgtk
 Description: FyClip - Advanced Clipboard Manager
 EOF
 
-cat <<'EOF' > ${APP_NAME}-deb/DEBIAN/postinst
+cat <<'EOF' > "${DEB_ROOT}/DEBIAN/postinst"
 #!/bin/sh
 set -e
 command -v update-desktop-database >/dev/null && update-desktop-database -q
-command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q /usr/share/icons/hicolor
+command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q /usr/share/icons/hicolor || true
 EOF
-chmod 755 ${APP_NAME}-deb/DEBIAN/postinst
+chmod 755 "${DEB_ROOT}/DEBIAN/postinst"
 
-dpkg-deb --build ${APP_NAME}-deb
-mv ${APP_NAME}-deb.deb ${APP_NAME}_${VERSION}_${ARCH}.deb
+dpkg-deb --build "${DEB_ROOT}" "${DIST_DIR}/${APP_NAME}_${VERSION}_${ARCH}.deb"
 
 # ---------------------------------------------------------------------
-# AppImage
+# AppImage from official payload
 # ---------------------------------------------------------------------
 echo "📦 Creating AppImage..."
+mkdir -p "${APPDIR}"
+cp -a "${FYNE_ROOT}/usr" "${APPDIR}/"
 
-mkdir -p FyClip.AppDir/usr/bin
-mkdir -p FyClip.AppDir/usr/share/applications
-mkdir -p FyClip.AppDir/usr/share/icons/hicolor
-
-cp ${APP_NAME} FyClip.AppDir/usr/bin/
-chmod +x FyClip.AppDir/usr/bin/${APP_NAME}
-ln -sf usr/bin/${APP_NAME} FyClip.AppDir/AppRun
-
-for SIZE in "${ICON_SIZES[@]}"; do
-    DIR=FyClip.AppDir/usr/share/icons/hicolor/${SIZE}x${SIZE}/apps
-    mkdir -p ${DIR}
-    $IM_CMD icon.png -resize ${SIZE}x${SIZE} ${DIR}/${ICON_NAME}.png
-done
-
-cp icon.png FyClip.AppDir/${ICON_NAME}.png
-
-cat <<EOF > FyClip.AppDir/${APP_NAME}.desktop
-[Desktop Entry]
-Type=Application
-Name=FyClip
-GenericName=Clipboard Manager
-Comment=Advanced Clipboard Manager
-Exec=${APP_NAME}
-Icon=${ICON_NAME}
-Terminal=false
-Categories=Utility;
-StartupNotify=true
-StartupWMClass=FyClip
-X-GNOME-UsesNotifications=true
+cat > "${APPDIR}/AppRun" <<'EOF'
+#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+if [ -x "$HERE/usr/local/bin/fyclip" ]; then
+  exec "$HERE/usr/local/bin/fyclip" "$@"
+fi
+exec "$HERE/usr/bin/fyclip" "$@"
 EOF
+chmod +x "${APPDIR}/AppRun"
 
-mkdir -p FyClip.AppDir/usr/lib
-ldd ${APP_NAME} | awk '/=> \// {print $3}' | xargs -I '{}' cp -v '{}' FyClip.AppDir/usr/lib/ || true
+cp "${DESKTOP_PATH}" "${APPDIR}/${APP_ID}.desktop"
+cp "${ICON_PATH}" "${APPDIR}/${APP_ID}.png"
 
-appimagetool FyClip.AppDir
-mv FyClip-${APPIMAGE_ARCH}.AppImage ${APP_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage
+mkdir -p "${APPDIR}/usr/lib"
+ldd "${BIN_PATH}" | awk '/=> \// {print $3}' | xargs -r -I '{}' cp -v '{}' "${APPDIR}/usr/lib/" || true
 
-# ---------------------------------------------------------------------
+# Work in environments without FUSE, e.g. CI/sandboxes.
+APPIMAGE_EXTRACT_AND_RUN=1 appimagetool "${APPDIR}" "${DIST_DIR}/${APP_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
+
 echo "🎉 Build complete"
-echo " • Debian  : ${APP_NAME}_${VERSION}_${ARCH}.deb"
-echo " • AppImage: ${APP_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
+echo " • Debian  : ${DIST_DIR}/${APP_NAME}_${VERSION}_${ARCH}.deb"
+echo " • AppImage: ${DIST_DIR}/${APP_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
