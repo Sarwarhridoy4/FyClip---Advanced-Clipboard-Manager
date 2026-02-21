@@ -16,6 +16,12 @@ const (
 	UpdateDebounce  = 50 * time.Millisecond
 )
 
+// AddItemResult describes the result of adding a clipboard item.
+type AddItemResult struct {
+	Added          bool
+	MovedDuplicate bool
+}
+
 // Manager handles clipboard history and operations
 type Manager struct {
 	mu       sync.RWMutex
@@ -25,9 +31,11 @@ type Manager struct {
 	native   *NativeClipboard
 	monitor  *Monitor
 
-	selectedIndex int
-	searchQuery   string
-	lastCopied    time.Time
+	selectedIndex   int
+	searchQuery     string
+	showPinnedOnly  bool
+	lastCopied      time.Time
+	maxHistoryItems int
 
 	updateChan   chan struct{}
 	shutdownChan chan struct{}
@@ -36,6 +44,7 @@ type Manager struct {
 	// Callbacks
 	onUpdate func()
 	onError  func(error)
+	onInfo   func(string)
 }
 
 // Config holds manager configuration
@@ -43,6 +52,7 @@ type Config struct {
 	StoragePath string
 	OnUpdate    func()
 	OnError     func(error)
+	OnInfo      func(string)
 }
 
 // NewManager creates a new clipboard manager
@@ -58,14 +68,16 @@ func NewManager(cfg Config) (*Manager, error) {
 	}
 
 	m := &Manager{
-		storage:       storage,
-		native:        native,
-		selectedIndex: -1,
-		updateChan:    make(chan struct{}, 100),
-		shutdownChan:  make(chan struct{}),
-		running:       true,
-		onUpdate:      cfg.OnUpdate,
-		onError:       cfg.OnError,
+		storage:         storage,
+		native:          native,
+		selectedIndex:   -1,
+		updateChan:      make(chan struct{}, 100),
+		shutdownChan:    make(chan struct{}),
+		running:         true,
+		maxHistoryItems: MaxHistoryItems,
+		onUpdate:        cfg.OnUpdate,
+		onError:         cfg.OnError,
+		onInfo:          cfg.OnInfo,
 	}
 
 	// Load history
@@ -120,9 +132,9 @@ func (m *Manager) SaveHistory() {
 }
 
 // AddItem adds a new item to history
-func (m *Manager) AddItem(item Item) bool {
+func (m *Manager) AddItem(item Item) AddItemResult {
 	if item.Content == "" && item.ImageData == "" {
-		return false
+		return AddItemResult{}
 	}
 
 	// Generate hash if not provided
@@ -143,14 +155,16 @@ func (m *Manager) AddItem(item Item) bool {
 	if len(m.history) > 0 {
 		last := m.history[len(m.history)-1]
 		if last.Hash == item.Hash && last.Type == item.Type {
-			return false
+			return AddItemResult{}
 		}
 	}
 
 	// Remove existing duplicates
+	movedDuplicate := false
 	for i := len(m.history) - 1; i >= 0; i-- {
 		if m.history[i].Hash == item.Hash && m.history[i].Type == item.Type {
 			m.history = append(m.history[:i], m.history[i+1:]...)
+			movedDuplicate = true
 			break
 		}
 	}
@@ -164,7 +178,10 @@ func (m *Manager) AddItem(item Item) bool {
 	m.trimHistory()
 	m.lastCopied = time.Now()
 
-	return true
+	return AddItemResult{
+		Added:          true,
+		MovedDuplicate: movedDuplicate,
+	}
 }
 
 // trimHistory keeps only the last MaxHistoryItems unpinned items
@@ -173,7 +190,7 @@ func (m *Manager) trimHistory() {
 	for i := len(m.history) - 1; i >= 0; i-- {
 		if !m.history[i].Pinned {
 			unpinnedCount++
-			if unpinnedCount > MaxHistoryItems {
+			if unpinnedCount > m.maxHistoryItems {
 				m.history = append(m.history[:i], m.history[i+1:]...)
 			}
 		}
@@ -188,6 +205,9 @@ func (m *Manager) updateFiltered() {
 	// Separate pinned and unpinned
 	var pinned, unpinned []Item
 	for _, item := range m.history {
+		if m.showPinnedOnly && !item.Pinned {
+			continue
+		}
 		if item.Pinned {
 			pinned = append(pinned, item)
 		} else {
@@ -212,6 +232,83 @@ func (m *Manager) updateFiltered() {
 	}
 
 	m.selectedIndex = -1
+}
+
+// SetPinnedOnly controls whether only pinned items are shown.
+func (m *Manager) SetPinnedOnly(enabled bool) {
+	m.mu.Lock()
+	m.showPinnedOnly = enabled
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.triggerUpdate()
+}
+
+// TogglePinnedOnly toggles pinned-only filtering and returns the new state.
+func (m *Manager) TogglePinnedOnly() bool {
+	m.mu.Lock()
+	m.showPinnedOnly = !m.showPinnedOnly
+	enabled := m.showPinnedOnly
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.triggerUpdate()
+	return enabled
+}
+
+// IsPinnedOnly returns whether pinned-only filter is enabled.
+func (m *Manager) IsPinnedOnly() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.showPinnedOnly
+}
+
+// SetMaxHistory updates the max number of unpinned items retained.
+func (m *Manager) SetMaxHistory(limit int) bool {
+	if limit <= 0 {
+		return false
+	}
+
+	m.mu.Lock()
+	m.maxHistoryItems = limit
+	m.trimHistory()
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.saveHistory()
+	m.triggerUpdate()
+	return true
+}
+
+// GetMaxHistory returns the configured max unpinned history count.
+func (m *Manager) GetMaxHistory() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.maxHistoryItems
+}
+
+// PauseMonitoringFor pauses clipboard capture for the specified duration.
+func (m *Manager) PauseMonitoringFor(d time.Duration) {
+	if m.monitor == nil {
+		return
+	}
+	m.monitor.PauseFor(d)
+}
+
+// ResumeMonitoring resumes clipboard capture immediately.
+func (m *Manager) ResumeMonitoring() {
+	if m.monitor == nil {
+		return
+	}
+	m.monitor.Resume()
+}
+
+// IsMonitoringPaused reports whether capture is paused.
+func (m *Manager) IsMonitoringPaused() bool {
+	if m.monitor == nil {
+		return false
+	}
+	return m.monitor.IsPaused()
 }
 
 // SetSearch updates the search query
@@ -387,10 +484,19 @@ func (m *Manager) CopyToClipboard(index int) error {
 	m.mu.Unlock()
 
 	if item.Type == TypeText {
-		return m.native.WriteText([]byte(item.Content))
+		if err := m.native.WriteText([]byte(item.Content)); err != nil {
+			return err
+		}
+	} else {
+		if err := m.native.WriteImage(item.ImageData); err != nil {
+			return err
+		}
 	}
 
-	return m.native.WriteImage(item.ImageData)
+	m.incrementCopyCount(item.ID)
+	m.saveHistory()
+	m.triggerUpdate()
+	return nil
 }
 
 // GetStats returns statistics about the clipboard
@@ -472,4 +578,21 @@ func (m *Manager) Shutdown() {
 	}
 
 	m.saveHistory()
+}
+
+func (m *Manager) incrementCopyCount(itemID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.history {
+		if m.history[i].ID == itemID {
+			m.history[i].CopyCount++
+			return
+		}
+	}
+}
+
+func (m *Manager) notifyInfo(message string) {
+	if m.onInfo != nil {
+		m.onInfo(message)
+	}
 }

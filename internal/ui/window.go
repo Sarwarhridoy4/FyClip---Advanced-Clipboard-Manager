@@ -10,15 +10,15 @@ import (
 
 // MainWindow represents the main application window
 type MainWindow struct {
-	window   fyne.Window
-	app      fyne.App
-	manager  *clipboard.Manager
-	
-	list     *HistoryList
-	preview  *PreviewPane
-	toolbar  *Toolbar
-	search   *SearchBar
-	status   *StatusBar
+	window  fyne.Window
+	app     fyne.App
+	manager *clipboard.Manager
+
+	list    *HistoryList
+	preview *PreviewPane
+	toolbar *Toolbar
+	search  *SearchBar
+	status  *StatusBar
 }
 
 // NewMainWindow creates a new main window
@@ -28,17 +28,17 @@ func NewMainWindow(window fyne.Window, app fyne.App, manager *clipboard.Manager)
 		app:     app,
 		manager: manager,
 	}
-	
+
 	// Create components
 	mw.list = NewHistoryList(manager, mw.onItemSelected)
 	mw.preview = NewPreviewPane(manager)
 	mw.toolbar = NewToolbar(window, app, manager, mw.list)
 	mw.search = NewSearchBar(manager, mw.list)
 	mw.status = NewStatusBar(manager)
-	
+
 	// Setup menu
 	mw.setupMenu()
-	
+
 	return mw
 }
 
@@ -50,7 +50,7 @@ func (mw *MainWindow) Build() fyne.CanvasObject {
 		mw.preview.Build(),
 	)
 	split.SetOffset(0.5)
-	
+
 	// Main layout
 	content := container.NewBorder(
 		mw.search.Build(),
@@ -62,7 +62,7 @@ func (mw *MainWindow) Build() fyne.CanvasObject {
 		nil,
 		split,
 	)
-	
+
 	return content
 }
 
@@ -73,6 +73,9 @@ func (mw *MainWindow) Refresh() {
 	}
 	if mw.preview != nil {
 		mw.preview.Refresh()
+	}
+	if mw.toolbar != nil {
+		mw.toolbar.Refresh()
 	}
 	if mw.status != nil {
 		mw.status.Refresh()
@@ -92,7 +95,7 @@ func (mw *MainWindow) setupMenu() {
 	aboutItem := fyne.NewMenuItem("About", func() {
 		ShowAboutDialog(mw.window, mw.app)
 	})
-	
+
 	helpMenu := fyne.NewMenu("Help", aboutItem)
 	mainMenu := fyne.NewMainMenu(helpMenu)
 	mw.window.SetMainMenu(mainMenu)

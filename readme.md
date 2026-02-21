@@ -8,11 +8,16 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
 - 📋 **Clipboard History**: Automatically saves text and images
 - 📌 **Pin Items**: Keep important items at the top
+- ⭐ **Favorites View**: Toggle pinned-only view instantly
 - 🔍 **Search**: Quick search through clipboard history
+- ❌ **Clear Search**: One-click reset for the search box
 - 🖼️ **Image Support**: Preview and save clipboard images
+- 📤 **Unified Export**: Export selected text or images from one action
 - 📝 **Markdown Preview**: Markdown content renders correctly in preview pane
+- 🕒 **Relative Time + Reuse Count**: List rows show recency and copy frequency
 - 💾 **Persistent Storage**: History saved across sessions
 - 🚀 **AutoStart**: Launch on system startup
+- ⏸️ **Pause Capture**: Pause monitoring for 5 minutes from toolbar/tray
 - 🎨 **Modern UI**: Dark theme with responsive design
 - ⚡ **Performance**: Debounced updates, async operations
 - 🐧 **Linux Packaging**: Official Fyne Linux package pipeline for `.deb` and `.AppImage`
@@ -235,10 +240,13 @@ fyne-cross darwin -arch=amd64
 
 1. **Pin Items**: Click the pin button to keep items at the top
 2. **Search**: Type in the search bar to filter items
-3. **Preview**: Select an item to see full content
-4. **Save Images**: Click "Save Image" to export clipboard images
-5. **Clear History**: Remove all unpinned items
-6. **System Tray**: Minimize to tray, configure autostart
+3. **Favorites Filter**: Click "Favorites" to show pinned items only
+4. **Preview**: Select an item to see full content
+5. **Export**: Click "Export" to save selected text or image
+6. **Pause Monitoring**: Use "Pause 5m" to temporarily stop capturing
+7. **History Limit**: Configure max unpinned history via toolbar settings
+8. **Clear History**: Remove all unpinned items
+9. **System Tray**: Minimize to tray, configure autostart/pause
 
 ## Configuration
 
@@ -263,6 +271,7 @@ Settings are automatically saved to:
 - **Efficient Filtering**: Smart search with early returns
 - **Thread-Safe**: Proper mutex usage throughout
 - **Selection Fast Path**: Selecting list items avoids redundant full-window refreshes
+- **Duplicate Promotion**: Existing duplicates move to latest with notification
 
 ### Thread Safety
 

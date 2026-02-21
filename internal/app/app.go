@@ -73,6 +73,14 @@ func New() *App {
 				})
 			})
 		},
+		OnInfo: func(message string) {
+			fyne.Do(func() {
+				a.fyneApp.SendNotification(&fyne.Notification{
+					Title:   "FyClip",
+					Content: message,
+				})
+			})
+		},
 	})
 	if err != nil {
 		log.Printf("Failed to create manager: %v", err)
