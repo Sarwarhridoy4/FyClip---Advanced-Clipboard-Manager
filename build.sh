@@ -235,7 +235,14 @@ BIN_PATH="${BIN_DIR}/${APP_NAME}"
 if [ ! -x "${BIN_PATH}" ]; then
     BIN_PATH="$(find "${BIN_DIR}" -maxdepth 1 -type f -executable | head -n 1 || true)"
 fi
-BIN_BASENAME="$(basename "${BIN_PATH}")"
+
+# Force a stable command name in packaged artifacts, even if Fyne emits
+# a different executable basename (e.g. repo/module name).
+if [ -n "${BIN_PATH}" ] && [ -f "${BIN_PATH}" ] && [ "$(basename "${BIN_PATH}")" != "${APP_NAME}" ]; then
+    rm -f "${BIN_DIR}/${APP_NAME}"
+    mv "${BIN_PATH}" "${BIN_DIR}/${APP_NAME}"
+    BIN_PATH="${BIN_DIR}/${APP_NAME}"
+fi
 
 DESKTOP_PATH="${APPS_DIR}/${APP_ID}.desktop"
 if [ ! -f "${DESKTOP_PATH}" ]; then
@@ -257,11 +264,75 @@ if [ -z "${BIN_PATH}" ] || [ ! -f "${BIN_PATH}" ] || [ -z "${DESKTOP_PATH}" ] ||
 fi
 
 # ---------------------------------------------------------------------
+# Normalize payload to /usr and ensure desktop entry is menu-visible
+# ---------------------------------------------------------------------
+USR_NORMALIZED="${WORK_DIR}/usr-normalized"
+rm -rf "${USR_NORMALIZED}"
+mkdir -p "${USR_NORMALIZED}"
+
+if [ "${PREFIX_REL}" = "usr/local" ]; then
+    cp -a "${FYNE_ROOT}/usr/local/." "${USR_NORMALIZED}/"
+else
+    cp -a "${FYNE_ROOT}/usr/." "${USR_NORMALIZED}/"
+fi
+
+BIN_DIR="${USR_NORMALIZED}/bin"
+APPS_DIR="${USR_NORMALIZED}/share/applications"
+PIXMAPS_DIR="${USR_NORMALIZED}/share/pixmaps"
+
+BIN_PATH="${BIN_DIR}/${APP_NAME}"
+if [ ! -x "${BIN_PATH}" ]; then
+    BIN_PATH="$(find "${BIN_DIR}" -maxdepth 1 -type f -executable | head -n 1 || true)"
+fi
+if [ -n "${BIN_PATH}" ] && [ -f "${BIN_PATH}" ] && [ "$(basename "${BIN_PATH}")" != "${APP_NAME}" ]; then
+    rm -f "${BIN_DIR}/${APP_NAME}"
+    mv "${BIN_PATH}" "${BIN_DIR}/${APP_NAME}"
+    BIN_PATH="${BIN_DIR}/${APP_NAME}"
+fi
+
+DESKTOP_PATH="${APPS_DIR}/${APP_ID}.desktop"
+if [ ! -f "${DESKTOP_PATH}" ]; then
+    DESKTOP_PATH="$(find "${APPS_DIR}" -maxdepth 1 -type f -name '*.desktop' | head -n 1 || true)"
+fi
+
+ICON_PATH="${PIXMAPS_DIR}/${APP_ID}.png"
+if [ ! -f "${ICON_PATH}" ]; then
+    ICON_PATH="$(find "${PIXMAPS_DIR}" -maxdepth 1 -type f \( -name '*.png' -o -name '*.svg' -o -name '*.xpm' \) | head -n 1 || true)"
+fi
+
+if [ -z "${BIN_PATH}" ] || [ ! -f "${BIN_PATH}" ] || [ -z "${DESKTOP_PATH}" ] || [ ! -f "${DESKTOP_PATH}" ] || [ -z "${ICON_PATH}" ] || [ ! -f "${ICON_PATH}" ]; then
+    echo "Normalized payload missing expected binary/desktop/icon assets" >&2
+    echo "Detected values:" >&2
+    echo "  BIN_PATH=${BIN_PATH:-<none>}" >&2
+    echo "  DESKTOP_PATH=${DESKTOP_PATH:-<none>}" >&2
+    echo "  ICON_PATH=${ICON_PATH:-<none>}" >&2
+    exit 1
+fi
+
+sed -i -E "s|^Exec=.*|Exec=/usr/bin/${APP_NAME}|" "${DESKTOP_PATH}"
+sed -i -E "s|^Icon=.*|Icon=${APP_ID}|" "${DESKTOP_PATH}"
+
+if grep -q '^NoDisplay=' "${DESKTOP_PATH}"; then
+    sed -i -E 's|^NoDisplay=.*|NoDisplay=false|' "${DESKTOP_PATH}"
+else
+    echo "NoDisplay=false" >> "${DESKTOP_PATH}"
+fi
+
+if grep -q '^Hidden=' "${DESKTOP_PATH}"; then
+    sed -i -E 's|^Hidden=.*|Hidden=false|' "${DESKTOP_PATH}"
+fi
+
+if ! grep -q '^Categories=' "${DESKTOP_PATH}"; then
+    echo "Categories=Utility;" >> "${DESKTOP_PATH}"
+fi
+
+# ---------------------------------------------------------------------
 # Debian package from official payload
 # ---------------------------------------------------------------------
 echo "📦 Creating Debian package..."
 mkdir -p "${DEB_ROOT}/DEBIAN"
-cp -a "${FYNE_ROOT}/usr" "${DEB_ROOT}/"
+mkdir -p "${DEB_ROOT}/usr"
+cp -a "${USR_NORMALIZED}/." "${DEB_ROOT}/usr/"
 
 cat <<EOF > "${DEB_ROOT}/DEBIAN/control"
 Package: ${APP_NAME}
@@ -289,15 +360,13 @@ dpkg-deb --build "${DEB_ROOT}" "${DIST_DIR}/${APP_NAME}_${VERSION}_${ARCH}.deb"
 # ---------------------------------------------------------------------
 echo "📦 Creating AppImage..."
 mkdir -p "${APPDIR}"
-cp -a "${FYNE_ROOT}/usr" "${APPDIR}/"
+mkdir -p "${APPDIR}/usr"
+cp -a "${USR_NORMALIZED}/." "${APPDIR}/usr/"
 
 cat > "${APPDIR}/AppRun" <<EOF
 #!/bin/sh
 HERE="\$(dirname "\$(readlink -f "\$0")")"
-BIN_NAME="${BIN_BASENAME}"
-if [ -x "\$HERE/usr/local/bin/\$BIN_NAME" ]; then
-  exec "\$HERE/usr/local/bin/\$BIN_NAME" "\$@"
-fi
+BIN_NAME="${APP_NAME}"
 exec "\$HERE/usr/bin/\$BIN_NAME" "\$@"
 EOF
 chmod +x "${APPDIR}/AppRun"
