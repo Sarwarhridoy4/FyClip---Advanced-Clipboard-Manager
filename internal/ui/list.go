@@ -112,7 +112,7 @@ func (hl *HistoryList) updateItem(index int, obj fyne.CanvasObject) {
 	pinBtn.OnTapped = func() {
 		go func() {
 			if hl.manager.TogglePin(index) {
-				hl.manager.Shutdown() // Force save
+				hl.manager.SaveHistory()
 				hl.Refresh()
 			}
 		}()

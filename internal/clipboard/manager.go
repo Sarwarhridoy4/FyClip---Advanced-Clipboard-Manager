@@ -14,6 +14,7 @@ import (
 const (
 	MaxHistoryItems = 1000
 	UpdateDebounce  = 50 * time.Millisecond
+	SaveDebounce    = 250 * time.Millisecond
 )
 
 // Manager handles clipboard history and operations
@@ -62,6 +63,7 @@ func NewManager(cfg Config) (*Manager, error) {
 		native:        native,
 		selectedIndex: -1,
 		updateChan:    make(chan struct{}, 100),
+		saveChan:      make(chan struct{}, 1),
 		shutdownChan:  make(chan struct{}),
 		running:       true,
 		onUpdate:      cfg.OnUpdate,
@@ -75,6 +77,7 @@ func NewManager(cfg Config) (*Manager, error) {
 
 	// Start update dispatcher
 	go m.updateDispatcher()
+	go m.saveDispatcher()
 
 	// Create and start monitor
 	m.monitor = NewMonitor(m, native)
@@ -100,18 +103,25 @@ func (m *Manager) loadHistory() error {
 
 // saveHistory persists history to storage (internal)
 func (m *Manager) saveHistory() {
+	select {
+	case m.saveChan <- struct{}{}:
+	default:
+		// Save already queued
+	}
+}
+
+// persistHistory writes a snapshot to storage.
+func (m *Manager) persistHistory() {
 	m.mu.RLock()
 	items := make([]Item, len(m.history))
 	copy(items, m.history)
 	m.mu.RUnlock()
 
-	go func() {
-		if err := m.storage.Save(items); err != nil {
-			if m.onError != nil {
-				m.onError(fmt.Errorf("failed to save history: %w", err))
-			}
+	if err := m.storage.Save(items); err != nil {
+		if m.onError != nil {
+			m.onError(fmt.Errorf("failed to save history: %w", err))
 		}
-	}()
+	}
 }
 
 // SaveHistory is a public method to force save history
@@ -449,6 +459,47 @@ func (m *Manager) updateDispatcher() {
 		case <-m.shutdownChan:
 			if timer != nil {
 				timer.Stop()
+			}
+			return
+		}
+	}
+}
+
+// saveDispatcher debounces and serializes history saves.
+func (m *Manager) saveDispatcher() {
+	var timer *time.Timer
+	var timerCh <-chan time.Time
+
+	for {
+		select {
+		case <-m.saveChan:
+			if timer == nil {
+				timer = time.NewTimer(SaveDebounce)
+				timerCh = timer.C
+				continue
+			}
+
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			timer.Reset(SaveDebounce)
+			timerCh = timer.C
+
+		case <-timerCh:
+			m.persistHistory()
+			timerCh = nil
+
+		case <-m.shutdownChan:
+			if timer != nil {
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
 			}
 			return
 		}
