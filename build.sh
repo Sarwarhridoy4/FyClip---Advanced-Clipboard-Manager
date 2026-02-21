@@ -15,13 +15,151 @@ WORK_DIR="${DIST_DIR}/work"
 FYNE_ROOT="${WORK_DIR}/fyne-root"
 DEB_ROOT="${WORK_DIR}/deb-root"
 APPDIR="${WORK_DIR}/FyClip.AppDir"
+LOCAL_BIN_DIR="$(pwd)/${DIST_DIR}/.tools/bin"
 
-require_cmd() {
-    local cmd="$1"
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "Missing required tool: ${cmd}" >&2
-        exit 1
+PM=""
+
+detect_pm() {
+    if [ -n "${PM}" ]; then
+        return
     fi
+    for pm in apt-get dnf pacman zypper brew; do
+        if command -v "${pm}" >/dev/null 2>&1; then
+            PM="${pm}"
+            return
+        fi
+    done
+    PM="none"
+}
+
+run_install_cmd() {
+    local install_cmd="$1"
+    echo "🔧 Installing via: ${install_cmd}"
+    if bash -lc "${install_cmd}"; then
+        return 0
+    fi
+    if command -v sudo >/dev/null 2>&1; then
+        echo "🔧 Retrying with sudo..."
+        sudo bash -lc "${install_cmd}"
+        return $?
+    fi
+    return 1
+}
+
+install_appimagetool_local() {
+    local arch="${APPIMAGE_ARCH:-x86_64}"
+    local url="https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${arch}.AppImage"
+    local tmp_file
+    mkdir -p "${LOCAL_BIN_DIR}"
+    tmp_file="$(mktemp)"
+
+    echo "🔧 Downloading appimagetool (${arch}) from AppImageKit..."
+    if command -v curl >/dev/null 2>&1; then
+        curl -LfsS "${url}" -o "${tmp_file}" || return 1
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO "${tmp_file}" "${url}" || return 1
+    else
+        if ! install_with_pm curl && ! install_with_pm wget; then
+            rm -f "${tmp_file}"
+            return 1
+        fi
+        if command -v curl >/dev/null 2>&1; then
+            curl -LfsS "${url}" -o "${tmp_file}" || return 1
+        else
+            wget -qO "${tmp_file}" "${url}" || return 1
+        fi
+    fi
+
+    mv "${tmp_file}" "${LOCAL_BIN_DIR}/appimagetool"
+    chmod +x "${LOCAL_BIN_DIR}/appimagetool"
+    export PATH="${LOCAL_BIN_DIR}:${PATH}"
+    return 0
+}
+
+install_with_pm() {
+    local pkg="$1"
+    detect_pm
+    case "${PM}" in
+      apt-get)
+        run_install_cmd "apt-get update && apt-get install -y ${pkg}"
+        ;;
+      dnf)
+        run_install_cmd "dnf install -y ${pkg}"
+        ;;
+      pacman)
+        run_install_cmd "pacman -Sy --noconfirm ${pkg}"
+        ;;
+      zypper)
+        run_install_cmd "zypper --non-interactive install ${pkg}"
+        ;;
+      brew)
+        run_install_cmd "brew install ${pkg}"
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+}
+
+install_tool() {
+    local cmd="$1"
+    case "${cmd}" in
+      fyne)
+        if command -v go >/dev/null 2>&1; then
+            echo "🔧 Installing fyne CLI with go install..."
+            if go install fyne.io/tools/cmd/fyne@latest; then
+                export PATH="$(go env GOPATH)/bin:${PATH}"
+                return 0
+            fi
+        fi
+        if install_with_pm fyne; then
+            return 0
+        fi
+        ;;
+      go)
+        if install_with_pm golang-go || install_with_pm golang; then
+            return 0
+        fi
+        ;;
+      appimagetool)
+        if install_with_pm appimagetool || install_appimagetool_local; then
+            return 0
+        fi
+        ;;
+      dpkg-deb)
+        if install_with_pm dpkg; then
+            return 0
+        fi
+        ;;
+      ldd)
+        if install_with_pm libc-bin || install_with_pm glibc; then
+            return 0
+        fi
+        ;;
+      tar)
+        if install_with_pm tar; then
+            return 0
+        fi
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+    return 1
+}
+
+ensure_cmd() {
+    local cmd="$1"
+    if command -v "${cmd}" >/dev/null 2>&1; then
+        return 0
+    fi
+    echo "Missing required tool: ${cmd}"
+    if install_tool "${cmd}" && command -v "${cmd}" >/dev/null 2>&1; then
+        echo "✅ Installed ${cmd}"
+        return 0
+    fi
+    echo "❌ Could not auto-install '${cmd}'. Please install it manually and rerun." >&2
+    exit 1
 }
 
 # ---------------------------------------------------------------------
@@ -54,12 +192,12 @@ echo "📦 Building ${APP_NAME} ${VERSION} for ${ARCH}"
 # ---------------------------------------------------------------------
 # Requirements
 # ---------------------------------------------------------------------
-require_cmd go
-require_cmd fyne
-require_cmd tar
-require_cmd dpkg-deb
-require_cmd appimagetool
-require_cmd ldd
+ensure_cmd go
+ensure_cmd fyne
+ensure_cmd tar
+ensure_cmd dpkg-deb
+ensure_cmd appimagetool
+ensure_cmd ldd
 
 # ---------------------------------------------------------------------
 # Build official Fyne Linux package payload
@@ -89,12 +227,32 @@ else
     exit 1
 fi
 
-BIN_PATH="${FYNE_ROOT}/${PREFIX_REL}/bin/${APP_NAME}"
-DESKTOP_PATH="${FYNE_ROOT}/${PREFIX_REL}/share/applications/${APP_ID}.desktop"
-ICON_PATH="${FYNE_ROOT}/${PREFIX_REL}/share/pixmaps/${APP_ID}.png"
+BIN_DIR="${FYNE_ROOT}/${PREFIX_REL}/bin"
+APPS_DIR="${FYNE_ROOT}/${PREFIX_REL}/share/applications"
+PIXMAPS_DIR="${FYNE_ROOT}/${PREFIX_REL}/share/pixmaps"
 
-if [ ! -f "${BIN_PATH}" ] || [ ! -f "${DESKTOP_PATH}" ] || [ ! -f "${ICON_PATH}" ]; then
+BIN_PATH="${BIN_DIR}/${APP_NAME}"
+if [ ! -x "${BIN_PATH}" ]; then
+    BIN_PATH="$(find "${BIN_DIR}" -maxdepth 1 -type f -executable | head -n 1 || true)"
+fi
+BIN_BASENAME="$(basename "${BIN_PATH}")"
+
+DESKTOP_PATH="${APPS_DIR}/${APP_ID}.desktop"
+if [ ! -f "${DESKTOP_PATH}" ]; then
+    DESKTOP_PATH="$(find "${APPS_DIR}" -maxdepth 1 -type f -name '*.desktop' | head -n 1 || true)"
+fi
+
+ICON_PATH="${PIXMAPS_DIR}/${APP_ID}.png"
+if [ ! -f "${ICON_PATH}" ]; then
+    ICON_PATH="$(find "${PIXMAPS_DIR}" -maxdepth 1 -type f \( -name '*.png' -o -name '*.svg' -o -name '*.xpm' \) | head -n 1 || true)"
+fi
+
+if [ -z "${BIN_PATH}" ] || [ ! -f "${BIN_PATH}" ] || [ -z "${DESKTOP_PATH}" ] || [ ! -f "${DESKTOP_PATH}" ] || [ -z "${ICON_PATH}" ] || [ ! -f "${ICON_PATH}" ]; then
     echo "Fyne payload missing expected binary/desktop/icon assets" >&2
+    echo "Detected values:" >&2
+    echo "  BIN_PATH=${BIN_PATH:-<none>}" >&2
+    echo "  DESKTOP_PATH=${DESKTOP_PATH:-<none>}" >&2
+    echo "  ICON_PATH=${ICON_PATH:-<none>}" >&2
     exit 1
 fi
 
@@ -133,13 +291,14 @@ echo "📦 Creating AppImage..."
 mkdir -p "${APPDIR}"
 cp -a "${FYNE_ROOT}/usr" "${APPDIR}/"
 
-cat > "${APPDIR}/AppRun" <<'EOF'
+cat > "${APPDIR}/AppRun" <<EOF
 #!/bin/sh
-HERE="$(dirname "$(readlink -f "$0")")"
-if [ -x "$HERE/usr/local/bin/fyclip" ]; then
-  exec "$HERE/usr/local/bin/fyclip" "$@"
+HERE="\$(dirname "\$(readlink -f "\$0")")"
+BIN_NAME="${BIN_BASENAME}"
+if [ -x "\$HERE/usr/local/bin/\$BIN_NAME" ]; then
+  exec "\$HERE/usr/local/bin/\$BIN_NAME" "\$@"
 fi
-exec "$HERE/usr/bin/fyclip" "$@"
+exec "\$HERE/usr/bin/\$BIN_NAME" "\$@"
 EOF
 chmod +x "${APPDIR}/AppRun"
 
