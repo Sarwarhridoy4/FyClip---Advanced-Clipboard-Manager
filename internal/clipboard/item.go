@@ -37,6 +37,18 @@ type Item struct {
 	Pinned    bool      `json:"pinned"`
 	CopyCount int       `json:"copy_count,omitempty"`
 	Hash      string    `json:"hash,omitempty"`
+
+	searchContent string `json:"-"`
+}
+
+// PrepareForSearch builds cached normalized text used for filtering.
+func (i *Item) PrepareForSearch() {
+	i.searchContent = strings.ToLower(i.Content)
+}
+
+// SearchContent returns cached normalized text used for filtering.
+func (i *Item) SearchContent() string {
+	return i.searchContent
 }
 
 // DisplayText returns a truncated version of the content for display

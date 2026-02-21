@@ -14,6 +14,7 @@ import (
 const (
 	MaxHistoryItems = 1000
 	UpdateDebounce  = 50 * time.Millisecond
+	SaveDebounce    = 250 * time.Millisecond
 )
 
 // AddItemResult describes the result of adding a clipboard item.
@@ -38,6 +39,7 @@ type Manager struct {
 	maxHistoryItems int
 
 	updateChan   chan struct{}
+	saveChan     chan struct{}
 	shutdownChan chan struct{}
 	running      bool
 
@@ -72,6 +74,7 @@ func NewManager(cfg Config) (*Manager, error) {
 		native:          native,
 		selectedIndex:   -1,
 		updateChan:      make(chan struct{}, 100),
+		saveChan:        make(chan struct{}, 1),
 		shutdownChan:    make(chan struct{}),
 		running:         true,
 		maxHistoryItems: MaxHistoryItems,
@@ -87,6 +90,7 @@ func NewManager(cfg Config) (*Manager, error) {
 
 	// Start update dispatcher
 	go m.updateDispatcher()
+	go m.saveDispatcher()
 
 	// Create and start monitor
 	m.monitor = NewMonitor(m, native)
@@ -110,20 +114,36 @@ func (m *Manager) loadHistory() error {
 	return nil
 }
 
+// queueSaveHistory schedules a debounced save of history.
+func (m *Manager) queueSaveHistory() {
+	if !m.running {
+		return
+	}
+
+	select {
+	case m.saveChan <- struct{}{}:
+	default:
+		// Save already queued.
+	}
+}
+
 // saveHistory persists history to storage (internal)
 func (m *Manager) saveHistory() {
+	m.queueSaveHistory()
+}
+
+// saveHistoryNow writes a snapshot to storage immediately.
+func (m *Manager) saveHistoryNow() {
 	m.mu.RLock()
 	items := make([]Item, len(m.history))
 	copy(items, m.history)
 	m.mu.RUnlock()
 
-	go func() {
-		if err := m.storage.Save(items); err != nil {
-			if m.onError != nil {
-				m.onError(fmt.Errorf("failed to save history: %w", err))
-			}
+	if err := m.storage.Save(items); err != nil {
+		if m.onError != nil {
+			m.onError(fmt.Errorf("failed to save history: %w", err))
 		}
-	}()
+	}
 }
 
 // SaveHistory is a public method to force save history
@@ -202,32 +222,43 @@ func (m *Manager) updateFiltered() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Separate pinned and unpinned
-	var pinned, unpinned []Item
-	for _, item := range m.history {
-		if m.showPinnedOnly && !item.Pinned {
-			continue
-		}
-		if item.Pinned {
-			pinned = append(pinned, item)
-		} else {
-			unpinned = append(unpinned, item)
-		}
-	}
-
-	// Combine with pinned first
-	sorted := append(pinned, unpinned...)
-
-	// Apply search filter
-	if m.searchQuery == "" {
-		m.filtered = sorted
+	if cap(m.filtered) < len(m.history) {
+		m.filtered = make([]Item, 0, len(m.history))
 	} else {
 		m.filtered = m.filtered[:0]
-		query := strings.ToLower(m.searchQuery)
-		for _, item := range sorted {
-			if strings.Contains(strings.ToLower(item.Content), query) {
-				m.filtered = append(m.filtered, item)
-			}
+	}
+
+	query := strings.ToLower(m.searchQuery)
+	match := func(item *Item) bool {
+		if query == "" {
+			return true
+		}
+		if item.SearchContent() == "" && item.Content != "" {
+			item.PrepareForSearch()
+		}
+		return strings.Contains(item.SearchContent(), query)
+	}
+
+	// Keep pinned items first while preserving stable order in each group.
+	for i := range m.history {
+		item := &m.history[i]
+		if !item.Pinned {
+			continue
+		}
+		if match(item) {
+			m.filtered = append(m.filtered, *item)
+		}
+	}
+	for i := range m.history {
+		item := &m.history[i]
+		if item.Pinned {
+			continue
+		}
+		if m.showPinnedOnly {
+			continue
+		}
+		if match(item) {
+			m.filtered = append(m.filtered, *item)
 		}
 	}
 
@@ -561,6 +592,68 @@ func (m *Manager) updateDispatcher() {
 	}
 }
 
+// saveDispatcher coalesces frequent save requests into fewer disk writes.
+func (m *Manager) saveDispatcher() {
+	var (
+		timer  *time.Timer
+		timerC <-chan time.Time
+	)
+
+	resetTimer := func() {
+		if timer == nil {
+			timer = time.NewTimer(SaveDebounce)
+			timerC = timer.C
+			return
+		}
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timer.Reset(SaveDebounce)
+		timerC = timer.C
+	}
+
+	for {
+		select {
+		case <-m.saveChan:
+			for len(m.saveChan) > 0 {
+				<-m.saveChan
+			}
+			resetTimer()
+
+		case <-timerC:
+			m.saveHistoryNow()
+			timerC = nil
+
+		case <-m.shutdownChan:
+			if timer != nil {
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+			}
+			flush := false
+			select {
+			case <-m.saveChan:
+				flush = true
+			default:
+			}
+			for len(m.saveChan) > 0 {
+				<-m.saveChan
+				flush = true
+			}
+			if flush {
+				m.saveHistoryNow()
+			}
+			return
+		}
+	}
+}
+
 // Shutdown stops the manager
 func (m *Manager) Shutdown() {
 	m.mu.Lock()
@@ -577,7 +670,7 @@ func (m *Manager) Shutdown() {
 		close(m.shutdownChan)
 	}
 
-	m.saveHistory()
+	m.saveHistoryNow()
 }
 
 func (m *Manager) incrementCopyCount(itemID string) {
