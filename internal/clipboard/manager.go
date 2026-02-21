@@ -13,35 +13,37 @@ import (
 const (
 	MaxHistoryItems = 1000
 	UpdateDebounce  = 50 * time.Millisecond
+	SaveDebounce    = 250 * time.Millisecond
 )
 
 // Manager handles clipboard history and operations
 type Manager struct {
-	mu              sync.RWMutex
-	history         []Item
-	filtered        []Item
-	storage         *Storage
-	native          *NativeClipboard
-	monitor         *Monitor
-	
-	selectedIndex   int
-	searchQuery     string
-	lastCopied      time.Time
-	
-	updateChan      chan struct{}
-	shutdownChan    chan struct{}
-	running         bool
-	
+	mu       sync.RWMutex
+	history  []Item
+	filtered []Item
+	storage  *Storage
+	native   *NativeClipboard
+	monitor  *Monitor
+
+	selectedIndex int
+	searchQuery   string
+	lastCopied    time.Time
+
+	updateChan   chan struct{}
+	saveChan     chan struct{}
+	shutdownChan chan struct{}
+	running      bool
+
 	// Callbacks
-	onUpdate        func()
-	onError         func(error)
+	onUpdate func()
+	onError  func(error)
 }
 
 // Config holds manager configuration
 type Config struct {
-	StoragePath    string
-	OnUpdate       func()
-	OnError        func(error)
+	StoragePath string
+	OnUpdate    func()
+	OnError     func(error)
 }
 
 // NewManager creates a new clipboard manager
@@ -61,6 +63,7 @@ func NewManager(cfg Config) (*Manager, error) {
 		native:        native,
 		selectedIndex: -1,
 		updateChan:    make(chan struct{}, 100),
+		saveChan:      make(chan struct{}, 1),
 		shutdownChan:  make(chan struct{}),
 		running:       true,
 		onUpdate:      cfg.OnUpdate,
@@ -74,6 +77,7 @@ func NewManager(cfg Config) (*Manager, error) {
 
 	// Start update dispatcher
 	go m.updateDispatcher()
+	go m.saveDispatcher()
 
 	// Create and start monitor
 	m.monitor = NewMonitor(m, native)
@@ -88,29 +92,36 @@ func (m *Manager) loadHistory() error {
 	if err != nil {
 		return err
 	}
-	
+
 	m.mu.Lock()
 	m.history = items
 	m.mu.Unlock()
-	
+
 	m.updateFiltered()
 	return nil
 }
 
 // saveHistory persists history to storage (internal)
 func (m *Manager) saveHistory() {
+	select {
+	case m.saveChan <- struct{}{}:
+	default:
+		// Save already queued
+	}
+}
+
+// persistHistory writes a snapshot to storage.
+func (m *Manager) persistHistory() {
 	m.mu.RLock()
 	items := make([]Item, len(m.history))
 	copy(items, m.history)
 	m.mu.RUnlock()
 
-	go func() {
-		if err := m.storage.Save(items); err != nil {
-			if m.onError != nil {
-				m.onError(fmt.Errorf("failed to save history: %w", err))
-			}
+	if err := m.storage.Save(items); err != nil {
+		if m.onError != nil {
+			m.onError(fmt.Errorf("failed to save history: %w", err))
 		}
-	}()
+	}
 }
 
 // SaveHistory is a public method to force save history
@@ -218,7 +229,7 @@ func (m *Manager) SetSearch(query string) {
 	m.mu.Lock()
 	m.searchQuery = query
 	m.mu.Unlock()
-	
+
 	m.updateFiltered()
 	m.triggerUpdate()
 }
@@ -227,7 +238,7 @@ func (m *Manager) SetSearch(query string) {
 func (m *Manager) GetFiltered() []Item {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	items := make([]Item, len(m.filtered))
 	copy(items, m.filtered)
 	return items
@@ -244,7 +255,7 @@ func (m *Manager) GetFilteredCount() int {
 func (m *Manager) GetItem(index int) (Item, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	if index < 0 || index >= len(m.filtered) {
 		return Item{}, false
 	}
@@ -255,7 +266,7 @@ func (m *Manager) GetItem(index int) (Item, bool) {
 func (m *Manager) GetSelected() (Item, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	if m.selectedIndex < 0 || m.selectedIndex >= len(m.filtered) {
 		return Item{}, false
 	}
@@ -279,12 +290,12 @@ func (m *Manager) SetSelected(index int) {
 // TogglePin toggles the pin status of an item
 func (m *Manager) TogglePin(index int) bool {
 	m.mu.Lock()
-	
+
 	if index < 0 || index >= len(m.filtered) {
 		m.mu.Unlock()
 		return false
 	}
-	
+
 	targetID := m.filtered[index].ID
 	found := false
 	for i := range m.history {
@@ -294,32 +305,32 @@ func (m *Manager) TogglePin(index int) bool {
 			break
 		}
 	}
-	
+
 	m.mu.Unlock()
-	
+
 	if found {
 		m.updateFiltered()
 		m.triggerUpdate()
 	}
-	
+
 	return found
 }
 
 // Delete removes an item
 func (m *Manager) Delete(index int) error {
 	m.mu.Lock()
-	
+
 	if index < 0 || index >= len(m.filtered) {
 		m.mu.Unlock()
 		return fmt.Errorf("invalid index")
 	}
-	
+
 	targetItem := m.filtered[index]
 	if targetItem.Pinned {
 		m.mu.Unlock()
 		return fmt.Errorf("cannot delete pinned items")
 	}
-	
+
 	found := false
 	for i, item := range m.history {
 		if item.ID == targetItem.ID {
@@ -328,35 +339,35 @@ func (m *Manager) Delete(index int) error {
 			break
 		}
 	}
-	
+
 	m.selectedIndex = -1
 	m.mu.Unlock()
-	
+
 	if found {
 		m.updateFiltered()
 		m.triggerUpdate()
 	} else {
 		return fmt.Errorf("item not found")
 	}
-	
+
 	return nil
 }
 
 // ClearUnpinned removes all unpinned items
 func (m *Manager) ClearUnpinned() {
 	m.mu.Lock()
-	
+
 	var pinned []Item
 	for _, item := range m.history {
 		if item.Pinned {
 			pinned = append(pinned, item)
 		}
 	}
-	
+
 	m.history = pinned
 	m.selectedIndex = -1
 	m.mu.Unlock()
-	
+
 	m.updateFiltered()
 	m.triggerUpdate()
 }
@@ -367,7 +378,7 @@ func (m *Manager) CopyToClipboard(index int) error {
 	if !ok {
 		return fmt.Errorf("invalid index")
 	}
-	
+
 	// Notify monitor about programmatic copy
 	if m.monitor != nil {
 		if item.Type == TypeText {
@@ -376,15 +387,15 @@ func (m *Manager) CopyToClipboard(index int) error {
 			m.monitor.SetProgrammaticCopy([]byte(item.ImageData))
 		}
 	}
-	
+
 	m.mu.Lock()
 	m.lastCopied = time.Now()
 	m.mu.Unlock()
-	
+
 	if item.Type == TypeText {
 		return m.native.WriteText([]byte(item.Content))
 	}
-	
+
 	return m.native.WriteImage(item.ImageData)
 }
 
@@ -392,17 +403,17 @@ func (m *Manager) CopyToClipboard(index int) error {
 func (m *Manager) GetStats() (total, pinned, filtered int, lastCopied time.Time) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	total = len(m.history)
 	filtered = len(m.filtered)
 	lastCopied = m.lastCopied
-	
+
 	for _, item := range m.history {
 		if item.Pinned {
 			pinned++
 		}
 	}
-	
+
 	return
 }
 
@@ -411,7 +422,7 @@ func (m *Manager) triggerUpdate() {
 	if !m.running {
 		return
 	}
-	
+
 	select {
 	case m.updateChan <- struct{}{}:
 	default:
@@ -422,7 +433,7 @@ func (m *Manager) triggerUpdate() {
 // updateDispatcher handles debounced UI updates
 func (m *Manager) updateDispatcher() {
 	var timer *time.Timer
-	
+
 	for {
 		select {
 		case <-m.updateChan:
@@ -430,7 +441,7 @@ func (m *Manager) updateDispatcher() {
 			for len(m.updateChan) > 0 {
 				<-m.updateChan
 			}
-			
+
 			// Reset debounce timer
 			if timer != nil {
 				timer.Stop()
@@ -440,10 +451,51 @@ func (m *Manager) updateDispatcher() {
 					m.onUpdate()
 				}
 			})
-			
+
 		case <-m.shutdownChan:
 			if timer != nil {
 				timer.Stop()
+			}
+			return
+		}
+	}
+}
+
+// saveDispatcher debounces and serializes history saves.
+func (m *Manager) saveDispatcher() {
+	var timer *time.Timer
+	var timerCh <-chan time.Time
+
+	for {
+		select {
+		case <-m.saveChan:
+			if timer == nil {
+				timer = time.NewTimer(SaveDebounce)
+				timerCh = timer.C
+				continue
+			}
+
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			timer.Reset(SaveDebounce)
+			timerCh = timer.C
+
+		case <-timerCh:
+			m.persistHistory()
+			timerCh = nil
+
+		case <-m.shutdownChan:
+			if timer != nil {
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
 			}
 			return
 		}
@@ -455,16 +507,16 @@ func (m *Manager) Shutdown() {
 	m.mu.Lock()
 	m.running = false
 	m.mu.Unlock()
-	
+
 	if m.monitor != nil {
 		m.monitor.Stop()
 	}
-	
+
 	select {
 	case <-m.shutdownChan:
 	default:
 		close(m.shutdownChan)
 	}
-	
-	m.saveHistory()
+
+	m.persistHistory()
 }
