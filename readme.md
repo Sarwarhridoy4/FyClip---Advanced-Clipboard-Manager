@@ -18,6 +18,22 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 - 🐧 **Linux Packaging**: Official Fyne Linux package pipeline for `.deb` and `.AppImage`
 - 🔒 **Thread-Safe**: Proper concurrency handling
 
+## Improvements
+
+### Recently Implemented
+
+- Fixed pin-toggle behavior from list items to save state without shutting down clipboard monitoring.
+- Added a debounced, serialized history save pipeline to reduce frequent disk writes during rapid copy events.
+- Fixed programmatic image-copy suppression by hashing raw image bytes for correct deduplication behavior.
+
+### Planned Enhancements
+
+- Add global hotkey quick panel for fast paste from recent history.
+- Add snippets/templates with titles and categories.
+- Add app/pattern exclusion rules and temporary pause mode for sensitive workflows.
+- Improve search speed further with indexed/lowercased cache paths.
+- Add encrypted import/export backup support.
+
 ## Project Structure
 
 ```

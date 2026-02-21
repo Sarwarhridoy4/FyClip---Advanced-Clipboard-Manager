@@ -3,6 +3,7 @@ package clipboard
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -30,7 +31,6 @@ type Manager struct {
 	lastCopied    time.Time
 
 	updateChan   chan struct{}
-	saveChan     chan struct{}
 	shutdownChan chan struct{}
 	running      bool
 
@@ -384,7 +384,11 @@ func (m *Manager) CopyToClipboard(index int) error {
 		if item.Type == TypeText {
 			m.monitor.SetProgrammaticCopy([]byte(item.Content))
 		} else {
-			m.monitor.SetProgrammaticCopy([]byte(item.ImageData))
+			if rawImage, err := base64.StdEncoding.DecodeString(item.ImageData); err == nil {
+				m.monitor.SetProgrammaticCopy(rawImage)
+			} else {
+				m.monitor.SetProgrammaticCopy([]byte(item.ImageData))
+			}
 		}
 	}
 
@@ -518,5 +522,5 @@ func (m *Manager) Shutdown() {
 		close(m.shutdownChan)
 	}
 
-	m.persistHistory()
+	m.saveHistory()
 }
