@@ -8,11 +8,16 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
 - 📋 **Clipboard History**: Automatically saves text and images
 - 📌 **Pin Items**: Keep important items at the top
+- ⭐ **Favorites View**: Toggle pinned-only view instantly
 - 🔍 **Search**: Quick search through clipboard history
+- ❌ **Clear Search**: One-click reset for the search box
 - 🖼️ **Image Support**: Preview and save clipboard images
+- 📤 **Unified Export**: Export selected text or images from one action
 - 📝 **Markdown Preview**: Markdown content renders correctly in preview pane
+- 🕒 **Relative Time + Reuse Count**: List rows show recency and copy frequency
 - 💾 **Persistent Storage**: History saved across sessions
 - 🚀 **AutoStart**: Launch on system startup
+- ⏸️ **Pause Capture**: Pause monitoring for 5 minutes from toolbar/tray
 - 🎨 **Modern UI**: Dark theme with responsive design
 - ⚡ **Performance**: Debounced updates, async operations
 - 🐧 **Linux Packaging**: Official Fyne Linux package pipeline for `.deb` and `.AppImage`
@@ -25,13 +30,29 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 - Fixed pin-toggle behavior from list items to save state without shutting down clipboard monitoring.
 - Added a debounced, serialized history save pipeline to reduce frequent disk writes during rapid copy events.
 - Fixed programmatic image-copy suppression by hashing raw image bytes for correct deduplication behavior.
+- Optimized search/filter pipeline to reuse buffer capacity and avoid per-item lowercase allocations.
+- Added lazy normalized search cache for items when search is active.
+
+### Performance Snapshot (internal/clipboard benchmarks)
+
+Run command:
+
+```bash
+go test -bench 'Benchmark(UpdateFilteredSearch1000|AddItemWithDuplicateScan1000|StorageSave1000)$' -benchmem ./internal/clipboard
+```
+
+Latest measured deltas:
+- `BenchmarkUpdateFilteredSearch1000`: `604006 ns/op` -> `37772 ns/op` (~16x faster)
+- `BenchmarkUpdateFilteredSearch1000` allocations: `1020 allocs/op` -> `0 allocs/op`
+- `BenchmarkAddItemWithDuplicateScan1000`: `966.1 ns/op` -> `1523 ns/op` (small regression, low absolute cost)
+- `BenchmarkStorageSave1000`: raw `Storage.Save` micro-benchmark unchanged/slower, but save requests are now coalesced in runtime manager flow
 
 ### Planned Enhancements
 
 - Add global hotkey quick panel for fast paste from recent history.
 - Add snippets/templates with titles and categories.
 - Add app/pattern exclusion rules and temporary pause mode for sensitive workflows.
-- Improve search speed further with indexed/lowercased cache paths.
+- Add hash/index maps to further reduce linear scans in duplicate and pin/delete paths.
 - Add encrypted import/export backup support.
 
 ## Project Structure
@@ -235,10 +256,13 @@ fyne-cross darwin -arch=amd64
 
 1. **Pin Items**: Click the pin button to keep items at the top
 2. **Search**: Type in the search bar to filter items
-3. **Preview**: Select an item to see full content
-4. **Save Images**: Click "Save Image" to export clipboard images
-5. **Clear History**: Remove all unpinned items
-6. **System Tray**: Minimize to tray, configure autostart
+3. **Favorites Filter**: Click "Favorites" to show pinned items only
+4. **Preview**: Select an item to see full content
+5. **Export**: Click "Export" to save selected text or image
+6. **Pause Monitoring**: Use "Pause 5m" to temporarily stop capturing
+7. **History Limit**: Configure max unpinned history via toolbar settings
+8. **Clear History**: Remove all unpinned items
+9. **System Tray**: Minimize to tray, configure autostart/pause
 
 ## Configuration
 
@@ -259,10 +283,11 @@ Settings are automatically saved to:
 ### Performance Optimizations
 
 - **Debounced Updates**: UI updates are batched (50ms debounce)
-- **Async Operations**: Storage and clipboard ops don't block UI
-- **Efficient Filtering**: Smart search with early returns
+- **Coalesced Saves**: History persistence requests are serialized and debounced (250ms)
+- **Efficient Filtering**: Search avoids repeated lowercasing and minimizes allocation churn
 - **Thread-Safe**: Proper mutex usage throughout
 - **Selection Fast Path**: Selecting list items avoids redundant full-window refreshes
+- **Duplicate Promotion**: Existing duplicates move to latest with notification
 
 ### Thread Safety
 

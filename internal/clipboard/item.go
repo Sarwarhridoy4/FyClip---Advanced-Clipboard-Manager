@@ -35,21 +35,34 @@ type Item struct {
 	ImageType string    `json:"image_type,omitempty"`
 	Timestamp time.Time `json:"timestamp"`
 	Pinned    bool      `json:"pinned"`
+	CopyCount int       `json:"copy_count,omitempty"`
 	Hash      string    `json:"hash,omitempty"`
+
+	searchContent string `json:"-"`
+}
+
+// PrepareForSearch builds cached normalized text used for filtering.
+func (i *Item) PrepareForSearch() {
+	i.searchContent = strings.ToLower(i.Content)
+}
+
+// SearchContent returns cached normalized text used for filtering.
+func (i *Item) SearchContent() string {
+	return i.searchContent
 }
 
 // DisplayText returns a truncated version of the content for display
 func (i *Item) DisplayText(maxLen int) string {
 	if i.Type == TypeImage {
-		return fmt.Sprintf("%s Image (%s)", 
-			strings.ToUpper(i.ImageType), 
+		return fmt.Sprintf("%s Image (%s)",
+			strings.ToUpper(i.ImageType),
 			i.Timestamp.Format("15:04:05"))
 	}
-	
+
 	text := strings.ReplaceAll(i.Content, "\n", " ")
 	text = strings.ReplaceAll(text, "\r", "")
 	text = strings.TrimSpace(text)
-	
+
 	if len(text) > maxLen {
 		text = text[:maxLen-3] + "..."
 	}
@@ -67,7 +80,7 @@ func (i *Item) Size() int {
 // TimeAgo returns a human-readable time difference
 func (i *Item) TimeAgo() string {
 	diff := time.Since(i.Timestamp)
-	
+
 	if diff < time.Minute {
 		return "just now"
 	} else if diff < time.Hour {
@@ -77,7 +90,7 @@ func (i *Item) TimeAgo() string {
 		hours := int(diff.Hours())
 		return fmt.Sprintf("%dh ago", hours)
 	}
-	
+
 	days := int(diff.Hours() / 24)
 	if days == 1 {
 		return "yesterday"
