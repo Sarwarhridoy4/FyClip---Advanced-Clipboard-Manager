@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-APP_NAME="fyclip"
+APP_NAME="FyClip Clipboard Manager"
 APP_ID="com.sarwar.fyclip"
 AUTHOR="Sarwar Hossain"
 EMAIL="sarwarhridoy4@gmail.com"
