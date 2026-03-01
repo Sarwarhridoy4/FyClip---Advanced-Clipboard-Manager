@@ -8,6 +8,8 @@ set -euo pipefail
 
 APP_NAME="FyClip Clipboard Manager"
 APP_ID="com.sarwar.fyclip"
+BIN_NAME="fyclip"
+PKG_NAME="fyclip"
 AUTHOR="Sarwar Hossain"
 EMAIL="sarwarhridoy4@gmail.com"
 DIST_DIR="dist"
@@ -335,7 +337,7 @@ mkdir -p "${DEB_ROOT}/usr"
 cp -a "${USR_NORMALIZED}/." "${DEB_ROOT}/usr/"
 
 cat <<EOF > "${DEB_ROOT}/DEBIAN/control"
-Package: ${APP_NAME}
+Package: ${PKG_NAME}
 Version: ${VERSION}
 Section: utils
 Priority: optional
