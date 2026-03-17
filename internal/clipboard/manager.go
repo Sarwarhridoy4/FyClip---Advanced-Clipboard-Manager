@@ -13,7 +13,7 @@ import (
 
 const (
 	MaxHistoryItems = 1000
-	UpdateDebounce  = 50 * time.Millisecond
+	UpdateDebounce  = 200 * time.Millisecond
 	SaveDebounce    = 250 * time.Millisecond
 )
 
