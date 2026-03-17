@@ -199,7 +199,9 @@ sed -i -E "s|^Name=.*|Name=${APP_NAME}|" "${DESKTOP_PATH}"
 grep -q '^Categories=' "${DESKTOP_PATH}" || echo "Categories=Utility;" >> "${DESKTOP_PATH}"
 grep -q '^NoDisplay=' "${DESKTOP_PATH}" || echo "NoDisplay=false" >> "${DESKTOP_PATH}"
 grep -q '^Keywords=' "${DESKTOP_PATH}" || echo "Keywords=clipboard;copy;paste;history;" >> "${DESKTOP_PATH}"
-grep -q '^StartupWMClass=' "${DESKTOP_PATH}" || echo "StartupWMClass=${APP_ID}" >> "${DESKTOP_PATH}"
+# This must match exactly what 'lg' showed in your screenshot
+grep -q '^StartupWMClass=' "${DESKTOP_PATH}" || echo "StartupWMClass=FyClip - Clipboard Manager" >> "${DESKTOP_PATH}"
+
 
 # Install icon into hicolor so `gtk-update-icon-cache` picks it up on Debian-based distros.
 HICOLOR_APPS_DIR="${USR_NORMALIZED}/share/icons/hicolor/256x256/apps"
@@ -239,23 +241,37 @@ dpkg-deb --build "${DEB_ROOT}" "${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"
 mkdir -p "${APPDIR}/usr"
 cp -a "${USR_NORMALIZED}/." "${APPDIR}/usr/"
 
+# 1. Create the AppRun dispatcher
 cat > "${APPDIR}/AppRun" <<EOF
 #!/bin/sh
 HERE="\$(dirname "\$(readlink -f "\$0")")"
+export LD_LIBRARY_PATH="\$HERE/usr/lib:\$LD_LIBRARY_PATH"
 exec "\$HERE/usr/bin/${BIN_NAME}" "\$@"
 EOF
 chmod +x "${APPDIR}/AppRun"
 
+# 2. Setup root-level Desktop and Icon files (Mandatory for AppImage)
+# Use the APP_ID for the filename so Wayland can map the window
 cp "${DESKTOP_PATH}" "${APPDIR}/${APP_ID}.desktop"
 cp "${ICON_PATH}" "${APPDIR}/${APP_ID}.${ICON_EXT}"
 
-# AppImage launchers expect Exec=AppRun.
+# 3. Create mandatory AppImage symlinks at root
+ln -sf "${APP_ID}.${ICON_EXT}" "${APPDIR}/.DirIcon"
+
+# 4. Update the root-level Desktop file specifically for AppImage
+# Exec must be AppRun, and Icon must match the filename without extension
 sed -i -E "s|^Exec=.*|Exec=AppRun|" "${APPDIR}/${APP_ID}.desktop"
+sed -i -E "s|^Icon=.*|Icon=${APP_ID}|" "${APPDIR}/${APP_ID}.desktop"
 
+# 5. Bundle dependencies
 mkdir -p "${APPDIR}/usr/lib"
-ldd "${BIN_PATH}" | awk '/=> \\// {print $3}' | xargs -r -I '{}' cp '{}' "${APPDIR}/usr/lib/" || true
+# Exclude core system libs to prevent crashes on different distros
+ldd "${BIN_PATH}" | awk '/=> \// {print $3}' | grep -vE 'lib(c|pthread|rt|dl|m|gcc_s|stdc\+\+|glib|X11|xcb|wayland)' | xargs -r -I '{}' cp '{}' "${APPDIR}/usr/lib/" || true
 
+# 6. Build the AppImage
+# Passing the desktop file as an argument helps appimagetool set the metadata
 APPIMAGE_EXTRACT_AND_RUN=1 appimagetool "${APPDIR}" "${DIST_DIR}/${PKG_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
+
 
 echo "🎉 Build complete"
 echo "Deb: ${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"
