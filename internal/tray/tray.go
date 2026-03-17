@@ -18,6 +18,7 @@ type SystemTray struct {
 	window       fyne.Window
 	manager      *clipboard.Manager
 	autoStartMgr *platform.AutoStart
+	icon         fyne.Resource
 
 	menu          *fyne.Menu
 	autoStartItem *fyne.MenuItem
@@ -25,7 +26,7 @@ type SystemTray struct {
 }
 
 // New creates a new system tray
-func New(app fyne.App, window fyne.Window, manager *clipboard.Manager) *SystemTray {
+func New(app fyne.App, window fyne.Window, manager *clipboard.Manager, icon fyne.Resource) *SystemTray {
 	execPath, err := os.Executable()
 	if err != nil {
 		log.Printf("Warning: Failed to get executable path: %v", err)
@@ -37,6 +38,7 @@ func New(app fyne.App, window fyne.Window, manager *clipboard.Manager) *SystemTr
 		window:       window,
 		manager:      manager,
 		autoStartMgr: platform.NewAutoStart(execPath),
+		icon:         icon,
 	}
 }
 
@@ -163,5 +165,11 @@ func (st *SystemTray) refreshMenu() {
 func (st *SystemTray) loadIcon() fyne.Resource {
 	// Try to load from embedded icon
 	// This should match the icon in app.go
-	return nil // Will use default if nil
+	// Since we can't directly access the embedded icons from app package here,
+	// we'll use the icon that was passed in during initialization
+	if st.icon != nil {
+		return st.icon
+	}
+	// Fallback to default icon
+	return nil
 }
