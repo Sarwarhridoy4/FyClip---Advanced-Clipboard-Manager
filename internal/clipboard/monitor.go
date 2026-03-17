@@ -7,16 +7,19 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 )
 
-const monitorInterval = 300 * time.Millisecond
+const defaultMonitorInterval = 300 * time.Millisecond
+const waylandHelperInterval = 750 * time.Millisecond
 
 // Monitor watches the clipboard for changes
 type Monitor struct {
-	manager *Manager
-	native  *NativeClipboard
+	manager  *Manager
+	native   *NativeClipboard
+	interval time.Duration
 
 	mu            sync.RWMutex
 	lastTextHash  string
@@ -32,9 +35,18 @@ type Monitor struct {
 
 // NewMonitor creates a new clipboard monitor
 func NewMonitor(manager *Manager, native *NativeClipboard) *Monitor {
+	interval := defaultMonitorInterval
+
+	// When running on GNOME Wayland without native clipboard integration (fallback to `wl-paste`),
+	// aggressive polling can cause visible stutter/flicker. Throttle slightly in that case.
+	if os.Getenv("XDG_SESSION_TYPE") == "wayland" && native != nil && native.Backend() == "wl-clipboard" {
+		interval = waylandHelperInterval
+	}
+
 	return &Monitor{
 		manager:  manager,
 		native:   native,
+		interval: interval,
 		stopChan: make(chan struct{}),
 	}
 }
@@ -134,7 +146,7 @@ func (m *Monitor) monitorLoop() {
 		}
 	}()
 
-	ticker := time.NewTicker(monitorInterval)
+	ticker := time.NewTicker(m.interval)
 	defer ticker.Stop()
 
 	for {

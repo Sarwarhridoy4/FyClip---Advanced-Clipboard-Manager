@@ -172,6 +172,26 @@ BIN_PATH="${BIN_DIR}/${BIN_NAME}"
 DESKTOP_PATH=$(find "${APPS_DIR}" -name '*.desktop' | head -n 1)
 ICON_PATH=$(find "${PIXMAPS_DIR}" -type f | head -n 1)
 
+if [ -z "${DESKTOP_PATH}" ]; then echo "Desktop file not found"; exit 1; fi
+if [ -z "${ICON_PATH}" ]; then echo "Icon file not found"; exit 1; fi
+
+# GNOME Wayland groups windows to desktop entries by desktop file id (filename without .desktop).
+# Normalize both the desktop filename and icon filename to match our app id.
+DESKTOP_DIR="$(dirname "${DESKTOP_PATH}")"
+DESKTOP_NORM="${DESKTOP_DIR}/${APP_ID}.desktop"
+if [ "$(basename "${DESKTOP_PATH}")" != "${APP_ID}.desktop" ]; then
+    mv "${DESKTOP_PATH}" "${DESKTOP_NORM}"
+    DESKTOP_PATH="${DESKTOP_NORM}"
+fi
+
+ICON_DIR="$(dirname "${ICON_PATH}")"
+ICON_EXT="${ICON_PATH##*.}"
+ICON_NORM="${ICON_DIR}/${APP_ID}.${ICON_EXT}"
+if [ "$(basename "${ICON_PATH}")" != "${APP_ID}.${ICON_EXT}" ]; then
+    mv "${ICON_PATH}" "${ICON_NORM}"
+    ICON_PATH="${ICON_NORM}"
+fi
+
 sed -i -E "s|^Exec=.*|Exec=${BIN_NAME}|" "${DESKTOP_PATH}"
 sed -i -E "s|^Icon=.*|Icon=${APP_ID}|" "${DESKTOP_PATH}"
 sed -i -E "s|^Name=.*|Name=${APP_NAME}|" "${DESKTOP_PATH}"
@@ -179,6 +199,12 @@ sed -i -E "s|^Name=.*|Name=${APP_NAME}|" "${DESKTOP_PATH}"
 grep -q '^Categories=' "${DESKTOP_PATH}" || echo "Categories=Utility;" >> "${DESKTOP_PATH}"
 grep -q '^NoDisplay=' "${DESKTOP_PATH}" || echo "NoDisplay=false" >> "${DESKTOP_PATH}"
 grep -q '^Keywords=' "${DESKTOP_PATH}" || echo "Keywords=clipboard;copy;paste;history;" >> "${DESKTOP_PATH}"
+grep -q '^StartupWMClass=' "${DESKTOP_PATH}" || echo "StartupWMClass=${APP_ID}" >> "${DESKTOP_PATH}"
+
+# Install icon into hicolor so `gtk-update-icon-cache` picks it up on Debian-based distros.
+HICOLOR_APPS_DIR="${USR_NORMALIZED}/share/icons/hicolor/256x256/apps"
+mkdir -p "${HICOLOR_APPS_DIR}"
+cp -f "${ICON_PATH}" "${HICOLOR_APPS_DIR}/${APP_ID}.${ICON_EXT}"
 
 # ---------------------------------------------------------------------
 # Debian
@@ -221,7 +247,10 @@ EOF
 chmod +x "${APPDIR}/AppRun"
 
 cp "${DESKTOP_PATH}" "${APPDIR}/${APP_ID}.desktop"
-cp "${ICON_PATH}" "${APPDIR}/${APP_ID}.png"
+cp "${ICON_PATH}" "${APPDIR}/${APP_ID}.${ICON_EXT}"
+
+# AppImage launchers expect Exec=AppRun.
+sed -i -E "s|^Exec=.*|Exec=AppRun|" "${APPDIR}/${APP_ID}.desktop"
 
 mkdir -p "${APPDIR}/usr/lib"
 ldd "${BIN_PATH}" | awk '/=> \\// {print $3}' | xargs -r -I '{}' cp '{}' "${APPDIR}/usr/lib/" || true

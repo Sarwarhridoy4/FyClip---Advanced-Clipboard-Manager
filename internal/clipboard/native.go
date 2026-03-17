@@ -2,6 +2,7 @@
 package clipboard
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -43,7 +44,7 @@ func NewNativeClipboard() (*NativeClipboard, error) {
 // setupLinuxFallback configures alternative clipboard methods for Linux
 func (nc *NativeClipboard) setupLinuxFallback() {
 	sessionType := os.Getenv("XDG_SESSION_TYPE")
-	
+
 	if sessionType == "wayland" || sessionType == "" {
 		if _, err := exec.LookPath("wl-paste"); err == nil {
 			nc.useWlclip = true
@@ -52,13 +53,13 @@ func (nc *NativeClipboard) setupLinuxFallback() {
 		}
 		log.Println("Warning: wl-clipboard not found for Wayland")
 	}
-	
+
 	if _, err := exec.LookPath("xclip"); err == nil {
 		nc.useXclip = true
 		log.Println("Using xclip for X11")
 		return
 	}
-	
+
 	log.Println("Warning: No clipboard tool found. Install xclip or wl-clipboard")
 	nc.available = false
 }
@@ -163,7 +164,7 @@ func (nc *NativeClipboard) WriteImage(base64Data string) error {
 func (nc *NativeClipboard) readTextWayland() []byte {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "wl-paste", "-n")
 	out, err := cmd.Output()
 	if err != nil {
@@ -175,29 +176,29 @@ func (nc *NativeClipboard) readTextWayland() []byte {
 func (nc *NativeClipboard) readImageWayland() ([]byte, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "wl-paste", "-t", "image/png", "-n")
 	out, err := cmd.Output()
 	if err == nil && len(out) > 0 {
 		return out, "png"
 	}
-	
+
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel2()
-	
+
 	cmd2 := exec.CommandContext(ctx2, "wl-paste", "-t", "image/jpeg", "-n")
 	out, err = cmd2.Output()
 	if err == nil && len(out) > 0 {
 		return out, "jpeg"
 	}
-	
+
 	return nil, ""
 }
 
 func (nc *NativeClipboard) writeTextWayland(data []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "wl-copy")
 	cmd.Stdin = strings.NewReader(string(data))
 	return cmd.Run()
@@ -206,9 +207,9 @@ func (nc *NativeClipboard) writeTextWayland(data []byte) error {
 func (nc *NativeClipboard) writeImageWayland(data []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "wl-copy", "--type", "image/png")
-	cmd.Stdin = strings.NewReader(string(data))
+	cmd.Stdin = bytes.NewReader(data)
 	return cmd.Run()
 }
 
@@ -216,7 +217,7 @@ func (nc *NativeClipboard) writeImageWayland(data []byte) error {
 func (nc *NativeClipboard) readTextX11() []byte {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "xclip", "-o", "-selection", "clipboard")
 	out, err := cmd.Output()
 	if err != nil {
@@ -228,29 +229,29 @@ func (nc *NativeClipboard) readTextX11() []byte {
 func (nc *NativeClipboard) readImageX11() ([]byte, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "xclip", "-selection", "clipboard", "-t", "image/png", "-o")
 	out, err := cmd.Output()
 	if err == nil && len(out) > 0 {
 		return out, "png"
 	}
-	
+
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel2()
-	
+
 	cmd2 := exec.CommandContext(ctx2, "xclip", "-selection", "clipboard", "-t", "image/jpeg", "-o")
 	out, err = cmd2.Output()
 	if err == nil && len(out) > 0 {
 		return out, "jpeg"
 	}
-	
+
 	return nil, ""
 }
 
 func (nc *NativeClipboard) writeTextX11(data []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "xclip", "-i", "-selection", "clipboard")
 	cmd.Stdin = strings.NewReader(string(data))
 	return cmd.Run()
@@ -259,9 +260,9 @@ func (nc *NativeClipboard) writeTextX11(data []byte) error {
 func (nc *NativeClipboard) writeImageX11(data []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "xclip", "-selection", "clipboard", "-t", "image/png", "-i")
-	cmd.Stdin = strings.NewReader(string(data))
+	cmd.Stdin = bytes.NewReader(data)
 	return cmd.Run()
 }
 
@@ -270,21 +271,32 @@ func detectImageType(data []byte) string {
 	if len(data) < 8 {
 		return "png"
 	}
-	
+
 	// PNG signature
 	if data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 {
 		return "png"
 	}
-	
+
 	// JPEG signature
 	if data[0] == 0xFF && data[1] == 0xD8 {
 		return "jpeg"
 	}
-	
+
 	return "png"
 }
 
 // IsAvailable returns whether clipboard is available
 func (nc *NativeClipboard) IsAvailable() bool {
 	return nc.available
+}
+
+// Backend returns which mechanism is currently being used on Linux.
+func (nc *NativeClipboard) Backend() string {
+	if nc.useWlclip {
+		return "wl-clipboard"
+	}
+	if nc.useXclip {
+		return "xclip"
+	}
+	return "native"
 }

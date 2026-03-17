@@ -13,7 +13,8 @@ func getAutoStartPath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".config", "autostart", "fyclip.desktop")
+	// Match the application's desktop id (Fyne app ID) so GNOME can associate the window with this entry.
+	return filepath.Join(home, ".config", "autostart", "com.sarwar.fyclip.desktop")
 }
 
 func (as *AutoStart) enable() error {
@@ -24,6 +25,8 @@ func (as *AutoStart) enable() error {
 	content := fmt.Sprintf(`[Desktop Entry]
 Type=Application
 Exec=%s
+Icon=com.sarwar.fyclip
+StartupWMClass=com.sarwar.fyclip
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
