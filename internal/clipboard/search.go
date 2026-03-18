@@ -1,0 +1,106 @@
+// File: internal/clipboard/search.go
+package clipboard
+
+import (
+	"regexp"
+	"strings"
+)
+
+// SearchOptions contains search configuration
+type SearchOptions struct {
+	CaseSensitive bool // Case-sensitive search
+	RegexEnabled  bool // Enable regex matching
+	FuzzyEnabled  bool // Enable fuzzy matching
+}
+
+// DefaultSearchOptions returns default search options
+func DefaultSearchOptions() *SearchOptions {
+	return &SearchOptions{
+		CaseSensitive: false,
+		RegexEnabled:  false,
+		FuzzyEnabled:  false,
+	}
+}
+
+// SearchItem searches an item with the given query and options
+func SearchItem(item *Item, query string, opts *SearchOptions) bool {
+	if query == "" {
+		return true
+	}
+
+	// Get searchable content
+	searchContent := item.SearchContent()
+	if searchContent == "" && item.Content != "" {
+		item.PrepareForSearch()
+		searchContent = item.SearchContent()
+	}
+
+	if searchContent == "" {
+		return false
+	}
+
+	// Apply search based on options
+	if opts.RegexEnabled {
+		return searchWithRegex(searchContent, query)
+	}
+
+	if opts.FuzzyEnabled {
+		return searchWithFuzzy(searchContent, query, opts.CaseSensitive)
+	}
+
+	// Default: substring search
+	return searchWithSubstring(searchContent, query, opts.CaseSensitive)
+}
+
+// searchWithSubstring performs a basic substring search
+func searchWithSubstring(content, query string, caseSensitive bool) bool {
+	if !caseSensitive {
+		content = strings.ToLower(content)
+		query = strings.ToLower(query)
+	}
+	return strings.Contains(content, query)
+}
+
+// searchWithRegex performs regex-based search
+func searchWithRegex(content, pattern string) bool {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		// If regex is invalid, fall back to substring search
+		return strings.Contains(content, pattern)
+	}
+	return re.MatchString(content)
+}
+
+// searchWithFuzzy performs fuzzy matching (simple Levenshtein-based)
+func searchWithFuzzy(content, query string, caseSensitive bool) bool {
+	if !caseSensitive {
+		content = strings.ToLower(content)
+		query = strings.ToLower(query)
+	}
+
+	// First try exact substring match
+	if strings.Contains(content, query) {
+		return true
+	}
+
+	// Check if query is a subsequence of content (for typo tolerance)
+	return isSubsequence(query, content)
+}
+
+// isSubsequence checks if query is a subsequence of text
+func isSubsequence(query, text string) bool {
+	qIdx := 0
+	for _, ch := range text {
+		if qIdx < len(query) && string(ch) == string(query[qIdx]) {
+			qIdx++
+		}
+	}
+	return qIdx == len(query)
+}
+
+// SearchHistoryItem searches an item for history display
+func SearchHistoryItem(item *Item, query string) bool {
+	// Default search without options (substring, case-insensitive)
+	opts := DefaultSearchOptions()
+	return SearchItem(item, query, opts)
+}

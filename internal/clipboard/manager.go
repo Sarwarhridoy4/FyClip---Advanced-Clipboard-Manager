@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -41,6 +40,7 @@ type Manager struct {
 
 	selectedIndex   int
 	searchQuery     string
+	searchOptions   *SearchOptions
 	showPinnedOnly  bool
 	lastCopied      time.Time
 	maxHistoryItems int
@@ -87,6 +87,7 @@ func NewManager(cfg Config) (*Manager, error) {
 		shutdownChan:    make(chan struct{}),
 		running:         true,
 		maxHistoryItems: MaxHistoryItems,
+		searchOptions:   DefaultSearchOptions(),
 		onUpdate:        cfg.OnUpdate,
 		onError:         cfg.OnError,
 		onInfo:          cfg.OnInfo,
@@ -298,15 +299,14 @@ func (m *Manager) updateFiltered() {
 		m.filtered = m.filtered[:0]
 	}
 
-	query := strings.ToLower(m.searchQuery)
+	query := m.searchQuery
+	searchOpts := m.searchOptions
+
 	match := func(item *Item) bool {
 		if query == "" {
 			return true
 		}
-		if item.SearchContent() == "" && item.Content != "" {
-			item.PrepareForSearch()
-		}
-		return strings.Contains(item.SearchContent(), query)
+		return SearchItem(item, query, searchOpts)
 	}
 
 	// Keep pinned items first while preserving stable order in each group.
@@ -420,6 +420,59 @@ func (m *Manager) SetSearch(query string) {
 
 	m.updateFiltered()
 	m.triggerUpdate()
+}
+
+// SetSearchOptions updates the search options
+func (m *Manager) SetSearchOptions(opts *SearchOptions) {
+	m.mu.Lock()
+	m.searchOptions = opts
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.triggerUpdate()
+}
+
+// GetSearchOptions returns the current search options
+func (m *Manager) GetSearchOptions() *SearchOptions {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.searchOptions
+}
+
+// ToggleRegexSearch toggles regex search mode
+func (m *Manager) ToggleRegexSearch() bool {
+	m.mu.Lock()
+	m.searchOptions.RegexEnabled = !m.searchOptions.RegexEnabled
+	enabled := m.searchOptions.RegexEnabled
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.triggerUpdate()
+	return enabled
+}
+
+// ToggleCaseSensitive toggles case-sensitive search
+func (m *Manager) ToggleCaseSensitive() bool {
+	m.mu.Lock()
+	m.searchOptions.CaseSensitive = !m.searchOptions.CaseSensitive
+	enabled := m.searchOptions.CaseSensitive
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.triggerUpdate()
+	return enabled
+}
+
+// ToggleFuzzySearch toggles fuzzy search mode
+func (m *Manager) ToggleFuzzySearch() bool {
+	m.mu.Lock()
+	m.searchOptions.FuzzyEnabled = !m.searchOptions.FuzzyEnabled
+	enabled := m.searchOptions.FuzzyEnabled
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.triggerUpdate()
+	return enabled
 }
 
 // GetFiltered returns the filtered items (thread-safe)
