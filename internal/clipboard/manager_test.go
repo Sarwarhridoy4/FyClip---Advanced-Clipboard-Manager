@@ -509,3 +509,227 @@ func TestManagerImageWithEmptyContent(t *testing.T) {
 		t.Errorf("Expected 1 image item, got %d", m.GetFilteredCount())
 	}
 }
+
+// TestManagerTogglePin tests toggling pin on valid items
+func TestManagerTogglePin(t *testing.T) {
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "test_storage")
+	
+	cfg := Config{
+		StoragePath: storagePath,
+		OnUpdate:    func() {},
+		OnError:     func(err error) {},
+		OnInfo:      func(message string) {},
+	}
+	
+	m, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	defer m.Shutdown()
+	
+	// Add items
+	m.AddItem(Item{Type: TypeText, Content: "Item 1"})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeText, Content: "Item 2"})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeText, Content: "Item 3"})
+	m.updateFiltered()
+	
+	// Initially all unpinned
+	if m.GetFilteredCount() != 3 {
+		t.Errorf("Expected 3 items, got %d", m.GetFilteredCount())
+	}
+	
+	// Pin first item
+	success := m.TogglePin(0)
+	if !success {
+		t.Error("TogglePin(0) should succeed")
+	}
+	
+	items := m.GetFiltered()
+	if !items[0].Pinned {
+		t.Error("First item should be pinned")
+	}
+	
+	// Unpin first item
+	success = m.TogglePin(0)
+	if !success {
+		t.Error("TogglePin(0) should succeed")
+	}
+	
+	items = m.GetFiltered()
+	if items[0].Pinned {
+		t.Error("First item should be unpinned")
+	}
+}
+
+// TestManagerDelete tests deleting items
+func TestManagerDelete(t *testing.T) {
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "test_storage")
+	
+	cfg := Config{
+		StoragePath: storagePath,
+		OnUpdate:    func() {},
+		OnError:     func(err error) {},
+		OnInfo:      func(message string) {},
+	}
+	
+	m, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	defer m.Shutdown()
+	
+	// Add items
+	m.AddItem(Item{Type: TypeText, Content: "Item 1"})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeText, Content: "Item 2"})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeText, Content: "Item 3"})
+	m.updateFiltered()
+	
+	if m.GetFilteredCount() != 3 {
+		t.Errorf("Expected 3 items, got %d", m.GetFilteredCount())
+	}
+	
+	// Delete middle item
+	err = m.Delete(1)
+	if err != nil {
+		t.Errorf("Delete(1) failed: %v", err)
+	}
+	
+	if m.GetFilteredCount() != 2 {
+		t.Errorf("Expected 2 items after delete, got %d", m.GetFilteredCount())
+	}
+	
+	items := m.GetFiltered()
+	if items[0].Content != "Item 1" {
+		t.Errorf("First item should be Item 1, got %s", items[0].Content)
+	}
+	if items[1].Content != "Item 3" {
+		t.Errorf("Second item should be Item 3, got %s", items[1].Content)
+	}
+}
+
+// TestManagerDuplicateDetection tests duplicate content detection
+func TestManagerDuplicateDetection(t *testing.T) {
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "test_storage")
+	
+	cfg := Config{
+		StoragePath: storagePath,
+		OnUpdate:    func() {},
+		OnError:     func(err error) {},
+		OnInfo:      func(message string) {},
+	}
+	
+	m, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	defer m.Shutdown()
+	
+	// Add first item
+	result := m.AddItem(Item{Type: TypeText, Content: "Unique content"})
+	if !result.Added {
+		t.Error("First item should be added")
+	}
+	m.updateFiltered()
+	
+	if m.GetFilteredCount() != 1 {
+		t.Errorf("Expected 1 item, got %d", m.GetFilteredCount())
+	}
+	
+	// Try to add duplicate
+	result = m.AddItem(Item{Type: TypeText, Content: "Unique content"})
+	if result.Added {
+		t.Error("Duplicate content should not be added")
+	}
+	
+	if m.GetFilteredCount() != 1 {
+		t.Errorf("Expected 1 item after duplicate attempt, got %d", m.GetFilteredCount())
+	}
+	
+	// Add different content
+	result = m.AddItem(Item{Type: TypeText, Content: "Different content"})
+	if !result.Added {
+		t.Error("Different content should be added")
+	}
+	m.updateFiltered()
+	
+	if m.GetFilteredCount() != 2 {
+		t.Errorf("Expected 2 items, got %d", m.GetFilteredCount())
+	}
+}
+
+// TestManagerGetItem tests GetItem method
+func TestManagerGetItem(t *testing.T) {
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "test_storage")
+	
+	cfg := Config{
+		StoragePath: storagePath,
+		OnUpdate:    func() {},
+		OnError:     func(err error) {},
+		OnInfo:      func(message string) {},
+	}
+	
+	m, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	defer m.Shutdown()
+	
+	// Add items
+	m.AddItem(Item{Type: TypeText, Content: "Item 1"})
+	m.updateFiltered()
+	
+	// Get valid item
+	item, ok := m.GetItem(0)
+	if !ok {
+		t.Error("Should get item at index 0")
+	}
+	if item.Content != "Item 1" {
+		t.Errorf("Item content = %v; want Item 1", item.Content)
+	}
+}
+
+// TestManagerGetStats tests GetStats method
+func TestManagerGetStats(t *testing.T) {
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "test_storage")
+	
+	cfg := Config{
+		StoragePath: storagePath,
+		OnUpdate:    func() {},
+		OnError:     func(err error) {},
+		OnInfo:      func(message string) {},
+	}
+	
+	m, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	defer m.Shutdown()
+	
+	// Add various types of items
+	m.AddItem(Item{Type: TypeText, Content: "Text item"})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeImage, Content: "", ImageData: "fakebase64", ImageType: "png"})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeHTML, Content: "HTML content", HTMLContent: "<b>test</b>"})
+	m.updateFiltered()
+	
+	total, pinned, filtered, _ := m.GetStats()
+	if total != 3 {
+		t.Errorf("Total = %d; want 3", total)
+	}
+	if pinned != 0 {
+		t.Errorf("Pinned = %d; want 0", pinned)
+	}
+	if filtered != 3 {
+		t.Errorf("Filtered = %d; want 3", filtered)
+	}
+}
