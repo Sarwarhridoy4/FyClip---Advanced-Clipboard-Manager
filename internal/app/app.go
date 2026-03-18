@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
+	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/config"
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/tray"
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/ui"
 )
@@ -29,11 +30,19 @@ type App struct {
 	manager *clipboard.Manager
 	mainUI  *ui.MainWindow
 	tray    *tray.SystemTray
+	configMgr *config.ConfigManager
 }
 
 // New creates a new FyClip application
 func New() *App {
 	a := &App{}
+
+	// Initialize config manager first
+	var err error
+	a.configMgr, err = config.NewConfigManager()
+	if err != nil {
+		log.Printf("Failed to initialize config: %v, using defaults", err)
+	}
 
 	// Create Fyne app
 	a.fyneApp = app.NewWithID("com.sarwar.fyclip")
@@ -41,7 +50,17 @@ func New() *App {
 		return nil
 	}
 
-	a.fyneApp.Settings().SetTheme(theme.DarkTheme())
+	// Apply theme from config
+	if a.configMgr != nil {
+		cfg := a.configMgr.Get()
+		if cfg.Theme == "light" {
+			a.fyneApp.Settings().SetTheme(theme.LightTheme())
+		} else {
+			a.fyneApp.Settings().SetTheme(theme.DarkTheme())
+		}
+	} else {
+		a.fyneApp.Settings().SetTheme(theme.DarkTheme())
+	}
 
 	icon := a.loadIcon()
 	a.fyneApp.SetIcon(icon)
@@ -54,7 +73,6 @@ func New() *App {
 	a.window.SetIcon(icon)
 
 	// Initialize clipboard manager
-	var err error
 	a.manager, err = clipboard.NewManager(clipboard.Config{
 		StoragePath: "",
 		OnUpdate: func() {
