@@ -6,7 +6,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"os/exec"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -616,16 +619,43 @@ func (m *Manager) CopyToClipboard(index int) error {
 		return fmt.Errorf("invalid index")
 	}
 
+	return m.copyItemToClipboard(&item, false)
+}
+
+// CopyToClipboardAsHTML copies an item to clipboard as HTML (if available)
+func (m *Manager) CopyToClipboardAsHTML(index int) error {
+	item, ok := m.GetItem(index)
+	if !ok {
+		return fmt.Errorf("invalid index")
+	}
+
+	return m.copyItemToClipboard(&item, true)
+}
+
+// CopyToClipboardAsPlainText copies an item to clipboard as plain text
+func (m *Manager) CopyToClipboardAsPlainText(index int) error {
+	item, ok := m.GetItem(index)
+	if !ok {
+		return fmt.Errorf("invalid index")
+	}
+
+	return m.copyItemToClipboard(&item, false)
+}
+
+// copyItemToClipboard is the internal method for copying items
+func (m *Manager) copyItemToClipboard(item *Item, asHTML bool) error {
 	// Notify monitor about programmatic copy
 	if m.monitor != nil {
-		if item.Type == TypeText {
+		if item.Type == TypeText || item.Type == TypeHTML {
 			m.monitor.SetProgrammaticCopy([]byte(item.Content))
-		} else {
+		} else if item.Type == TypeImage {
 			if rawImage, err := base64.StdEncoding.DecodeString(item.ImageData); err == nil {
 				m.monitor.SetProgrammaticCopy(rawImage)
 			} else {
 				m.monitor.SetProgrammaticCopy([]byte(item.ImageData))
 			}
+		} else if item.Type == TypeFile && item.FileInfo != nil {
+			m.monitor.SetProgrammaticCopy([]byte(item.FileInfo.Path))
 		}
 	}
 
@@ -633,20 +663,79 @@ func (m *Manager) CopyToClipboard(index int) error {
 	m.lastCopied = time.Now()
 	m.mu.Unlock()
 
-	if item.Type == TypeText {
+	switch item.Type {
+	case TypeText:
 		if err := m.native.WriteText([]byte(item.Content)); err != nil {
 			return err
 		}
-	} else {
+	case TypeHTML:
+		// If asHTML is true and we have HTML content, write as HTML
+		if asHTML && item.HasHTML() {
+			if err := m.native.WriteHTML(item.HTMLContent, item.Content); err != nil {
+				return err
+			}
+		} else {
+			// Write plain text
+			if err := m.native.WriteText([]byte(item.Content)); err != nil {
+				return err
+			}
+		}
+	case TypeImage:
 		if err := m.native.WriteImage(item.ImageData); err != nil {
 			return err
 		}
+	case TypeFile:
+		if item.FileInfo != nil {
+			// Copy file path to clipboard
+			if err := m.native.WriteText([]byte(item.FileInfo.Path)); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("unsupported item type")
 	}
 
 	m.incrementCopyCount(item.ID)
 	m.saveHistory()
 	m.triggerUpdate()
 	return nil
+}
+
+// OpenFileLocation opens the file location in the system file manager
+func (m *Manager) OpenFileLocation(index int) error {
+	item, ok := m.GetItem(index)
+	if !ok {
+		return fmt.Errorf("invalid index")
+	}
+
+	if !item.IsFile() || item.FileInfo == nil {
+		return fmt.Errorf("item is not a file")
+	}
+
+	path := item.FileInfo.Path
+	// Get directory path
+	dirPath := path
+	if !item.FileInfo.IsDirectory {
+		// Get the directory containing the file
+		lastSlash := strings.LastIndex(path, "/")
+		if lastSlash > 0 {
+			dirPath = path[:lastSlash]
+		}
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "linux":
+		cmd = exec.Command("xdg-open", dirPath)
+	case "darwin":
+		cmd = exec.Command("open", dirPath)
+	case "windows":
+		cmd = exec.Command("explorer", dirPath)
+	default:
+		return fmt.Errorf("unsupported platform")
+	}
+
+	return cmd.Start()
 }
 
 // GetStats returns statistics about the clipboard

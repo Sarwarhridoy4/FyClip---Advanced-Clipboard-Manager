@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,6 +25,8 @@ type Monitor struct {
 	mu            sync.RWMutex
 	lastTextHash  string
 	lastImageHash string
+	lastHTMLHash  string
+	lastFileHash  string
 
 	programmaticCopy bool
 	programmaticHash string
@@ -190,6 +193,18 @@ func (m *Monitor) checkClipboard() {
 	// Try reading image
 	if imageData, imageType := m.native.ReadImage(); len(imageData) > 0 {
 		m.handleImage(imageData, imageType, programmaticHash)
+		return
+	}
+
+	// Try reading HTML
+	if htmlData := m.native.ReadHTML(); len(htmlData) > 0 {
+		m.handleHTML(htmlData, programmaticHash)
+		return
+	}
+
+	// Try reading file paths
+	if filePaths := m.native.ReadFilePaths(); len(filePaths) > 0 {
+		m.handleFiles(filePaths, programmaticHash)
 	}
 }
 
@@ -252,7 +267,9 @@ func (m *Monitor) handleImage(data []byte, imageType, programmaticHash string) {
 
 	m.mu.Lock()
 	m.lastImageHash = hashStr
-	m.lastTextHash = "" // Clear text hash when image is copied
+	m.lastTextHash = ""   // Clear text hash when image is copied
+	m.lastHTMLHash = ""   // Clear HTML hash when image is copied
+	m.lastFileHash = ""   // Clear file hash when image is copied
 	m.mu.Unlock()
 
 	item := Item{
@@ -272,4 +289,125 @@ func (m *Monitor) handleImage(data []byte, imageType, programmaticHash string) {
 		m.manager.updateFiltered()
 		m.manager.triggerUpdate()
 	}
+}
+
+// handleHTML processes HTML clipboard content
+func (m *Monitor) handleHTML(data []byte, programmaticHash string) {
+	if len(data) == 0 {
+		return
+	}
+
+	htmlContent := string(data)
+
+	hash := sha256.Sum256(data)
+	hashStr := hex.EncodeToString(hash[:])
+
+	m.mu.Lock()
+	lastHash := m.lastHTMLHash
+	m.mu.Unlock()
+
+	if hashStr == lastHash || hashStr == programmaticHash {
+		return
+	}
+
+	m.mu.Lock()
+	m.lastHTMLHash = hashStr
+	m.lastTextHash = ""   // Clear text hash when HTML is copied
+	m.lastImageHash = ""  // Clear image hash when HTML is copied
+	m.lastFileHash = ""   // Clear file hash when HTML is copied
+	m.mu.Unlock()
+
+	// Extract plain text from HTML for searchability
+	plainText := stripHTMLForSearch(htmlContent)
+
+	item := Item{
+		Type:        TypeHTML,
+		Content:    plainText,
+		HTMLContent: htmlContent,
+		Hash:        hashStr,
+	}
+
+	result := m.manager.AddItem(item)
+	if result.Added {
+		if result.MovedDuplicate {
+			m.manager.notifyInfo("Duplicate item moved to latest")
+		}
+		m.manager.saveHistory()
+		m.manager.updateFiltered()
+		m.manager.triggerUpdate()
+	}
+}
+
+// handleFiles processes file path clipboard content
+func (m *Monitor) handleFiles(filePaths []string, programmaticHash string) {
+	if len(filePaths) == 0 {
+		return
+	}
+
+	// Create a combined hash for all file paths
+	combinedPaths := strings.Join(filePaths, "|")
+	hash := sha256.Sum256([]byte(combinedPaths))
+	hashStr := hex.EncodeToString(hash[:])
+
+	m.mu.Lock()
+	lastHash := m.lastFileHash
+	m.mu.Unlock()
+
+	if hashStr == lastHash || hashStr == programmaticHash {
+		return
+	}
+
+	m.mu.Lock()
+	m.lastFileHash = hashStr
+	m.lastTextHash = ""   // Clear text hash when files are copied
+	m.lastImageHash = ""  // Clear image hash when files are copied
+	m.lastHTMLHash = ""   // Clear HTML hash when files are copied
+	m.mu.Unlock()
+
+	// Get info for the first file
+	fileInfo, err := getFileInfo(filePaths[0])
+	if err != nil {
+		log.Printf("Failed to get file info: %v", err)
+		return
+	}
+
+	// Create content description from all files
+	content := fmt.Sprintf("%d file(s)", len(filePaths))
+	if len(filePaths) == 1 {
+		content = fileInfo.Name
+	}
+
+	item := Item{
+		Type:    TypeFile,
+		Content: content,
+		FileInfo: fileInfo,
+		Hash:    hashStr,
+	}
+
+	result := m.manager.AddItem(item)
+	if result.Added {
+		if result.MovedDuplicate {
+			m.manager.notifyInfo("Duplicate item moved to latest")
+		}
+		m.manager.saveHistory()
+		m.manager.updateFiltered()
+		m.manager.triggerUpdate()
+	}
+}
+
+// stripHTMLForSearch extracts plain text from HTML for search indexing
+func stripHTMLForSearch(html string) string {
+	var result strings.Builder
+	inTag := false
+	for _, r := range html {
+		if r == '<' {
+			inTag = true
+		} else if r == '>' {
+			inTag = false
+			result.WriteRune(' ') // Replace tags with space
+		} else if !inTag {
+			result.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(result.String())
 }

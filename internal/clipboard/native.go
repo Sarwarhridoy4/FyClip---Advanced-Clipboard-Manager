@@ -160,6 +160,170 @@ func (nc *NativeClipboard) WriteImage(base64Data string) error {
 	return nil
 }
 
+// ReadHTML reads HTML from clipboard
+func (nc *NativeClipboard) ReadHTML() []byte {
+	if !nc.available {
+		return nil
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in ReadHTML: %v", r)
+		}
+	}()
+
+	// Try using xclip for HTML (X11)
+	if nc.useXclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "xclip", "-o", "-selection", "clipboard", "-t", "text/html")
+		out, err := cmd.Output()
+		if err == nil && len(out) > 0 {
+			return out
+		}
+	}
+
+	// Try using wl-paste for HTML (Wayland)
+	if nc.useWlclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "wl-paste", "-t", "text/html", "-n")
+		out, err := cmd.Output()
+		if err == nil && len(out) > 0 {
+			return out
+		}
+	}
+
+	return nil
+}
+
+// WriteHTML writes HTML to clipboard with plain text fallback
+func (nc *NativeClipboard) WriteHTML(htmlContent, plainText string) error {
+	if !nc.available {
+		return fmt.Errorf("clipboard not available")
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in WriteHTML: %v", r)
+		}
+	}()
+
+	// First write plain text
+	if err := nc.WriteText([]byte(plainText)); err != nil {
+		return err
+	}
+
+	// For platforms that support HTML clipboard format, we'd need additional handling
+	// This is a simplified implementation
+	log.Printf("HTML write not fully implemented for this platform")
+	return nil
+}
+
+// ReadFilePaths reads file paths from clipboard (files copied in file manager)
+func (nc *NativeClipboard) ReadFilePaths() []string {
+	if !nc.available {
+		return nil
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Panic in ReadFilePaths: %v", r)
+		}
+	}()
+
+	// Try reading as text (some systems send file paths as text)
+	textData := nc.ReadText()
+	if len(textData) > 0 {
+		text := string(textData)
+		// Check if it looks like a file path
+		if isFilePath(text) {
+			return []string{text}
+		}
+	}
+
+	// Try using xclip for URI list (X11)
+	if nc.useXclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "xclip", "-o", "-selection", "clipboard", "-t", "text/uri-list")
+		out, err := cmd.Output()
+		if err == nil && len(out) > 0 {
+			return parseURIList(string(out))
+		}
+	}
+
+	// Try using wl-paste for URI list (Wayland)
+	if nc.useWlclip {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "wl-paste", "-t", "text/uri-list", "-n")
+		out, err := cmd.Output()
+		if err == nil && len(out) > 0 {
+			return parseURIList(string(out))
+		}
+	}
+
+	return nil
+}
+
+// parseURIList parses URI list (file:// URLs) into file paths
+func parseURIList(uriList string) []string {
+	var paths []string
+	lines := strings.Split(strings.TrimSpace(uriList), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "file://") {
+			path := strings.TrimPrefix(line, "file://")
+			// Handle URL-encoded characters
+			path = strings.ReplaceAll(path, "%20", " ")
+			path = strings.ReplaceAll(path, "%5C", "\\")
+			path = strings.ReplaceAll(path, "%2F", "/")
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
+// isFilePath checks if a string looks like a file path
+func isFilePath(s string) bool {
+	s = strings.TrimSpace(s)
+	// Check for common path indicators
+	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "~") {
+		return true
+	}
+	// Check for Windows-style paths
+	if len(s) >= 3 && s[1] == ':' && (s[2] == '\\' || s[2] == '/') {
+		return true
+	}
+	return false
+}
+
+// WriteFilePaths writes file paths to clipboard
+func (nc *NativeClipboard) WriteFilePaths(paths []string) error {
+	if !nc.available {
+		return fmt.Errorf("clipboard not available")
+	}
+
+	// Write as URI list
+	var uriList strings.Builder
+	for _, path := range paths {
+		// Convert to file:// URL
+		uriList.WriteString("file://" + path + "\n")
+	}
+
+	if err := nc.WriteText([]byte(uriList.String())); err != nil {
+		return err
+	}
+
+	log.Printf("File paths write not fully implemented for this platform")
+	return nil
+}
+
 // Linux Wayland implementations
 func (nc *NativeClipboard) readTextWayland() []byte {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -299,4 +463,20 @@ func (nc *NativeClipboard) Backend() string {
 		return "xclip"
 	}
 	return "native"
+}
+
+// getFileInfo returns FileInfo for a given file path
+func getFileInfo(path string) (*FileInfo, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FileInfo{
+		Name:        info.Name(),
+		Path:        path,
+		Size:        info.Size(),
+		ModTime:     info.ModTime(),
+		IsDirectory: info.IsDir(),
+	}, nil
 }
