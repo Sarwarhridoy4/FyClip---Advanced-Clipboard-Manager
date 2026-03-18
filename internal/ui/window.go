@@ -10,9 +10,10 @@ import (
 
 // MainWindow represents the main application window
 type MainWindow struct {
-	window  fyne.Window
-	app     fyne.App
-	manager *clipboard.Manager
+	window    fyne.Window
+	app       fyne.App
+	manager   *clipboard.Manager
+	quickPanel *QuickPanel
 
 	list    *HistoryList
 	preview *PreviewPane
@@ -35,6 +36,9 @@ func NewMainWindow(window fyne.Window, app fyne.App, manager *clipboard.Manager)
 	mw.toolbar = NewToolbar(window, app, manager, mw.list)
 	mw.search = NewSearchBar(manager, mw.list)
 	mw.status = NewStatusBar(manager)
+
+	// Create quick panel
+	mw.quickPanel = NewQuickPanel(manager, window, mw.onQuickPaste)
 
 	// Setup menu
 	mw.setupMenu()
@@ -90,13 +94,40 @@ func (mw *MainWindow) onItemSelected(index int) {
 	}
 }
 
+// onQuickPaste handles quick paste from the panel
+func (mw *MainWindow) onQuickPaste(item clipboard.Item) {
+	// Find the item in the manager and copy it
+	items := mw.manager.GetFiltered()
+	for i, it := range items {
+		if it.ID == item.ID {
+			mw.manager.CopyToClipboard(i)
+			break
+		}
+	}
+}
+
+// ShowQuickPanel shows the quick paste panel
+func (mw *MainWindow) ShowQuickPanel() {
+	if mw.quickPanel != nil {
+		mw.quickPanel.Show()
+	}
+}
+
 // setupMenu creates the application menu
 func (mw *MainWindow) setupMenu() {
 	aboutItem := fyne.NewMenuItem("About", func() {
 		ShowAboutDialog(mw.window, mw.app)
 	})
+	
+	// Add quick panel menu item
+	quickPanelItem := fyne.NewMenuItem("Quick Paste", func() {
+		if mw.quickPanel != nil {
+			mw.quickPanel.Toggle()
+		}
+	})
 
 	helpMenu := fyne.NewMenu("Help", aboutItem)
-	mainMenu := fyne.NewMainMenu(helpMenu)
+	viewMenu := fyne.NewMenu("View", quickPanelItem)
+	mainMenu := fyne.NewMainMenu(viewMenu, helpMenu)
 	mw.window.SetMainMenu(mainMenu)
 }
