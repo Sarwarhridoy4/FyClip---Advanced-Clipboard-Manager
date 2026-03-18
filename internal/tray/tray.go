@@ -20,9 +20,10 @@ type SystemTray struct {
 	autoStartMgr *platform.AutoStart
 	icon         fyne.Resource
 
-	menu          *fyne.Menu
+	menu           *fyne.Menu
 	autoStartItem *fyne.MenuItem
 	pauseItem     *fyne.MenuItem
+	recentMenu    *fyne.Menu
 }
 
 // New creates a new system tray
@@ -56,6 +57,9 @@ func (st *SystemTray) Setup() {
 	st.pauseItem = fyne.NewMenuItem("", st.onPauseToggle)
 	st.updatePauseLabel()
 
+	// Create recent items submenu
+	st.recentMenu = fyne.NewMenu("Recent", st.buildRecentMenuItems()...)
+
 	// Build menu
 	st.menu = st.buildMenu()
 
@@ -68,13 +72,82 @@ func (st *SystemTray) Setup() {
 
 // buildMenu creates the tray menu
 func (st *SystemTray) buildMenu() *fyne.Menu {
-	return fyne.NewMenu("FyClip",
+	items := []*fyne.MenuItem{
 		fyne.NewMenuItem("Show", st.onShow),
+		fyne.NewMenuItemSeparator(),
 		st.pauseItem,
+		fyne.NewMenuItem("Clear History", st.onClearHistory),
+		fyne.NewMenuItemSeparator(),
+	}
+
+	// Add recent items as regular menu items (Fyne v2.4 compatible)
+	if st.recentMenu != nil && len(st.recentMenu.Items) > 0 {
+		items = append(items, fyne.NewMenuItemSeparator())
+		items = append(items, st.buildRecentMenuItems()...)
+	}
+
+	items = append(items,
+		fyne.NewMenuItemSeparator(),
 		st.autoStartItem,
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Quit", st.onQuit),
 	)
+
+	return fyne.NewMenu("FyClip", items...)
+}
+
+// buildRecentMenuItems creates recent items menu items
+func (st *SystemTray) buildRecentMenuItems() []*fyne.MenuItem {
+	items := []*fyne.MenuItem{}
+
+	if st.manager == nil {
+		return append(items, fyne.NewMenuItem("No items", nil))
+	}
+
+	history := st.manager.GetFiltered()
+	maxItems := 5
+	if len(history) < maxItems {
+		maxItems = len(history)
+	}
+
+	for i := 0; i < maxItems; i++ {
+		item := history[i]
+		text := item.DisplayText(40)
+		if item.Pinned {
+			text = "📌 " + text
+		}
+
+		index := i
+		menuItem := fyne.NewMenuItem(text, func() {
+			if st.manager != nil {
+				_ = st.manager.CopyToClipboard(index)
+			}
+		})
+		items = append(items, menuItem)
+	}
+
+	if len(items) == 0 {
+		items = append(items, fyne.NewMenuItem("No items", nil))
+	}
+
+	return items
+}
+
+// refreshRecentMenu updates the recent items submenu
+func (st *SystemTray) refreshRecentMenu() {
+	if st.recentMenu == nil {
+		return
+	}
+	st.recentMenu.Items = st.buildRecentMenuItems()
+	st.refreshMenu()
+}
+
+// onClearHistory handles clear history menu item
+func (st *SystemTray) onClearHistory() {
+	if st.manager != nil {
+		st.manager.ClearUnpinned()
+		st.manager.SaveHistory()
+	}
 }
 
 // onShow handles show menu item

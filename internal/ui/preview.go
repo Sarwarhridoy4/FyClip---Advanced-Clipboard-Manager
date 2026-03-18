@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -96,6 +97,10 @@ func (pp *PreviewPane) Refresh() {
 		pp.showText(item)
 	case clipboard.TypeImage:
 		pp.showImage(item)
+	case clipboard.TypeHTML:
+		pp.showHTML(item)
+	case clipboard.TypeFile:
+		pp.showFile(item)
 	}
 }
 
@@ -105,11 +110,98 @@ func (pp *PreviewPane) showText(item clipboard.Item) {
 	pp.copyBtn.Show()
 
 	pp.rawText = item.Content
-	pp.setMarkdown(item.Content)
+
+	// Check if content is JSON and pretty-print it
+	content := item.Content
+	if isJSON(content) {
+		if prettyJSON, err := json.MarshalIndent(json.RawMessage(content), "", "  "); err == nil {
+			content = string(prettyJSON)
+			content = "**JSON (Pretty)**\n\n" + content
+		}
+	}
+
+	pp.setMarkdown(content)
 
 	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
 	pp.markRendered(item)
+}
+
+// showHTML renders HTML content
+func (pp *PreviewPane) showHTML(item clipboard.Item) {
+	pp.image.Hide()
+	pp.copyBtn.Show()
+
+	pp.rawText = item.Content
+
+	// Show plain text version of HTML
+	content := item.GetDisplayContent()
+	if item.HTMLContent != "" {
+		content = "**HTML Content**\n\n" + content + "\n\n---\n\n*HTML available - copy as HTML to preserve formatting*"
+	}
+
+	pp.setMarkdown(content)
+
+	pp.scroll.Show()
+	pp.scroll.ScrollToTop()
+	pp.markRendered(item)
+}
+
+// showFile displays file information
+func (pp *PreviewPane) showFile(item clipboard.Item) {
+	pp.image.Hide()
+	pp.copyBtn.Show()
+
+	if item.FileInfo == nil {
+		pp.setMarkdown("**File**\n\nNo file information available")
+		pp.scroll.Show()
+		pp.markRendered(item)
+		return
+	}
+
+	fi := item.FileInfo
+	fileType := "File"
+	if fi.IsDirectory {
+		fileType = "Directory"
+	}
+
+	content := fmt.Sprintf("**%s: %s**\n\n", fileType, fi.Name)
+	content += fmt.Sprintf("Path: `%s`\n", fi.Path)
+	content += fmt.Sprintf("Size: %s\n", formatFileSize(fi.Size))
+	content += fmt.Sprintf("Modified: %s\n", fi.ModTime.Format("2006-01-02 15:04:05"))
+	content += "\n---\n\n*Copy to clipboard: copies file path*"
+
+	pp.rawText = fi.Path
+	pp.setMarkdown(content)
+
+	pp.scroll.Show()
+	pp.scroll.ScrollToTop()
+	pp.markRendered(item)
+}
+
+// isJSON checks if a string is valid JSON
+func isJSON(s string) bool {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "{") && !strings.HasPrefix(s, "[") {
+		return false
+	}
+	var js json.RawMessage
+	return json.Unmarshal([]byte(s), &js) == nil
+}
+
+// formatFileSize formats file size in human-readable format
+func formatFileSize(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	suffixes := []string{"KB", "MB", "GB", "TB"}
+	return fmt.Sprintf("%.1f %s", float64(bytes)/float64(div), suffixes[exp])
 }
 
 // showImage displays image preview

@@ -31,7 +31,7 @@ func NewMainWindow(window fyne.Window, app fyne.App, manager *clipboard.Manager)
 	}
 
 	// Create components
-	mw.list = NewHistoryList(manager, mw.onItemSelected)
+	mw.list = NewHistoryList(manager, mw.onItemSelected, app, window)
 	mw.preview = NewPreviewPane(manager)
 	mw.toolbar = NewToolbar(window, app, manager, mw.list)
 	mw.search = NewSearchBar(manager, mw.list)

@@ -17,13 +17,17 @@ type HistoryList struct {
 	manager    *clipboard.Manager
 	list       *widget.List
 	onSelected func(int)
+	app        fyne.App
+	window     fyne.Window
 }
 
 // NewHistoryList creates a new history list
-func NewHistoryList(manager *clipboard.Manager, onSelected func(int)) *HistoryList {
+func NewHistoryList(manager *clipboard.Manager, onSelected func(int), app fyne.App, window fyne.Window) *HistoryList {
 	hl := &HistoryList{
 		manager:    manager,
 		onSelected: onSelected,
+		app:        app,
+		window:     window,
 	}
 
 	hl.list = widget.NewList(
@@ -122,10 +126,17 @@ func (hl *HistoryList) updateItem(index int, obj fyne.CanvasObject) {
 
 	// Update type icon
 	typeIcon := innerContainer.Objects[1].(*widget.Icon)
-	if item.Type == clipboard.TypeText {
+	switch item.Type {
+	case clipboard.TypeText:
 		typeIcon.SetResource(preferredDocIcon())
-	} else {
+	case clipboard.TypeImage:
 		typeIcon.SetResource(theme.FileImageIcon())
+	case clipboard.TypeHTML:
+		typeIcon.SetResource(theme.FileTextIcon())
+	case clipboard.TypeFile:
+		typeIcon.SetResource(theme.FolderOpenIcon())
+	default:
+		typeIcon.SetResource(theme.FileIcon())
 	}
 	typeIcon.Refresh()
 
