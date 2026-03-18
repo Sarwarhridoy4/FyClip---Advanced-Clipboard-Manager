@@ -30,7 +30,8 @@ type Manager struct {
 	history  []Item
 	filtered []Item
 	storage  *Storage
-	snippets *SnippetManager
+	snippets  *SnippetManager
+	exclusions *ExclusionManager
 	native   *NativeClipboard
 	monitor  *Monitor
 
@@ -78,6 +79,7 @@ func NewManager(cfg Config) (*Manager, error) {
 	m := &Manager{
 		storage:         storage,
 		snippets:       NewSnippetManager(storage),
+		exclusions:      NewExclusionManager(),
 		native:          native,
 		selectedIndex:   -1,
 		updateChan:      make(chan struct{}, 100),
@@ -799,4 +801,39 @@ func (m *Manager) ExpandSnippet(content string) string {
 		clipContent = m.history[0].Content
 	}
 	return m.snippets.ExpandSnippet(content, clipContent)
+}
+
+// GetExclusionRules returns all exclusion rules
+func (m *Manager) GetExclusionRules() []ExclusionRule {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.exclusions.GetRules()
+}
+
+// AddExclusionRule adds a new exclusion rule
+func (m *Manager) AddExclusionRule(rule ExclusionRule) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.exclusions.AddRule(rule)
+}
+
+// RemoveExclusionRule removes an exclusion rule
+func (m *Manager) RemoveExclusionRule(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.exclusions.RemoveRule(id)
+}
+
+// UpdateExclusionRule updates an exclusion rule
+func (m *Manager) UpdateExclusionRule(rule ExclusionRule) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.exclusions.UpdateRule(rule)
+}
+
+// ShouldExcludeContent checks if content should be excluded
+func (m *Manager) ShouldExcludeContent(content string, contentSize int, appName string) (bool, string) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.exclusions.ShouldExclude(content, contentSize, appName)
 }
