@@ -3,6 +3,7 @@ package clipboard
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +27,14 @@ func makeBenchmarkItems(n int) []Item {
 
 func BenchmarkUpdateFilteredSearch1000(b *testing.B) {
 	m := &Manager{
-		history: makeBenchmarkItems(1000),
+		history:      makeBenchmarkItems(1000),
+		hashIndexMap: make(map[string]int, 1000),
+		idIndexMap:   make(map[string]int, 1000),
+	}
+	// Build index maps
+	for i, item := range m.history {
+		m.hashIndexMap[item.Hash+":"+strconv.Itoa(int(item.Type))] = i
+		m.idIndexMap[item.ID] = i
 	}
 	m.searchQuery = "clip 99"
 	b.ResetTimer()
@@ -37,7 +45,15 @@ func BenchmarkUpdateFilteredSearch1000(b *testing.B) {
 
 func BenchmarkAddItemWithDuplicateScan1000(b *testing.B) {
 	m := &Manager{
-		history: makeBenchmarkItems(1000),
+		history:      makeBenchmarkItems(1000),
+		hashIndexMap: make(map[string]int, 1000),
+		idIndexMap:   make(map[string]int, 1000),
+		maxHistoryItems: 1000,
+	}
+	// Build index maps
+	for i, item := range m.history {
+		m.hashIndexMap[item.Hash+":"+strconv.Itoa(int(item.Type))] = i
+		m.idIndexMap[item.ID] = i
 	}
 
 	b.ResetTimer()
@@ -50,6 +66,13 @@ func BenchmarkAddItemWithDuplicateScan1000(b *testing.B) {
 		m.AddItem(item)
 		if len(m.history) > 1000 {
 			m.history = m.history[len(m.history)-1000:]
+			// Rebuild index maps after truncation
+			m.hashIndexMap = make(map[string]int, 1000)
+			m.idIndexMap = make(map[string]int, 1000)
+			for j, it := range m.history {
+				m.hashIndexMap[it.Hash+":"+strconv.Itoa(int(it.Type))] = j
+				m.idIndexMap[it.ID] = j
+			}
 		}
 	}
 }

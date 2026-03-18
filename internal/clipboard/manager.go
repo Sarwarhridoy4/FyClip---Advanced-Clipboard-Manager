@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,10 @@ type Manager struct {
 	storage  *Storage
 	native   *NativeClipboard
 	monitor  *Monitor
+
+	// Index maps for O(1) lookups
+	hashIndexMap map[string]int  // hash+type -> index in history
+	idIndexMap   map[string]int  // id -> index in history
 
 	selectedIndex   int
 	searchQuery     string
@@ -108,10 +113,23 @@ func (m *Manager) loadHistory() error {
 
 	m.mu.Lock()
 	m.history = items
+	m.buildIndexMaps()
 	m.mu.Unlock()
 
 	m.updateFiltered()
 	return nil
+}
+
+// buildIndexMaps rebuilds the hash and ID index maps from history
+func (m *Manager) buildIndexMaps() {
+	m.hashIndexMap = make(map[string]int, len(m.history))
+	m.idIndexMap = make(map[string]int, len(m.history))
+	for i, item := range m.history {
+		// Create composite key with type for hash to handle same content different types
+		hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
+		m.hashIndexMap[hashKey] = i
+		m.idIndexMap[item.ID] = i
+	}
 }
 
 // queueSaveHistory schedules a debounced save of history.
@@ -171,28 +189,35 @@ func (m *Manager) AddItem(item Item) AddItemResult {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Check for duplicate at end
+	// Create composite key with type for hash
+	hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
+
+	// Check for duplicate at end (last item check)
 	if len(m.history) > 0 {
 		last := m.history[len(m.history)-1]
-		if last.Hash == item.Hash && last.Type == item.Type {
+		lastHashKey := last.Hash + ":" + strconv.Itoa(int(last.Type))
+		if lastHashKey == hashKey {
 			return AddItemResult{}
 		}
 	}
 
-	// Remove existing duplicates
+	// O(1) lookup for existing duplicate using hashIndexMap
 	movedDuplicate := false
-	for i := len(m.history) - 1; i >= 0; i-- {
-		if m.history[i].Hash == item.Hash && m.history[i].Type == item.Type {
-			m.history = append(m.history[:i], m.history[i+1:]...)
-			movedDuplicate = true
-			break
-		}
+	if idx, exists := m.hashIndexMap[hashKey]; exists {
+		// Remove the existing item
+		m.removeAtIndex(idx)
+		movedDuplicate = true
 	}
 
 	// Add new item
 	item.ID = fmt.Sprintf("%d", time.Now().UnixNano())
 	item.Timestamp = time.Now()
+
+	// Add to history and update index maps
+	newIndex := len(m.history)
 	m.history = append(m.history, item)
+	m.hashIndexMap[hashKey] = newIndex
+	m.idIndexMap[item.ID] = newIndex
 
 	// Trim unpinned items
 	m.trimHistory()
@@ -204,6 +229,39 @@ func (m *Manager) AddItem(item Item) AddItemResult {
 	}
 }
 
+// removeAtIndex removes an item at the given index and updates index maps
+// Caller must hold the lock
+func (m *Manager) removeAtIndex(idx int) {
+	if idx < 0 || idx >= len(m.history) {
+		return
+	}
+
+	item := m.history[idx]
+	hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
+
+	// Remove from index maps
+	delete(m.hashIndexMap, hashKey)
+	delete(m.idIndexMap, item.ID)
+
+	// Remove from history
+	m.history = append(m.history[:idx], m.history[idx+1:]...)
+
+	// Rebuild index maps for indices after removed position
+	// This is necessary because all subsequent indices shift by 1
+	m.rebuildIndexMapsFrom(idx)
+}
+
+// rebuildIndexMapsFrom rebuilds index maps starting from the given index
+// Caller must hold the lock
+func (m *Manager) rebuildIndexMapsFrom(startIdx int) {
+	for i := startIdx; i < len(m.history); i++ {
+		item := m.history[i]
+		hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
+		m.hashIndexMap[hashKey] = i
+		m.idIndexMap[item.ID] = i
+	}
+}
+
 // trimHistory keeps only the last MaxHistoryItems unpinned items
 func (m *Manager) trimHistory() {
 	unpinnedCount := 0
@@ -211,7 +269,7 @@ func (m *Manager) trimHistory() {
 		if !m.history[i].Pinned {
 			unpinnedCount++
 			if unpinnedCount > m.maxHistoryItems {
-				m.history = append(m.history[:i], m.history[i+1:]...)
+				m.removeAtIndex(i)
 			}
 		}
 	}
@@ -415,23 +473,22 @@ func (m *Manager) TogglePin(index int) bool {
 	}
 
 	targetID := m.filtered[index].ID
-	found := false
-	for i := range m.history {
-		if m.history[i].ID == targetID {
-			m.history[i].Pinned = !m.history[i].Pinned
-			found = true
-			break
-		}
+
+	// O(1) lookup using idIndexMap
+	idx, exists := m.idIndexMap[targetID]
+	if !exists {
+		m.mu.Unlock()
+		return false
 	}
+
+	m.history[idx].Pinned = !m.history[idx].Pinned
 
 	m.mu.Unlock()
 
-	if found {
-		m.updateFiltered()
-		m.triggerUpdate()
-	}
+	m.updateFiltered()
+	m.triggerUpdate()
 
-	return found
+	return true
 }
 
 // Delete removes an item
@@ -449,24 +506,20 @@ func (m *Manager) Delete(index int) error {
 		return fmt.Errorf("cannot delete pinned items")
 	}
 
-	found := false
-	for i, item := range m.history {
-		if item.ID == targetItem.ID {
-			m.history = append(m.history[:i], m.history[i+1:]...)
-			found = true
-			break
-		}
+	// O(1) lookup using idIndexMap
+	idx, exists := m.idIndexMap[targetItem.ID]
+	if !exists {
+		m.mu.Unlock()
+		return fmt.Errorf("item not found")
 	}
+
+	m.removeAtIndex(idx)
 
 	m.selectedIndex = -1
 	m.mu.Unlock()
 
-	if found {
-		m.updateFiltered()
-		m.triggerUpdate()
-	} else {
-		return fmt.Errorf("item not found")
-	}
+	m.updateFiltered()
+	m.triggerUpdate()
 
 	return nil
 }
@@ -483,6 +536,7 @@ func (m *Manager) ClearUnpinned() {
 	}
 
 	m.history = pinned
+	m.buildIndexMaps()
 	m.selectedIndex = -1
 	m.mu.Unlock()
 
@@ -676,11 +730,10 @@ func (m *Manager) Shutdown() {
 func (m *Manager) incrementCopyCount(itemID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for i := range m.history {
-		if m.history[i].ID == itemID {
-			m.history[i].CopyCount++
-			return
-		}
+
+	// O(1) lookup using idIndexMap
+	if idx, exists := m.idIndexMap[itemID]; exists {
+		m.history[idx].CopyCount++
 	}
 }
 
