@@ -152,6 +152,11 @@ func (s *Storage) GetPath() string {
 	return s.filePath
 }
 
+// GetDir returns the directory path for storage
+func (s *Storage) GetDir() string {
+	return filepath.Dir(s.filePath)
+}
+
 // Clear removes all stored history
 func (s *Storage) Clear() error {
 	s.mu.Lock()

@@ -47,6 +47,8 @@ func (t *Toolbar) Build() fyne.CanvasObject {
 	t.pauseBtn = widget.NewButtonWithIcon("", theme.MediaPauseIcon(), t.onPause)
 	deleteBtn := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), t.onDelete)
 	clearBtn := widget.NewButtonWithIcon("Clear", theme.ContentClearIcon(), t.onClear)
+	snippetsBtn := widget.NewButtonWithIcon("Snippets", theme.FolderOpenIcon(), t.onSnippets)
+	_ = snippetsBtn // Silence unused warning
 	settingsBtn := widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), t.onSettings)
 	exportBtn := widget.NewButtonWithIcon("Export", theme.DocumentSaveIcon(), t.onExport)
 
@@ -57,6 +59,7 @@ func (t *Toolbar) Build() fyne.CanvasObject {
 		t.pauseBtn,
 		deleteBtn,
 		clearBtn,
+		snippetsBtn,
 		settingsBtn,
 		exportBtn,
 	)
@@ -202,6 +205,42 @@ func (t *Toolbar) onClear() {
 	)
 }
 
+// onSnippets opens snippets management dialog
+func (t *Toolbar) onSnippets() {
+	snippets := t.manager.GetSnippets()
+	
+	// Create a list of snippets
+	list := widget.NewList(
+		func() int { return len(snippets) },
+		func() fyne.CanvasObject {
+			return widget.NewLabel("")
+		},
+		func(id widget.ListItemID, item fyne.CanvasObject) {
+			if id < len(snippets) {
+				s := snippets[id]
+				title := s.Title
+				if s.Abbreviation != "" {
+					title = title + " (" + s.Abbreviation + ")"
+				}
+				item.(*widget.Label).SetText(title)
+			}
+		},
+	)
+
+	// Show info
+	infoLabel := widget.NewLabel("Snippets - Click to expand and copy")
+	infoLabel.Alignment = fyne.TextAlignCenter
+
+	content := container.NewVBox(
+		infoLabel,
+		widget.NewSeparator(),
+		container.NewMax(list),
+	)
+
+	dialog.ShowCustom("Snippets", "Close", content, t.window)
+}
+
+// onSettings opens settings dialog
 func (t *Toolbar) onSettings() {
 	options := []string{"100", "500", "1000"}
 	radio := widget.NewRadioGroup(options, nil)

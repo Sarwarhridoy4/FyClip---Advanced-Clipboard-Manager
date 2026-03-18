@@ -30,6 +30,7 @@ type Manager struct {
 	history  []Item
 	filtered []Item
 	storage  *Storage
+	snippets *SnippetManager
 	native   *NativeClipboard
 	monitor  *Monitor
 
@@ -76,6 +77,7 @@ func NewManager(cfg Config) (*Manager, error) {
 
 	m := &Manager{
 		storage:         storage,
+		snippets:       NewSnippetManager(storage),
 		native:          native,
 		selectedIndex:   -1,
 		updateChan:      make(chan struct{}, 100),
@@ -86,6 +88,14 @@ func NewManager(cfg Config) (*Manager, error) {
 		onUpdate:        cfg.OnUpdate,
 		onError:         cfg.OnError,
 		onInfo:          cfg.OnInfo,
+	}
+
+	// Load snippets
+	if err := m.snippets.LoadSnippets(); err != nil {
+		// Log but don't fail - snippets are optional
+		if cfg.OnError != nil {
+			cfg.OnError(fmt.Errorf("failed to load snippets: %w", err))
+		}
 	}
 
 	// Load history
@@ -741,4 +751,52 @@ func (m *Manager) notifyInfo(message string) {
 	if m.onInfo != nil {
 		m.onInfo(message)
 	}
+}
+
+// GetSnippets returns all snippets
+func (m *Manager) GetSnippets() []Snippet {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.snippets.GetSnippets()
+}
+
+// GetSnippetByAbbreviation returns a snippet by its abbreviation
+func (m *Manager) GetSnippetByAbbreviation(abbr string) (Snippet, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.snippets.GetSnippetByAbbreviation(abbr)
+}
+
+// AddSnippet adds a new snippet
+func (m *Manager) AddSnippet(snippet Snippet) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.snippets.AddSnippet(snippet)
+}
+
+// UpdateSnippet updates an existing snippet
+func (m *Manager) UpdateSnippet(snippet Snippet) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.snippets.UpdateSnippet(snippet)
+}
+
+// DeleteSnippet deletes a snippet
+func (m *Manager) DeleteSnippet(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.snippets.DeleteSnippet(id)
+}
+
+// ExpandSnippet expands template variables in content
+func (m *Manager) ExpandSnippet(content string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	// Get current clipboard content if available
+	clipContent := ""
+	if len(m.history) > 0 {
+		clipContent = m.history[0].Content
+	}
+	return m.snippets.ExpandSnippet(content, clipContent)
 }
