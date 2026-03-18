@@ -2,6 +2,7 @@
 package clipboard
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -18,6 +19,9 @@ const (
 	MaxHistoryItems = 1000
 	UpdateDebounce  = 200 * time.Millisecond
 	SaveDebounce    = 250 * time.Millisecond
+
+	// Shutdown timeout for graceful shutdown
+	ShutdownTimeout = 10 * time.Second
 )
 
 // AddItemResult describes the result of adding a clipboard item.
@@ -26,9 +30,14 @@ type AddItemResult struct {
 	MovedDuplicate bool
 }
 
+// ShutdownHook is a function that runs during shutdown
+type ShutdownHook func(ctx context.Context) error
+
 // Manager handles clipboard history and operations
 type Manager struct {
 	mu       sync.RWMutex
+	ctx      context.Context
+	cancel   context.CancelFunc
 	history  []Item
 	filtered []Item
 	storage  *Storage
@@ -36,6 +45,9 @@ type Manager struct {
 	exclusions *ExclusionManager
 	native   *NativeClipboard
 	monitor  *Monitor
+
+	// Shutdown hooks
+	shutdownHooks []ShutdownHook
 
 	// Index maps for O(1) lookups
 	hashIndexMap map[string]int  // hash+type -> index in history
@@ -69,31 +81,39 @@ type Config struct {
 
 // NewManager creates a new clipboard manager
 func NewManager(cfg Config) (*Manager, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	storage, err := NewStorage(cfg.StoragePath)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}
 
 	native, err := NewNativeClipboard()
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("failed to initialize clipboard: %w", err)
 	}
 
 	m := &Manager{
+		ctx:             ctx,
+		cancel:          cancel,
 		storage:         storage,
 		snippets:       NewSnippetManager(storage),
-		exclusions:      NewExclusionManager(),
-		native:          native,
-		selectedIndex:   -1,
-		updateChan:      make(chan struct{}, 100),
-		saveChan:        make(chan struct{}, 1),
-		shutdownChan:    make(chan struct{}),
-		running:         true,
+		exclusions:    NewExclusionManager(),
+		native:        native,
+		hashIndexMap:  make(map[string]int),
+		idIndexMap:    make(map[string]int),
+		selectedIndex: -1,
+		updateChan:     make(chan struct{}, 100),
+		saveChan:       make(chan struct{}, 1),
+		shutdownChan:  make(chan struct{}),
+		running:       true,
 		maxHistoryItems: MaxHistoryItems,
-		searchOptions:   DefaultSearchOptions(),
-		onUpdate:        cfg.OnUpdate,
-		onError:         cfg.OnError,
-		onInfo:          cfg.OnInfo,
+		searchOptions:  DefaultSearchOptions(),
+		onUpdate:       cfg.OnUpdate,
+		onError:        cfg.OnError,
+		onInfo:         cfg.OnInfo,
 	}
 
 	// Load snippets
@@ -862,23 +882,81 @@ func (m *Manager) saveDispatcher() {
 	}
 }
 
-// Shutdown stops the manager
+// Shutdown stops the manager gracefully with timeout
 func (m *Manager) Shutdown() {
 	m.mu.Lock()
 	m.running = false
 	m.mu.Unlock()
 
+	// Cancel context to stop all goroutines
+	if m.cancel != nil {
+		m.cancel()
+	}
+
+	// Stop the monitor
 	if m.monitor != nil {
 		m.monitor.Stop()
 	}
 
-	select {
-	case <-m.shutdownChan:
-	default:
-		close(m.shutdownChan)
-	}
+	// Run shutdown hooks with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), ShutdownTimeout)
+	defer cancel()
 
+	m.runShutdownHooks(ctx)
+
+	// Close channels
+	close(m.shutdownChan)
+
+	// Final save
 	m.saveHistoryNow()
+}
+
+// runShutdownHooks executes all registered shutdown hooks
+func (m *Manager) runShutdownHooks(ctx context.Context) {
+	m.mu.RLock()
+	hooks := make([]ShutdownHook, len(m.shutdownHooks))
+	copy(hooks, m.shutdownHooks)
+	m.mu.RUnlock()
+
+	for _, hook := range hooks {
+		if hook == nil {
+			continue
+		}
+		if err := hook(ctx); err != nil {
+			// Log error but continue with other hooks
+			if m.onError != nil {
+				m.onError(fmt.Errorf("shutdown hook error: %w", err))
+			}
+		}
+	}
+}
+
+// AddShutdownHook adds a function to be called during shutdown
+func (m *Manager) AddShutdownHook(hook ShutdownHook) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.shutdownHooks = append(m.shutdownHooks, hook)
+}
+
+// RemoveShutdownHook removes a shutdown hook by index
+func (m *Manager) RemoveShutdownHook(index int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if index >= 0 && index < len(m.shutdownHooks) {
+		m.shutdownHooks = append(m.shutdownHooks[:index], m.shutdownHooks[index+1:]...)
+	}
+}
+
+// ClearShutdownHooks removes all shutdown hooks
+func (m *Manager) ClearShutdownHooks() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.shutdownHooks = nil
+}
+
+// GetContext returns the manager's context
+func (m *Manager) GetContext() context.Context {
+	return m.ctx
 }
 
 func (m *Manager) incrementCopyCount(itemID string) {
