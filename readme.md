@@ -2,36 +2,50 @@
 
 A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
-**Current Version**: 1.5.0
+**Current Version**: 1.6.0
 
 ## Features
 
-- 📋 **Clipboard History**: Automatically saves text and images
+- 📋 **Clipboard History**: Automatically saves text, images, HTML, and files
 - 📌 **Pin Items**: Keep important items at the top
 - ⭐ **Favorites View**: Toggle pinned-only view instantly
-- 🔍 **Search**: Quick search through clipboard history
+- 🔍 **Enhanced Search**: Regex, case-sensitive, and fuzzy matching
 - ❌ **Clear Search**: One-click reset for the search box
 - 🖼️ **Image Support**: Preview and save clipboard images
+- 📝 **HTML Support**: Capture and preserve HTML formatting
+- 📁 **File History**: Track files copied from file manager
 - 📤 **Unified Export**: Export selected text or images from one action
 - 📝 **Markdown Preview**: Markdown content renders correctly in preview pane
 - 🕒 **Relative Time + Reuse Count**: List rows show recency and copy frequency
 - 💾 **Persistent Storage**: History saved across sessions
+- 🔒 **Encrypted Storage**: AES-256-GCM encryption at rest
+- ☁️ **Encrypted Backup**: Password-protected backup and restore
+- 📝 **Snippets**: Save and expand text templates
 - 🚀 **AutoStart**: Launch on system startup
 - ⏸️ **Pause Capture**: Pause monitoring for 5 minutes from toolbar/tray
 - 🎨 **Modern UI**: Dark theme with responsive design
-- ⚡ **Performance**: Debounced updates, async operations
+- ⚡ **Performance**: Debounced updates, async operations, O(1) lookups
 - 🐧 **Linux Packaging**: Official Fyne Linux package pipeline for `.deb` and `.AppImage`
 - 🔒 **Thread-Safe**: Proper concurrency handling
+- 🛡️ **Sensitive Data Detection**: Auto-detect credit cards, SSN, API keys
 
 ## Improvements
 
 ### Recently Implemented
 
-- Fixed pin-toggle behavior from list items to save state without shutting down clipboard monitoring.
-- Added a debounced, serialized history save pipeline to reduce frequent disk writes during rapid copy events.
-- Fixed programmatic image-copy suppression by hashing raw image bytes for correct deduplication behavior.
-- Optimized search/filter pipeline to reuse buffer capacity and avoid per-item lowercase allocations.
-- Added lazy normalized search cache for items when search is active.
+- ✅ **Quick Panel**: Global hotkey quick access popup for fast paste (Ctrl+Shift+V)
+- ✅ **Snippets/Templates**: Create text templates with variables ({{date}}, {{time}}, {{clipboard}})
+- ✅ **Pattern Exclusion**: Regex, app, and size-based content filtering
+- ✅ **Hash Maps**: O(1) duplicate detection and item lookup
+- ✅ **Encrypted Backup**: Password-protected backup with AES-256-GCM
+- ✅ **Rich Text/HTML**: Capture and preserve HTML clipboard content
+- ✅ **File History**: Track files copied from file manager
+- ✅ **Enhanced Search**: Regex, case-sensitive, and fuzzy matching
+- ✅ **Sensitive Data**: Auto-detect and handle sensitive content
+- ✅ **Structured Logging**: slog-based logging with file rotation
+- ✅ **Graceful Shutdown**: Context-based shutdown with hooks
+- ✅ **System Tray**: Recent items submenu, Clear History action
+- ✅ **Preview Enhancements**: JSON pretty-printing, file info display
 
 ### Performance Snapshot (internal/clipboard benchmarks)
 
@@ -49,28 +63,38 @@ Latest measured deltas:
 
 ### Planned Enhancements
 
-- Add global hotkey quick panel for fast paste from recent history.
-- Add snippets/templates with titles and categories.
-- Add app/pattern exclusion rules and temporary pause mode for sensitive workflows.
-- Add hash/index maps to further reduce linear scans in duplicate and pin/delete paths.
-- Add encrypted import/export backup support.
+- Virtualized list rendering for large history
+- Lazy loading for images
+- Memory optimization with compression
 
 ## Project Structure
 
 ```
 fyclip/
 ├── main.go                      # Application entry point
+├── Makefile                     # Build automation
 ├── go.mod                       # Go module dependencies
 ├── icon.png                     # Application icon
 ├── internal/
 │   ├── app/
 │   │   └── app.go              # App initialization
 │   ├── clipboard/
-│   │   ├── item.go             # Clipboard item types
+│   │   ├── item.go             # Clipboard item types (Text, Image, HTML, File)
 │   │   ├── manager.go          # Core manager logic
 │   │   ├── monitor.go          # Clipboard monitoring
 │   │   ├── native.go           # Platform clipboard ops
-│   │   └── storage.go          # Persistence layer
+│   │   ├── storage.go          # Persistence layer
+│   │   ├── snippet.go          # Snippet management
+│   │   ├── exclusion.go        # Pattern exclusion rules
+│   │   ├── search.go           # Enhanced search
+│   │   ├── backup.go           # Encrypted backup
+│   │   └── sensitive.go        # Sensitive data handling
+│   ├── config/
+│   │   └── config.go           # Configuration management
+│   ├── errors/
+│   │   └── errors.go           # Custom error types
+│   ├── logger/
+│   │   └── logger.go           # Structured logging
 │   ├── ui/
 │   │   ├── window.go           # Main window
 │   │   ├── list.go             # History list
@@ -117,6 +141,8 @@ go mod download
 ### 3. Build
 
 ```bash
+make build
+# or
 go build -o fyclip
 ```
 
@@ -169,7 +195,7 @@ Use the project script, which now follows Fyne's official Linux packaging flow (
 ```bash
 ./build.sh
 # or pass explicit version
-./build.sh 1.5.1
+./build.sh 1.6.0
 ```
 
 Requirements for the script:
@@ -191,6 +217,25 @@ Packaging process used by `build.sh`:
 4. Build AppImage (`.AppImage`) from the same payload via `appimagetool`
 5. Place final artifacts in `dist/`
 
+### Using Makefile
+
+```bash
+# Build for current platform
+make build
+
+# Build for all platforms
+make build-all
+
+# Run tests
+make test
+
+# Package for distribution
+make package
+
+# Create release
+make release
+```
+
 ### Fyne Native Packaging
 
 Package using Fyne directly:
@@ -204,26 +249,6 @@ fyne package --os windows --release --name fyclip --icon icon.png
 
 # macOS app bundle / dmg
 fyne package --os darwin --release --name fyclip --icon icon.png
-```
-
-### Manual Build
-
-#### Linux
-
-```bash
-go build -ldflags="-s -w" -o fyclip
-```
-
-#### Windows
-
-```bash
-go build -ldflags="-s -w -H=windowsgui" -o fyclip.exe
-```
-
-#### macOS
-
-```bash
-go build -ldflags="-s -w" -o fyclip
 ```
 
 ### Cross-Platform Build
@@ -251,18 +276,21 @@ fyne-cross darwin -arch=amd64
 - **Ctrl+C**: Copy selected item to clipboard
 - **Delete**: Delete selected item
 - **Ctrl+F**: Focus search bar
+- **Ctrl+Shift+V**: Open quick panel
 
 ### Features
 
 1. **Pin Items**: Click the pin button to keep items at the top
-2. **Search**: Type in the search bar to filter items
+2. **Search**: Type in the search bar to filter items (supports regex, case-sensitive, fuzzy)
 3. **Favorites Filter**: Click "Favorites" to show pinned items only
-4. **Preview**: Select an item to see full content
+4. **Preview**: Select an item to see full content (JSON pretty-printed automatically)
 5. **Export**: Click "Export" to save selected text or image
 6. **Pause Monitoring**: Use "Pause 5m" to temporarily stop capturing
 7. **History Limit**: Configure max unpinned history via toolbar settings
 8. **Clear History**: Remove all unpinned items
-9. **System Tray**: Minimize to tray, configure autostart/pause
+9. **System Tray**: Minimize to tray, configure autostart/pause, access recent items
+10. **Snippets**: Create and manage text templates
+11. **Backup**: Create encrypted backups of your history
 
 ## Configuration
 
@@ -284,6 +312,7 @@ Settings are automatically saved to:
 
 - **Debounced Updates**: UI updates are batched (50ms debounce)
 - **Coalesced Saves**: History persistence requests are serialized and debounced (250ms)
+- **O(1) Lookups**: Hash maps for duplicate detection and item access
 - **Efficient Filtering**: Search avoids repeated lowercasing and minimizes allocation churn
 - **Thread-Safe**: Proper mutex usage throughout
 - **Selection Fast Path**: Selecting list items avoids redundant full-window refreshes
@@ -294,6 +323,13 @@ Settings are automatically saved to:
 - All shared state protected with `sync.RWMutex`
 - Proper locking hierarchy to prevent deadlocks
 - Channel-based communication for cross-goroutine updates
+
+### Security
+
+- **AES-256-GCM Encryption**: All data encrypted at rest
+- **Sensitive Data Detection**: Auto-detect credit cards, SSN, API keys
+- **Secure Wipe**: Clear sensitive data from memory
+- **Password-Protected Backups**: Optional encryption for backups
 
 ## Development
 
@@ -309,6 +345,16 @@ Settings are automatically saved to:
 - Use meaningful variable names
 - Add comments for exported functions
 - Keep functions small and focused
+
+### Makefile Targets
+
+```bash
+make help    # Show available targets
+make build   # Build the application
+make test    # Run tests
+make lint    # Run linter
+make clean   # Clean build artifacts
+```
 
 ## Troubleshooting
 
