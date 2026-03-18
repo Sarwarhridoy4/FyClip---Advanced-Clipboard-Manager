@@ -468,9 +468,11 @@ EOF
         xargs -r -I '{}' cp '{}' "${APPDIR}/usr/lib/" 2>/dev/null || true
     
     # Build AppImage
+    # Use absolute path since we cd to DIST_DIR
+    APPDIR_ABS="$(pwd)/${WORK_DIR}"
     cd "${DIST_DIR}"
     APPIMAGE_EXTRACT_AND_RUN=1 "${LOCAL_TOOLS_DIR}/bin/appimagetool" \
-        "${WORK_DIR}/FyClip.AppDir" \
+        "${APPDIR_ABS}/FyClip.AppDir" \
         "${PKG_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
     cd - >/dev/null
     
