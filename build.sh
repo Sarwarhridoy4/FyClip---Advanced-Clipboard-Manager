@@ -431,12 +431,16 @@ gtk-update-icon-cache -q /usr/share/icons/hicolor || true
 EOF
     chmod 755 "${DEB_ROOT}/DEBIAN/postinst"
     
-    # Remove existing package if present
+    # Remove existing package file if present
     rm -f "${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"
     
-    # Build with force-overwrite to handle already installed packages
-    dpkg-deb --build --force-overwrite "${DEB_ROOT}" "${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"
+    # Build the package
+    dpkg-deb --build "${DEB_ROOT}" "${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"
     log_success "Debian package built: ${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"
+    
+    # Remove previously installed package to avoid conflicts
+    echo "Removing previously installed package..."
+    dpkg -r "${PKG_NAME}" 2>/dev/null || true
     
     # ---------------------------------------------------------------------
     # Build AppImage
