@@ -256,3 +256,111 @@ func SaveImage(item clipboard.Item, filename, format string) error {
 
 	return nil
 }
+
+// ShowFeaturesDialog displays a dialog explaining how each feature works
+func ShowFeaturesDialog(window fyne.Window, app fyne.App) {
+	featuresWindow := app.NewWindow("Features Guide")
+	featuresWindow.Resize(fyne.NewSize(500, 600))
+	featuresWindow.SetFixedSize(true)
+
+	// Title
+	title := widget.NewLabel("FyClip Features Guide")
+	title.Alignment = fyne.TextAlignCenter
+	title.TextStyle.Bold = true
+
+	// Separator
+	separator := widget.NewSeparator()
+
+	// Features list with descriptions
+	features := []struct {
+		name        string
+		description string
+	}{
+		{
+			name:        "Clipboard History",
+			description: "Automatically captures and stores all clipboard content (text, images, HTML, files). Access your history anytime with the global hotkey.",
+		},
+		{
+			name:        "Pin/Unpin Items",
+			description: "Pin important items to keep them at the top of your history. Pinned items are never automatically cleared.",
+		},
+		{
+			name:        "Favorites Filter",
+			description: "Toggle between showing all items or only pinned favorites. Quickly access your most important clipboard entries.",
+		},
+		{
+			name:        "Pause Monitoring",
+			description: "Temporarily pause clipboard monitoring for 5 minutes. Useful when copying sensitive information you don't want stored.",
+		},
+		{
+			name:        "Search",
+			description: "Search through your clipboard history by content. Quickly find specific items you copied earlier.",
+		},
+		{
+			name:        "Preview Pane",
+			description: "View detailed preview of selected items. Supports text, images, HTML, and file information with syntax highlighting.",
+		},
+		{
+			name:        "Export",
+			description: "Export selected items to files. Text items are saved as .txt files, images can be saved as PNG or JPEG.",
+		},
+		{
+			name:        "Snippets",
+			description: "Create and manage text snippets for quick insertion. Use abbreviations for faster access.",
+		},
+		{
+			name:        "Quick Panel",
+			description: "Access clipboard history with a global hotkey (Ctrl+Shift+V). Paste items without switching windows.",
+		},
+		{
+			name:        "Clear History",
+			description: "Clear all unpinned items from history. Pinned items are preserved for future use.",
+		},
+		{
+			name:        "Refresh",
+			description: "Manually refresh the clipboard history list. Useful if items aren't updating automatically.",
+		},
+	}
+
+	// Create feature items
+	featureItems := []fyne.CanvasObject{}
+	for _, f := range features {
+		nameLabel := widget.NewLabel(f.name)
+		nameLabel.TextStyle.Bold = true
+		nameLabel.Wrapping = fyne.TextWrapWord
+
+		descLabel := widget.NewLabel(f.description)
+		descLabel.Wrapping = fyne.TextWrapWord
+
+		featureBox := container.NewVBox(
+			nameLabel,
+			descLabel,
+			widget.NewSeparator(),
+		)
+		featureItems = append(featureItems, featureBox)
+	}
+
+	// Close button
+	closeBtn := widget.NewButton("Close", func() {
+		featuresWindow.Close()
+	})
+	closeBtn.Importance = widget.HighImportance
+
+	// Main content
+	content := container.NewVBox(
+		title,
+		separator,
+	)
+	for _, item := range featureItems {
+		content.Add(item)
+	}
+	content.Add(container.NewPadded(closeBtn))
+
+	// Scroll container for smaller screens
+	scrollContent := container.NewScroll(content)
+	scrollContent.SetMinSize(fyne.NewSize(500, 600))
+
+	featuresWindow.SetContent(scrollContent)
+	featuresWindow.CenterOnScreen()
+	featuresWindow.Show()
+}

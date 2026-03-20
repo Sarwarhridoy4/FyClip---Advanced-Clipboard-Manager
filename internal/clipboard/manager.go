@@ -45,6 +45,7 @@ type Manager struct {
 	exclusions *ExclusionManager
 	native   *NativeClipboard
 	monitor  *Monitor
+	backup   *BackupManager
 
 	// Shutdown hooks
 	shutdownHooks []ShutdownHook
@@ -102,6 +103,7 @@ func NewManager(cfg Config) (*Manager, error) {
 		snippets:       NewSnippetManager(storage),
 		exclusions:    NewExclusionManager(),
 		native:        native,
+		backup:        NewBackupManager(storage),
 		hashIndexMap:  make(map[string]int),
 		idIndexMap:    make(map[string]int),
 		selectedIndex: -1,
@@ -203,6 +205,11 @@ func (m *Manager) saveHistoryNow() {
 // SaveHistory is a public method to force save history
 func (m *Manager) SaveHistory() {
 	m.saveHistory()
+}
+
+// ReloadHistory reloads history from storage
+func (m *Manager) ReloadHistory() error {
+	return m.loadHistory()
 }
 
 // AddItem adds a new item to history
@@ -435,6 +442,11 @@ func (m *Manager) IsMonitoringPaused() bool {
 	return m.monitor.IsPaused()
 }
 
+// GetBackupManager returns the backup manager
+func (m *Manager) GetBackupManager() *BackupManager {
+	return m.backup
+}
+
 // SetSearch updates the search query
 func (m *Manager) SetSearch(query string) {
 	m.mu.Lock()
@@ -577,6 +589,19 @@ func (m *Manager) TogglePin(index int) bool {
 	m.triggerUpdate()
 
 	return true
+}
+
+// FindIndexByID finds the current index of an item by its ID in the filtered list
+func (m *Manager) FindIndexByID(id string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for i, item := range m.filtered {
+		if item.ID == id {
+		return i
+		}
+	}
+	return -1
 }
 
 // Delete removes an item

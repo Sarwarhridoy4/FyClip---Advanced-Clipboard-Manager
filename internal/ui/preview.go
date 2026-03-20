@@ -33,6 +33,13 @@ type PreviewPane struct {
 	lastItemID   string
 	lastItemType clipboard.ItemType
 	hasSelection bool
+	
+	// Cache for image data to avoid repeated decoding
+	cachedImageData string
+	cachedImageResource fyne.Resource
+	
+	// Cache for markdown content to avoid repeated parsing
+	cachedMarkdown string
 }
 
 // NewPreviewPane creates a new preview pane
@@ -214,6 +221,15 @@ func (pp *PreviewPane) showImage(item clipboard.Item) {
 		return
 	}
 
+	// Use cached image if available
+	if pp.cachedImageData == item.ImageData && pp.cachedImageResource != nil {
+		pp.image.Resource = pp.cachedImageResource
+		pp.image.Show()
+		pp.image.Refresh()
+		pp.markRendered(item)
+		return
+	}
+
 	imageBytes, err := base64.StdEncoding.DecodeString(item.ImageData)
 	if err != nil {
 		pp.showImageError(item, "Failed to decode image data")
@@ -239,7 +255,10 @@ func (pp *PreviewPane) showImage(item clipboard.Item) {
 	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
 
-	pp.image.Resource = fyne.NewStaticResource("preview", imageBytes)
+	// Cache the image resource
+	pp.cachedImageData = item.ImageData
+	pp.cachedImageResource = fyne.NewStaticResource("preview", imageBytes)
+	pp.image.Resource = pp.cachedImageResource
 	pp.image.Show()
 	pp.image.Refresh()
 	pp.markRendered(item)
@@ -272,6 +291,10 @@ func (pp *PreviewPane) clear() {
 	pp.lastItemID = ""
 	pp.showPlaceholder()
 	pp.image.Hide()
+	// Clear caches
+	pp.cachedImageData = ""
+	pp.cachedImageResource = nil
+	pp.cachedMarkdown = ""
 }
 
 func (pp *PreviewPane) showPlaceholder() {
@@ -283,6 +306,13 @@ func (pp *PreviewPane) showPlaceholder() {
 func (pp *PreviewPane) setMarkdown(markdown string) {
 	normalized := strings.ReplaceAll(markdown, "\r\n", "\n")
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	
+	// Use cached markdown if available
+	if pp.cachedMarkdown == normalized {
+		return
+	}
+	
+	pp.cachedMarkdown = normalized
 	pp.text.ParseMarkdown(normalized)
 	pp.text.Refresh()
 }

@@ -53,3 +53,10 @@ func (sb *SearchBar) onSearch(query string) {
 		sb.list.UnselectAll()
 	}
 }
+
+// Focus sets focus to the search entry
+func (sb *SearchBar) Focus(window fyne.Window) {
+	if sb.entry != nil && window != nil {
+		window.Canvas().Focus(sb.entry)
+	}
+}

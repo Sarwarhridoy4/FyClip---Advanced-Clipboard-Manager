@@ -40,9 +40,6 @@ func NewMainWindow(window fyne.Window, app fyne.App, manager *clipboard.Manager)
 	// Create quick panel
 	mw.quickPanel = NewQuickPanel(manager, window, mw.onQuickPaste)
 
-	// Setup menu
-	mw.setupMenu()
-
 	return mw
 }
 
@@ -67,7 +64,68 @@ func (mw *MainWindow) Build() fyne.CanvasObject {
 		split,
 	)
 
+	// Setup keyboard shortcuts
+	mw.setupShortcuts()
+
 	return content
+}
+
+// setupShortcuts sets up the menu
+func (mw *MainWindow) setupShortcuts() {
+	// Edit menu items
+	copyItem := fyne.NewMenuItem("Copy", func() {
+		if mw.toolbar != nil {
+			mw.toolbar.onCopy()
+		}
+	})
+
+	deleteItem := fyne.NewMenuItem("Delete", func() {
+		if mw.toolbar != nil {
+			mw.toolbar.onDelete()
+		}
+	})
+
+	searchItem := fyne.NewMenuItem("Search", func() {
+		if mw.search != nil {
+			mw.search.Focus(mw.window)
+		}
+	})
+
+	backupItem := fyne.NewMenuItem("Backup", func() {
+		if mw.toolbar != nil {
+			mw.toolbar.onBackup()
+		}
+	})
+
+	restoreItem := fyne.NewMenuItem("Restore", func() {
+		if mw.toolbar != nil {
+			mw.toolbar.onRestore()
+		}
+	})
+
+	editMenu := fyne.NewMenu("Edit", copyItem, deleteItem, searchItem, backupItem, restoreItem)
+
+	// View menu items
+	quickPanelItem := fyne.NewMenuItem("Quick Paste", func() {
+		if mw.quickPanel != nil {
+			mw.quickPanel.Toggle()
+		}
+	})
+	viewMenu := fyne.NewMenu("View", quickPanelItem)
+
+	// Help menu items
+	featuresItem := fyne.NewMenuItem("Features", func() {
+		ShowFeaturesDialog(mw.window, mw.app)
+	})
+
+	aboutItem := fyne.NewMenuItem("About", func() {
+		ShowAboutDialog(mw.window, mw.app)
+	})
+
+	helpMenu := fyne.NewMenu("Help", featuresItem, aboutItem)
+
+	mainMenu := fyne.NewMainMenu(editMenu, viewMenu, helpMenu)
+	mw.window.SetMainMenu(mainMenu)
 }
 
 // Refresh updates all UI components
@@ -111,23 +169,4 @@ func (mw *MainWindow) ShowQuickPanel() {
 	if mw.quickPanel != nil {
 		mw.quickPanel.Show()
 	}
-}
-
-// setupMenu creates the application menu
-func (mw *MainWindow) setupMenu() {
-	aboutItem := fyne.NewMenuItem("About", func() {
-		ShowAboutDialog(mw.window, mw.app)
-	})
-	
-	// Add quick panel menu item
-	quickPanelItem := fyne.NewMenuItem("Quick Paste", func() {
-		if mw.quickPanel != nil {
-			mw.quickPanel.Toggle()
-		}
-	})
-
-	helpMenu := fyne.NewMenu("Help", aboutItem)
-	viewMenu := fyne.NewMenu("View", quickPanelItem)
-	mainMenu := fyne.NewMainMenu(viewMenu, helpMenu)
-	mw.window.SetMainMenu(mainMenu)
 }

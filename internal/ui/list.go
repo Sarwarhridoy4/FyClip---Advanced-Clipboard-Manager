@@ -115,13 +115,18 @@ func (hl *HistoryList) updateItem(index int, obj fyne.CanvasObject) {
 	} else {
 		pinBtn.SetIcon(theme.RadioButtonIcon())
 	}
+
+	// Capture item ID to avoid stale index issue
+	itemID := item.ID
 	pinBtn.OnTapped = func() {
-		go func() {
-			if hl.manager.TogglePin(index) {
+		// Find current index of this item
+		currentIndex := hl.manager.FindIndexByID(itemID)
+		if currentIndex >= 0 {
+			if hl.manager.TogglePin(currentIndex) {
 				hl.manager.SaveHistory()
 				hl.Refresh()
 			}
-		}()
+		}
 	}
 
 	// Update type icon

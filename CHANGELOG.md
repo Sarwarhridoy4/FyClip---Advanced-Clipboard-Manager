@@ -9,7 +9,9 @@
 - **Snippets/Templates**: Snippet management with template variables ({{date}}, {{time}}, {{clipboard}}, etc.)
 - **Pattern Exclusion Rules**: Configurable regex, app, and size-based exclusion rules
 - **Enhanced Search**: Regex search, case-sensitive search, and fuzzy matching support
-- **Encrypted Backup**: Password-protected backup/restore with AES-256-GCM encryption
+- **Backup/Restore**: Full backup/restore feature with AES-256-GCM encryption, optional password protection, merge/replace options, and UI toolbar buttons
+- **Toolbar 2-Column Layout**: Reorganized toolbar into two rows to reduce window width
+- **Menu with Backup/Restore**: Added Edit menu with Copy, Delete, Search, Backup, and Restore menu items
 - **Hash Maps for O(1) Operations**: Added hashIndexMap and idIndexMap for efficient duplicate detection
 - **Comprehensive Configuration**: Config system with max_history_items, monitoring_interval, theme, etc.
 - **Error Handling**: Custom ClipboardError type with ErrorCode categories
@@ -24,6 +26,7 @@
 ### Changed
 - Updated build process with Makefile targets
 - Improved preview pane for HTML and file types
+- Fixed Pin/Unpin race condition: Added FindIndexByID method to avoid stale index issues when toggling pin
 
 ## 1.5.1 - 2026-02-11
 
