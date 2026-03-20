@@ -123,7 +123,15 @@ func (pp *PreviewPane) showText(item clipboard.Item) {
 	if isJSON(content) {
 		if prettyJSON, err := json.MarshalIndent(json.RawMessage(content), "", "  "); err == nil {
 			content = string(prettyJSON)
-			content = "**JSON (Pretty)**\n\n" + content
+			content = "**JSON (Pretty)**\n\n```json\n" + content + "\n```"
+		}
+	} else if isCodeContent(content) {
+		// Detect language and wrap in code block
+		lang := detectCodeLanguage(content)
+		if lang != "" {
+			content = "**" + strings.ToUpper(lang) + " Code**\n\n```" + lang + "\n" + content + "\n```"
+		} else {
+			content = "**Code**\n\n```\n" + content + "\n```"
 		}
 	}
 
@@ -194,6 +202,140 @@ func isJSON(s string) bool {
 	}
 	var js json.RawMessage
 	return json.Unmarshal([]byte(s), &js) == nil
+}
+
+// detectCodeLanguage attempts to detect the programming language from content
+func detectCodeLanguage(content string) string {
+	content = strings.TrimSpace(content)
+	
+	// Check for JSON
+	if isJSON(content) {
+		return "json"
+	}
+	
+	// Check for common patterns
+	lowerContent := strings.ToLower(content)
+	
+	// Go
+	if strings.Contains(content, "package ") && strings.Contains(content, "func ") {
+		return "go"
+	}
+	
+	// Python
+	if strings.Contains(content, "def ") && strings.Contains(content, ":") && !strings.Contains(content, "{") {
+		return "python"
+	}
+	
+	// JavaScript/TypeScript
+	if strings.Contains(content, "const ") || strings.Contains(content, "let ") || strings.Contains(content, "function ") {
+		if strings.Contains(content, ": string") || strings.Contains(content, ": number") || strings.Contains(content, "interface ") {
+			return "typescript"
+		}
+		return "javascript"
+	}
+	
+	// Java
+	if strings.Contains(content, "public class ") || strings.Contains(content, "private ") {
+		return "java"
+	}
+	
+	// C/C++
+	if strings.Contains(content, "#include<") || strings.Contains(content, "#include ") {
+		return "cpp"
+	}
+	
+	// Rust
+	if strings.Contains(content, "fn main()") || strings.Contains(content, "let mut ") {
+		return "rust"
+	}
+	
+	// HTML
+	if strings.Contains(content, "<html") || strings.Contains(content, "<!DOCTYPE") || strings.Contains(content, "<div") {
+		return "html"
+	}
+	
+	// CSS
+	if strings.Contains(content, "{") && (strings.Contains(lowerContent, "color:") || strings.Contains(lowerContent, "margin:") || strings.Contains(lowerContent, "padding:")) {
+		return "css"
+	}
+	
+	// SQL
+	if strings.Contains(lowerContent, "select ") || strings.Contains(lowerContent, "insert ") || strings.Contains(lowerContent, "update ") || strings.Contains(lowerContent, "create table") {
+		return "sql"
+	}
+	
+	// Bash/Shell
+	if strings.HasPrefix(content, "#!") || strings.Contains(content, "#!/bin/bash") || strings.Contains(content, "#!/bin/sh") {
+		return "bash"
+	}
+	
+	// YAML
+	if strings.Contains(content, "---") || (strings.Contains(content, ":") && !strings.Contains(content, "{") && !strings.Contains(content, ";")) {
+		if strings.Contains(content, "  - ") {
+			return "yaml"
+		}
+	}
+	
+	// Markdown
+	if strings.Contains(content, "```") || strings.Contains(content, "[**") {
+		return "markdown"
+	}
+	
+	return ""
+}
+
+// isCodeContent checks if the content appears to be code
+func isCodeContent(content string) bool {
+	// If it's JSON, treat as code
+	if isJSON(content) {
+		return true
+	}
+	
+	content = strings.TrimSpace(content)
+	
+	// Check for common code patterns
+	codeIndicators := []string{
+		"func ",
+		"function ",
+		"const ",
+		"let ",
+		"var ",
+		"class ",
+		"def ",
+		"public ",
+		"private ",
+		"import ",
+		"package ",
+		"#include",
+		"#!/bin",
+		"select ",
+		"from ",
+		"where ",
+	}
+	
+	for _, indicator := range codeIndicators {
+		if strings.Contains(content, indicator) {
+			return true
+		}
+	}
+	
+	// Check for multiple semicolons on single line (common in code)
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		if strings.Count(line, ";") >= 2 {
+			return true
+		}
+		// Check for arrow functions or lambda
+		if strings.Contains(line, "=>") {
+			return true
+		}
+		// Check for typical code brackets
+		if strings.Contains(line, "{") && strings.Contains(line, "}") {
+			return true
+		}
+	}
+	
+	return false
 }
 
 // formatFileSize formats file size in human-readable format

@@ -22,6 +22,11 @@
 - **Version CLI**: --version and --help command-line options
 - **Preview Enhancements**: JSON pretty-printing, HTML preview, file info display
 - **System Tray Improvements**: Recent items submenu, Clear History action
+- **Code Block Preview**: Preview pane now detects code content and displays it in syntax-highlighted code blocks with language detection (Go, Python, JavaScript, TypeScript, Java, C/C++, Rust, HTML, CSS, SQL, Bash, YAML, JSON, Markdown)
+- **Snippet Usage Instructions**: Added detailed snippet usage documentation in README and Features Guide dialog
+- **Enhanced Snippets UI**: Added Add, Delete, and Use functionality for snippets with live preview of template expansion
+- **System Snippets**: Added IsSystem field to mark default snippets that cannot be deleted. User-defined snippets can be deleted.
+- **Snippet Expansion with Clipboard**: New ExpandSnippetWithClipboard method for better template variable handling
 
 ### Changed
 - Updated build process with Makefile targets

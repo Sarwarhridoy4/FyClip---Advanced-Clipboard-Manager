@@ -306,7 +306,7 @@ func ShowFeaturesDialog(window fyne.Window, app fyne.App) {
 		},
 		{
 			name:        "Snippets",
-			description: "Create and manage text snippets for quick insertion. Use abbreviations for faster access.",
+			description: "Create and manage text snippets for quick insertion. Use abbreviations for faster access.\n\nTemplate Variables:\n• {{date}} - Current date (YYYY-MM-DD)\n• {{time}} - Current time (HH:MM:SS)\n• {{datetime}} - Full date and time\n• {{year}} - Current year\n• {{month}} - Current month (01-12)\n• {{day}} - Current day (01-31)\n• {{clipboard}} - Current clipboard content\n\nTo use: Click Snippets button in toolbar, select a snippet, and click Use to copy to clipboard.",
 		},
 		{
 			name:        "Quick Panel",

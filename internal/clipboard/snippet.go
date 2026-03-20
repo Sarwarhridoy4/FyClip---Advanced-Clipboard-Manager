@@ -17,6 +17,7 @@ type Snippet struct {
 	Content      string    `json:"content"`
 	Abbreviation string    `json:"abbreviation,omitempty"` // Short trigger like "sig"
 	Category     string    `json:"category,omitempty"`
+	IsSystem     bool      `json:"is_system,omitempty"` // System snippets cannot be deleted
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -160,7 +161,7 @@ func (sm *SnippetManager) GetCategories() []string {
 	return categories
 }
 
-// getDefaultSnippets returns some default snippets
+// getDefaultSnippets returns some default snippets (system snippets that cannot be deleted)
 func getDefaultSnippets() []Snippet {
 	now := time.Now()
 	return []Snippet{
@@ -169,6 +170,7 @@ func getDefaultSnippets() []Snippet {
 			Content:      "Best regards,\n{{date}}",
 			Abbreviation: "sig",
 			Category:     "General",
+			IsSystem:     true,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		},
@@ -177,6 +179,7 @@ func getDefaultSnippets() []Snippet {
 			Content:      "{{date}}",
 			Abbreviation: "date",
 			Category:     "Utility",
+			IsSystem:     true,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		},
@@ -185,6 +188,25 @@ func getDefaultSnippets() []Snippet {
 			Content:      "{{datetime}}",
 			Abbreviation: "dt",
 			Category:     "Utility",
+			IsSystem:     true,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		},
+		{
+			Title:        "Current Time",
+			Content:      "{{time}}",
+			Abbreviation: "time",
+			Category:     "Utility",
+			IsSystem:     true,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		},
+		{
+			Title:        "Clipboard Content",
+			Content:      "{{clipboard}}",
+			Abbreviation: "clip",
+			Category:     "Utility",
+			IsSystem:     true,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		},

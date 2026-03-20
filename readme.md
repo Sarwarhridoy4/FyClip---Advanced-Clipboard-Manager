@@ -292,6 +292,60 @@ fyne-cross darwin -arch=amd64
 10. **Snippets**: Create and manage text templates
 11. **Backup**: Create encrypted backups of your history
 
+### Snippets
+
+Snippets allow you to create reusable text templates with dynamic variables. They can be accessed via the toolbar "Snippets" button.
+
+#### Creating a Snippet
+
+1. Click the "Snippets" button in the toolbar
+2. Click "Add Snippet" button
+3. Fill in the details:
+   - **Title**: A descriptive name (e.g., "Email Signature")
+   - **Content**: The template text with optional variables
+   - **Abbreviation** (optional): A short trigger word for quick access (e.g., "sig")
+   - **Category** (optional): Group snippets by category
+
+#### Using Variables
+
+Snippets support the following template variables that are automatically expanded when used:
+
+| Variable | Description | Example Output |
+|----------|-------------|----------------|
+| `{{date}}` | Current date | 2026-03-20 |
+| `{{time}}` | Current time | 14:30:45 |
+| `{{datetime}}` | Full date and time | 2026-03-20 14:30:45 |
+| `{{year}}` | Current year | 2026 |
+| `{{month}}` | Current month (01-12) | 03 |
+| `{{day}}` | Current day (01-31) | 20 |
+| `{{clipboard}}` | Current clipboard content | (varies) |
+
+#### Example Snippet
+
+```
+Title: Email Signature
+Abbreviation: sig
+Category: General
+Content:
+Best regards,
+{{name}}
+{{date}}
+```
+
+When used, this expands to:
+```
+Best regards,
+John Doe
+2026-03-20
+```
+
+#### Using Snippets
+
+1. Click the "Snippets" button in the toolbar
+2. Select the snippet you want to use
+3. Click "Use" or double-click to copy the expanded content to clipboard
+4. The template variables will be replaced with current values
+
 ## Configuration
 
 Settings are automatically saved to:

@@ -232,7 +232,19 @@ func (t *Toolbar) onClear() {
 
 // onSnippets opens snippets management dialog
 func (t *Toolbar) onSnippets() {
+	// Use a local variable to track selection
+	var selectedIndex int = -1
 	snippets := t.manager.GetSnippets()
+	
+	// Create info label
+	infoLabel := widget.NewLabel("Snippets - Manage your text templates")
+	infoLabel.Alignment = fyne.TextAlignCenter
+	
+	// Variable reference label
+	varLabel := widget.NewLabel("Variables: {{date}} {{time}} {{datetime}} {{clipboard}} {{year}} {{month}} {{day}}")
+	varLabel.Alignment = fyne.TextAlignCenter
+	varLabel.Wrapping = fyne.TextWrapWord
+	varLabel.TextStyle.Italic = true
 	
 	// Create a list of snippets
 	list := widget.NewList(
@@ -247,22 +259,163 @@ func (t *Toolbar) onSnippets() {
 				if s.Abbreviation != "" {
 					title = title + " (" + s.Abbreviation + ")"
 				}
+				if s.IsSystem {
+					title = title + " [System]"
+				}
 				item.(*widget.Label).SetText(title)
 			}
 		},
 	)
-
-	// Show info
-	infoLabel := widget.NewLabel("Snippets - Click to expand and copy")
-	infoLabel.Alignment = fyne.TextAlignCenter
-
+	
+	// Preview area for selected snippet
+	previewTitle := widget.NewLabel("")
+	previewTitle.TextStyle.Bold = true
+	previewContent := widget.NewLabel("")
+	previewContent.Wrapping = fyne.TextWrapWord
+	
+	previewCard := widget.NewCard("", "", container.NewVBox(previewTitle, previewContent))
+	
+	// Update preview when selection changes
+	list.OnSelected = func(id widget.ListItemID) {
+		selectedIndex = int(id)
+		if id >= 0 && id < len(snippets) {
+			s := snippets[id]
+			titleText := s.Title
+			if s.Abbreviation != "" {
+				titleText = s.Title + " (" + s.Abbreviation + ")"
+			}
+			previewTitle.SetText(titleText)
+			// Expand template variables for preview
+			clipboardContent := ""
+			if fyne.CurrentApp() != nil && fyne.CurrentApp().Clipboard() != nil {
+				clipboardContent = fyne.CurrentApp().Clipboard().Content()
+			}
+			expanded := t.manager.ExpandSnippetWithClipboard(s.Content, clipboardContent)
+			previewContent.SetText(expanded)
+		}
+	}
+	
+	// Buttons
+	useBtn := widget.NewButton("Use", func() {
+		if selectedIndex < 0 || selectedIndex >= len(snippets) {
+			ShowNotification(t.app, "No snippet selected!")
+			return
+		}
+		s := snippets[selectedIndex]
+		// Expand template variables
+		clipboardContent := ""
+		if fyne.CurrentApp() != nil && fyne.CurrentApp().Clipboard() != nil {
+			clipboardContent = fyne.CurrentApp().Clipboard().Content()
+		}
+		expanded := t.manager.ExpandSnippetWithClipboard(s.Content, clipboardContent)
+		fyne.CurrentApp().Clipboard().SetContent(expanded)
+		ShowNotification(t.app, "Snippet copied to clipboard!")
+	})
+	
+	addBtn := widget.NewButton("Add", func() {
+		t.showAddSnippetDialog()
+	})
+	
+	deleteBtn := widget.NewButton("Delete", func() {
+		if selectedIndex < 0 || selectedIndex >= len(snippets) {
+			ShowNotification(t.app, "No snippet selected!")
+			return
+		}
+		s := snippets[selectedIndex]
+		
+		// Check if it's a system snippet
+		if s.IsSystem {
+			ShowNotification(t.app, "Cannot delete system snippet!")
+			return
+		}
+		
+		dialog.ShowConfirm("Delete Snippet", "Are you sure you want to delete \""+s.Title+"\"?", func(confirmed bool) {
+			if confirmed {
+				err := t.manager.DeleteSnippet(s.ID)
+				if err != nil {
+					ShowNotification(t.app, "Failed to delete snippet!")
+					return
+				}
+				ShowNotification(t.app, "Snippet deleted!")
+				// Refresh the dialog
+				t.onSnippets()
+			}
+		}, t.window)
+	})
+	
+	buttonBox := container.NewHBox(useBtn, addBtn, deleteBtn)
+	
 	content := container.NewVBox(
 		infoLabel,
+		varLabel,
 		widget.NewSeparator(),
 		container.NewMax(list),
+		widget.NewSeparator(),
+		previewCard,
+		buttonBox,
 	)
 
 	dialog.ShowCustom("Snippets", "Close", content, t.window)
+}
+
+// showAddSnippetDialog shows a dialog to add a new snippet
+func (t *Toolbar) showAddSnippetDialog() {
+	// Title input
+	titleEntry := widget.NewEntry()
+	titleEntry.PlaceHolder = "Snippet title (e.g., Email Signature)"
+	
+	// Content input - using a large entry
+	contentEntry := widget.NewEntry()
+	contentEntry.PlaceHolder = "Snippet content - Use variables like {{date}}, {{clipboard}}, etc."
+	
+	// Abbreviation input
+	abbrEntry := widget.NewEntry()
+	abbrEntry.PlaceHolder = "Short abbreviation (optional, e.g., sig)"
+	
+	// Category input
+	categoryEntry := widget.NewEntry()
+	categoryEntry.PlaceHolder = "Category (optional, e.g., General)"
+	
+	form := container.NewVBox(
+		widget.NewLabel("Title:"),
+		titleEntry,
+		widget.NewLabel("Abbreviation:"),
+		abbrEntry,
+		widget.NewLabel("Category:"),
+		categoryEntry,
+		widget.NewLabel("Content:"),
+		contentEntry,
+	)
+	
+	dialog.ShowCustomConfirm("Add Snippet", "Save", "Cancel", form, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		
+		if titleEntry.Text == "" {
+			ShowNotification(t.app, "Title is required!")
+			return
+		}
+		if contentEntry.Text == "" {
+			ShowNotification(t.app, "Content is required!")
+			return
+		}
+		
+		snippet := clipboard.Snippet{
+			Title:        titleEntry.Text,
+			Content:      contentEntry.Text,
+			Abbreviation: abbrEntry.Text,
+			Category:     categoryEntry.Text,
+		}
+		
+		err := t.manager.AddSnippet(snippet)
+		if err != nil {
+			ShowNotification(t.app, "Failed to save snippet!")
+			return
+		}
+		
+		ShowNotification(t.app, "Snippet saved!")
+	}, t.window)
 }
 
 // onSettings opens settings dialog

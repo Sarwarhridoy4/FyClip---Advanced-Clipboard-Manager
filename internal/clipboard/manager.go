@@ -1048,6 +1048,14 @@ func (m *Manager) ExpandSnippet(content string) string {
 	return m.snippets.ExpandSnippet(content, clipContent)
 }
 
+// ExpandSnippetWithClipboard expands template variables with provided clipboard content
+func (m *Manager) ExpandSnippetWithClipboard(content string, clipboardContent string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	return m.snippets.ExpandSnippet(content, clipboardContent)
+}
+
 // GetExclusionRules returns all exclusion rules
 func (m *Manager) GetExclusionRules() []ExclusionRule {
 	m.mu.RLock()
