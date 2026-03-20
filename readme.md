@@ -29,6 +29,14 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 - 🔒 **Thread-Safe**: Proper concurrency handling
 - 🛡️ **Sensitive Data Detection**: Auto-detect credit cards, SSN, API keys
 
+## Screenshots
+
+![Main Window - Clipboard History with Search and Preview](internal/app/assets/screenshots/screenshot1.png)
+
+![Preview Pane with JSON Formatting](internal/app/assets/screenshots/screenshot2.png)
+
+![Quick Panel - Global Hotkey Access](internal/app/assets/screenshots/screenshot3.png)
+
 ## Improvements
 
 ### Recently Implemented
