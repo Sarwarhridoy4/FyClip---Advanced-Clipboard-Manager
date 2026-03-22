@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "FyClip"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.1.0"
 #define MyAppPublisher "Sarwar Hossain"
 #define MyAppURL "https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases"
 #define MyAppExeName "FyClip---Advanced-Clipboard-Manager.exe"
@@ -61,4 +61,11 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[UninstallDelete]
+; Delete application data folder on uninstall ( FyClip stores data in ~/.fyclip )
+Type: filesandordirs; Name: "{userappdata}\.fyclip"
+Type: filesandordirs; Name: "{localappdata}\com.sarwar.fyclip"
+Type: filesandordirs; Name: "{userappdata}\FyClip"
+Type: filesandordirs; Name: "{localappdata}\FyClip"
 

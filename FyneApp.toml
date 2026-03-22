@@ -2,8 +2,8 @@
 Icon = "icon.png"
 Name = "FyClip"
 ID = "com.sarwar.fyclip"
-Version = "2.0.0"
-Build = 3
+Version = "2.1.0"
+Build = 1
 
 [LinuxAndBSD]
 GenericName = "Clipboard Manager"
