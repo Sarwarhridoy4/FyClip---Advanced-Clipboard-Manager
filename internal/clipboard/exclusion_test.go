@@ -35,16 +35,16 @@ func TestExclusionManagerLoadRules(t *testing.T) {
 	}
 }
 
-// TestExclusionManagerLoadRulesEmpty tests loading with empty rules
+// TestExclusionManagerLoadRulesEmpty tests loading with nil rules
 func TestExclusionManagerLoadRulesEmpty(t *testing.T) {
 	em := NewExclusionManager()
 	
-	// Load empty rules - should get defaults
-	em.LoadRules([]ExclusionRule{})
+	// Load nil rules - should get defaults
+	em.LoadRules(nil)
 	
 	rules := em.GetRules()
 	if len(rules) == 0 {
-		t.Error("Expected default rules when loading empty")
+		t.Error("Expected default rules when loading nil")
 	}
 }
 
