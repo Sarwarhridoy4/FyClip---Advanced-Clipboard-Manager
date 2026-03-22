@@ -39,7 +39,7 @@ func NewExclusionManager() *ExclusionManager {
 
 // LoadRules loads exclusion rules from config
 func (em *ExclusionManager) LoadRules(rules []ExclusionRule) {
-	if len(rules) == 0 {
+	if rules == nil {
 		em.rules = getDefaultExclusionRules()
 	} else {
 		em.rules = rules
