@@ -256,6 +256,9 @@ func (m *Manager) AddItem(item Item) AddItemResult {
 	item.ID = fmt.Sprintf("%d", time.Now().UnixNano())
 	item.Timestamp = time.Now()
 
+	// Auto-detect category based on content
+	item.AutoDetectCategory()
+
 	// Add to history and update index maps
 	newIndex := len(m.history)
 	m.history = append(m.history, item)
@@ -655,6 +658,138 @@ func (m *Manager) ClearUnpinned() {
 
 	m.updateFiltered()
 	m.triggerUpdate()
+}
+
+// BulkDelete removes multiple items by their IDs
+// Returns the count of successfully deleted items
+func (m *Manager) BulkDelete(ids []string) int {
+	m.mu.Lock()
+	deleted := 0
+
+	for _, id := range ids {
+		// O(1) lookup using idIndexMap
+		idx, exists := m.idIndexMap[id]
+		if !exists {
+			continue
+		}
+
+		// Skip pinned items
+		if m.history[idx].Pinned {
+			continue
+		}
+
+		m.removeAtIndex(idx)
+		deleted++
+	}
+
+	m.selectedIndex = -1
+	m.mu.Unlock()
+
+	if deleted > 0 {
+		m.updateFiltered()
+		m.triggerUpdate()
+	}
+
+	return deleted
+}
+
+// BulkPin pins multiple items by their IDs
+// Returns the count of successfully pinned items
+func (m *Manager) BulkPin(ids []string) int {
+	m.mu.Lock()
+	pinned := 0
+
+	for _, id := range ids {
+		// O(1) lookup using idIndexMap
+		idx, exists := m.idIndexMap[id]
+		if !exists {
+			continue
+		}
+
+		if !m.history[idx].Pinned {
+			m.history[idx].Pinned = true
+			pinned++
+		}
+	}
+
+	m.mu.Unlock()
+
+	if pinned > 0 {
+		m.updateFiltered()
+		m.triggerUpdate()
+	}
+
+	return pinned
+}
+
+// BulkUnpin unpins multiple items by their IDs
+// Returns the count of successfully unpinned items
+func (m *Manager) BulkUnpin(ids []string) int {
+	m.mu.Lock()
+	unpinned := 0
+
+	for _, id := range ids {
+		// O(1) lookup using idIndexMap
+		idx, exists := m.idIndexMap[id]
+		if !exists {
+			continue
+		}
+
+		if m.history[idx].Pinned {
+			m.history[idx].Pinned = false
+			unpinned++
+		}
+	}
+
+	m.mu.Unlock()
+
+	if unpinned > 0 {
+		m.updateFiltered()
+		m.triggerUpdate()
+	}
+
+	return unpinned
+}
+
+// BulkTogglePin toggles pin status for multiple items
+// Returns the count of items that were toggled
+func (m *Manager) BulkTogglePin(ids []string) int {
+	m.mu.Lock()
+	toggled := 0
+
+	for _, id := range ids {
+		// O(1) lookup using idIndexMap
+		idx, exists := m.idIndexMap[id]
+		if !exists {
+			continue
+		}
+
+		m.history[idx].Pinned = !m.history[idx].Pinned
+		toggled++
+	}
+
+	m.mu.Unlock()
+
+	if toggled > 0 {
+		m.updateFiltered()
+		m.triggerUpdate()
+	}
+
+	return toggled
+}
+
+// BulkCopy copies multiple items to clipboard sequentially
+// Returns the count of successfully copied items
+func (m *Manager) BulkCopy(indices []int) int {
+	copied := 0
+
+	for _, index := range indices {
+		if err := m.CopyToClipboard(index); err == nil {
+			copied++
+		}
+	}
+
+	return copied
 }
 
 // CopyToClipboard copies an item to the system clipboard

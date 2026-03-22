@@ -126,6 +126,65 @@ func (mw *MainWindow) setupShortcuts() {
 
 	mainMenu := fyne.NewMainMenu(editMenu, viewMenu, helpMenu)
 	mw.window.SetMainMenu(mainMenu)
+
+	// Setup keyboard capture for navigation
+	mw.setupKeyCapture()
+}
+
+// setupKeyCapture sets up key capture for vim-style navigation
+func (mw *MainWindow) setupKeyCapture() {
+	// Note: Keyboard navigation is handled through the list widget's built-in support.
+	// This method can be extended later for custom keyboard shortcuts.
+	// For now, the basic navigation (arrow keys, enter, delete) works out of the box.
+}
+
+// moveSelection moves the selection up or down
+func (mw *MainWindow) moveSelection(direction int) {
+	current := mw.manager.GetSelectedIndex()
+	count := mw.manager.GetFilteredCount()
+	if count == 0 {
+		return
+	}
+
+	newIndex := current + direction
+	if newIndex < 0 {
+		newIndex = 0
+	} else if newIndex >= count {
+		newIndex = count - 1
+	}
+
+	mw.manager.SetSelected(newIndex)
+	if mw.list != nil {
+		mw.list.Refresh()
+	}
+	if mw.preview != nil {
+		mw.preview.Refresh()
+	}
+}
+
+// moveToTop moves selection to the first item
+func (mw *MainWindow) moveToTop() {
+	mw.manager.SetSelected(0)
+	if mw.list != nil {
+		mw.list.Refresh()
+	}
+	if mw.preview != nil {
+		mw.preview.Refresh()
+	}
+}
+
+// moveToBottom moves selection to the last item
+func (mw *MainWindow) moveToBottom() {
+	count := mw.manager.GetFilteredCount()
+	if count > 0 {
+		mw.manager.SetSelected(count - 1)
+		if mw.list != nil {
+			mw.list.Refresh()
+		}
+		if mw.preview != nil {
+			mw.preview.Refresh()
+		}
+	}
 }
 
 // Refresh updates all UI components

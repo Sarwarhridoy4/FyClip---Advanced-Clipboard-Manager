@@ -60,3 +60,10 @@ func (sb *SearchBar) Focus(window fyne.Window) {
 		window.Canvas().Focus(sb.entry)
 	}
 }
+
+// Clear clears the search input
+func (sb *SearchBar) Clear() {
+	if sb.entry != nil {
+		sb.entry.SetText("")
+	}
+}
