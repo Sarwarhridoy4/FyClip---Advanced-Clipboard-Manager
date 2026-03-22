@@ -2,6 +2,8 @@
 package ui
 
 import (
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -155,6 +157,27 @@ func (mw *MainWindow) setupKeyHandler() {
 	
 	// Focus the key handler so it receives keyboard events
 	mw.window.Canvas().Focus(kh)
+	
+	// Start a goroutine to periodically ensure focus is maintained
+	// This ensures keyboard shortcuts work even after clicking on other elements
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			if mw.window == nil {
+				return
+			}
+			canvas := mw.window.Canvas()
+			if canvas == nil {
+				return
+			}
+			// Check if our key handler has focus, if not, refocus it
+			currentFocused := canvas.Focused()
+			if currentFocused != kh {
+				canvas.Focus(kh)
+			}
+		}
+	}()
 }
 
 // setupShortcuts sets up the menu
