@@ -1090,3 +1090,106 @@ func (m *Manager) ShouldExcludeContent(content string, contentSize int, appName 
 	defer m.mu.RUnlock()
 	return m.exclusions.ShouldExclude(content, contentSize, appName)
 }
+
+// DeleteMultiple deletes multiple items by their indices in the filtered list
+// Returns the number of items successfully deleted
+func (m *Manager) DeleteMultiple(indices []int) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if len(indices) == 0 {
+		return 0
+	}
+
+	// Sort indices in reverse order to delete from end to start
+	// This prevents index shifting issues
+	sortedIndices := make([]int, len(indices))
+	copy(sortedIndices, indices)
+	for i := 0; i < len(sortedIndices)-1; i++ {
+		for j := i + 1; j < len(sortedIndices); j++ {
+			if sortedIndices[i] > sortedIndices[j] {
+				sortedIndices[i], sortedIndices[j] = sortedIndices[j], sortedIndices[i]
+			}
+		}
+	}
+
+	deleted := 0
+	seen := make(map[int]bool)
+	for _, idx := range sortedIndices {
+		// Skip duplicates
+		if seen[idx] {
+			continue
+		}
+		seen[idx] = true
+
+		if idx < 0 || idx >= len(m.filtered) {
+			continue
+		}
+
+		targetItem := m.filtered[idx]
+		if targetItem.Pinned {
+			continue
+		}
+
+		// O(1) lookup using idIndexMap
+		histIdx, exists := m.idIndexMap[targetItem.ID]
+		if !exists {
+			continue
+		}
+
+		m.removeAtIndex(histIdx)
+		deleted++
+	}
+
+	m.selectedIndex = -1
+
+	if deleted > 0 {
+		m.queueSaveHistory()
+	}
+
+	return deleted
+}
+
+// TogglePinMultiple toggles the pin status of multiple items
+// Returns the number of items successfully toggled
+func (m *Manager) TogglePinMultiple(indices []int) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if len(indices) == 0 {
+		return 0
+	}
+
+	toggled := 0
+	seen := make(map[int]bool)
+	for _, idx := range indices {
+		// Skip duplicates
+		if seen[idx] {
+			continue
+		}
+		seen[idx] = true
+
+		if idx < 0 || idx >= len(m.filtered) {
+			continue
+		}
+
+		histIdx, exists := m.idIndexMap[m.filtered[idx].ID]
+		if !exists {
+			continue
+		}
+
+		m.history[histIdx].Pinned = !m.history[histIdx].Pinned
+		toggled++
+	}
+
+	if toggled > 0 {
+		m.queueSaveHistory()
+	}
+
+	return toggled
+}
+
+// ValidateItem validates an item before adding
+func (m *Manager) ValidateItem(item *Item) error {
+	return ValidateItem(item)
+}

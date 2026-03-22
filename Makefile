@@ -7,15 +7,16 @@ BINARY_NAME := fyclip
 VERSION := $(shell git describe --tags --always --dirty)
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS := -ldflags "-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
+LDFLAGS_DEBUG := -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
 
 # Go parameters
 GO := go
-GOCMD := $(GO)
+GOCMD := go
 GOBUILD := $(GOCMD) build $(LDFLAGS)
+GOBUILD_DEBUG := $(GOCMD) build $(LDFLAGS_DEBUG)
 GOTEST := $(GOCMD) test
 GOVET := $(GOCMD) vet
 GOFMT := $(GOCMD) fmt
-GOLINT := $(GOCMD) lint
 
 # Directories
 OUTPUT_DIR := bin
@@ -137,23 +138,171 @@ dev: deps run
 .PHONY: check
 check: lint test
 
+# Run verbose tests
+.PHONY: test-verbose
+test-verbose:
+	@echo "Running tests with verbose output..."
+	$(GOTEST) -v ./...
+
+# Run tests with race detector
+.PHONY: test-race
+test-race:
+	@echo "Running tests with race detector..."
+	$(GOTEST) -race ./...
+
+# Run specific test by name
+.PHONY: test-name
+test-name:
+	@echo "Running tests matching '$(NAME)'..."
+	$(GOTEST) -v -run $(NAME) ./...
+
+# Run tests for a specific package
+.PHONY: test-package
+test-package:
+	@echo "Running tests for package '$(PKG)'..."
+	$(GOTEST) -v $(PKG)
+
+# Run benchmarks for clipboard package
+.PHONY: bench
+bench:
+	@echo "Running benchmarks..."
+	$(GOTEST) -bench=. -benchmem ./internal/clipboard/...
+
+# Run specific benchmark
+.PHONY: bench-name
+bench-name:
+	@echo "Running benchmark '$(NAME)'..."
+	$(GOTEST) -bench=$(NAME) -benchmem ./...
+
+# Save benchmark results
+.PHONY: bench-save
+bench-save:
+	@echo "Running and saving benchmarks..."
+	$(GOTEST) -bench=. -benchmem -run=^$ ./... > benchmark.txt
+
+# Build debug version
+.PHONY: build-debug
+build-debug:
+	@echo "Building debug version..."
+	@mkdir -p $(OUTPUT_DIR)
+	$(GOBUILD_DEBUG) -o $(OUTPUT_DIR)/$(BINARY_NAME)-debug$(EXT) .
+
+# Build release version
+.PHONY: build-release
+build-release:
+	@echo "Building release version..."
+	@mkdir -p $(OUTPUT_DIR)
+	$(GOBUILD) -o $(OUTPUT_DIR)/$(BINARY_NAME)$(EXT) .
+
+# Install linter
+.PHONY: install-lint
+install-lint:
+	@echo "Installing golangci-lint..."
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# Run static analysis
+.PHONY: static
+static:
+	@echo "Running static analysis..."
+	$(GOVET) ./...
+	@if command -v staticcheck > /dev/null; then \
+		staticcheck ./...; \
+	else \
+		echo "staticcheck not found, skipping..."; \
+	fi
+
+# Show test coverage
+.PHONY: cover
+cover:
+	@echo "Showing test coverage..."
+	$(GOTEST) -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out
+
+# Watch tests
+.PHONY: watch
+watch:
+	@echo "Running tests in watch mode..."
+	@if command -v gotestsum > /dev/null; then \
+		gotestsum -watch; \
+	else \
+		echo "gotestsum not found, install with: go install gotest.tools/gotestsum@latest"; \
+	fi
+
+# Update dependencies
+.PHONY: update-deps
+update-deps:
+	@echo "Updating dependencies..."
+	go get -u ./...
+	go mod tidy
+
+# Verify dependencies
+.PHONY: verify-deps
+verify-deps:
+	@echo "Verifying dependencies..."
+	go mod verify
+	go mod tidy
+
+# Show version info
+.PHONY: version
+version:
+	@echo "$(APP_NAME) version: $(VERSION)"
+	@echo "Build time: $(BUILD_TIME)"
+
+# Development with hot reload (requires fyne)
+.PHONY: dev-gui
+dev-gui:
+	@echo "Running in development mode..."
+	fyne package --release --name $(BINARY_NAME) --icon icon.png
+	./$(BINARY_NAME)
+
 # Help
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  all          - Run lint, test and build (default)"
-	@echo "  build        - Build the application"
-	@echo "  build-all    - Build for Linux, Darwin, and Windows"
-	@echo "  test         - Run tests"
-	@echo "  benchmark    - Run benchmarks"
-	@echo "  lint         - Run linter"
-	@echo "  fmt          - Format code"
-	@echo "  clean        - Clean build artifacts"
-	@echo "  deps         - Install dependencies"
-	@echo "  run          - Run the application"
-	@echo "  coverage     - Generate coverage report"
-	@echo "  package      - Package the application"
-	@echo "  release      - Create release"
-	@echo "  dev          - Development mode"
-	@echo "  check        - Run lint and tests"
-	@echo "  help         - Show this help message"
+	@echo ""
+	@echo "=== Building ==="
+	@echo "  build          - Build the application"
+	@echo "  build-debug    - Build debug version"
+	@echo "  build-release  - Build release version"
+	@echo "  build-all      - Build for Linux, Darwin, and Windows"
+	@echo ""
+	@echo "=== Testing ==="
+	@echo "  test           - Run tests"
+	@echo "  test-verbose   - Run tests with verbose output"
+	@echo "  test-race      - Run tests with race detector"
+	@echo "  test-name      - Run tests matching pattern (NAME=...)"
+	@echo "  test-package   - Run tests for specific package (PKG=...)"
+	@echo ""
+	@echo "=== Benchmarking ==="
+	@echo "  bench          - Run benchmarks"
+	@echo "  bench-name     - Run specific benchmark (NAME=...)"
+	@echo "  bench-save     - Run and save benchmarks to file"
+	@echo ""
+	@echo "=== Code Quality ==="
+	@echo "  lint           - Run linter"
+	@echo "  fmt            - Format code"
+	@echo "  static         - Run static analysis"
+	@echo "  cover          - Show test coverage"
+	@echo "  install-lint   - Install golangci-lint"
+	@echo ""
+	@echo "=== Dependencies ==="
+	@echo "  deps           - Install dependencies"
+	@echo "  update-deps    - Update dependencies"
+	@echo "  verify-deps    - Verify dependencies"
+	@echo ""
+	@echo "=== Development ==="
+	@echo "  dev            - Development mode (deps + run)"
+	@echo "  run            - Run the application"
+	@echo "  dev-gui        - Run in GUI development mode"
+	@echo "  watch          - Run tests in watch mode"
+	@echo ""
+	@echo "=== Release ==="
+	@echo "  package        - Package the application"
+	@echo "  release        - Create release"
+	@echo ""
+	@echo "=== Utilities ==="
+	@echo "  clean          - Clean build artifacts"
+	@echo "  coverage       - Generate coverage report"
+	@echo "  version        - Show version info"
+	@echo "  check          - Run lint and tests"
+	@echo "  help           - Show this help message"
