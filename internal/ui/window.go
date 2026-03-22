@@ -34,7 +34,12 @@ type KeyHandler struct {
 func (kh *KeyHandler) FocusGained() {}
 
 // FocusLost is called when the widget loses focus
-func (kh *KeyHandler) FocusLost() {}
+func (kh *KeyHandler) FocusLost() {
+	// Re-focus immediately to keep receiving keyboard events
+	if kh.mw != nil && kh.mw.window != nil {
+		kh.mw.window.Canvas().Focus(kh)
+	}
+}
 
 // TypedKey handles keyboard input
 func (kh *KeyHandler) TypedKey(key *fyne.KeyEvent) {
