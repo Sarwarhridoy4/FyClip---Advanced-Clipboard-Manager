@@ -2,7 +2,7 @@
 
 A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
-**Current Version**: 2.0.0
+**Current Version**: 2.1.0
 
 ## Features
 
@@ -28,6 +28,9 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 - 🐧 **Linux Packaging**: Official Fyne Linux package pipeline for `.deb` and `.AppImage`
 - 🔒 **Thread-Safe**: Proper concurrency handling
 - 🛡️ **Sensitive Data Detection**: Auto-detect credit cards, SSN, API keys
+- 📦 **Bulk Operations**: Multi-select items for batch delete/pin/unpin
+- 🏷️ **Smart Categories & Tags**: Auto-categorize content (Links, Code, Contacts, etc.)
+- ⌨️ **Enhanced Keyboard Navigation**: Arrow keys, Enter, Delete, Escape, Space, Home/End, F1
 
 ## Screenshots
 
@@ -41,6 +44,10 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
 ### Recently Implemented
 
+- ✅ **Bulk Operations**: Multi-select with checkboxes, batch delete/pin/unpin actions
+- ✅ **Smart Categories**: Auto-detect content types (Links→Links, Code snippets→Code, Emails→Contacts, Phone numbers→Contacts)
+- ✅ **Tags**: Add custom tags to organize clipboard items
+- ✅ **Enhanced Keyboard Navigation**: Arrow keys, Enter, Delete, Escape, Space, Home/End, F1
 - ✅ **Quick Panel**: Global hotkey quick access popup for fast paste (Ctrl+Shift+V)
 - ✅ **Snippets/Templates**: Create text templates with variables ({{date}}, {{time}}, {{clipboard}})
 - ✅ **Pattern Exclusion**: Regex, app, and size-based content filtering
@@ -281,14 +288,25 @@ fyne-cross darwin -arch=amd64
 
 ### Keyboard Shortcuts
 
-- **Ctrl+C**: Copy selected item to clipboard
+- **↑/↓ (Arrow Keys)**: Navigate through clipboard items
+- **Enter**: Copy selected item to clipboard
 - **Delete**: Delete selected item
+- **Space**: Pin/unpin selected item
+- **Escape**: Clear search / Close panel
+- **Home**: Go to first item
+- **End**: Go to last item
+- **F1**: Focus search bar
 - **Ctrl+F**: Focus search bar
 - **Ctrl+Shift+V**: Open quick panel
 
+#### Bulk Selection Mode
+
+- **Ctrl+Click**: Add/remove item from selection
+- Click toolbar **Select** button to enter selection mode
+
 ### Features
 
-1. **Pin Items**: Click the pin button to keep items at the top
+1. **Pin Items**: Click the pin button or press Space to keep items at the top
 2. **Search**: Type in the search bar to filter items (supports regex, case-sensitive, fuzzy)
 3. **Favorites Filter**: Click "Favorites" to show pinned items only
 4. **Preview**: Select an item to see full content (JSON pretty-printed automatically)
@@ -299,6 +317,9 @@ fyne-cross darwin -arch=amd64
 9. **System Tray**: Minimize to tray, configure autostart/pause, access recent items
 10. **Snippets**: Create and manage text templates
 11. **Backup**: Create encrypted backups of your history
+12. **Categories**: Auto-categorized content (Links, Code, Contacts, Images, Files, Text)
+13. **Tags**: Add custom tags to organize items
+14. **Bulk Operations**: Multi-select items for batch actions
 
 ### Snippets
 
