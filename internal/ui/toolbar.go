@@ -25,9 +25,15 @@ type Toolbar struct {
 	manager *clipboard.Manager
 	list    *HistoryList
 
-	container    *fyne.Container
-	favoritesBtn *widget.Button
-	pauseBtn     *widget.Button
+	container      *fyne.Container
+	favoritesBtn   *widget.Button
+	pauseBtn       *widget.Button
+	selectModeBtn   *widget.Button
+	bulkDeleteBtn  *widget.Button
+	bulkPinBtn     *widget.Button
+	bulkUnpinBtn   *widget.Button
+	bulkSelectAll  *widget.Button
+	bulkClearSel   *widget.Button
 }
 
 // NewToolbar creates a new toolbar.
@@ -56,6 +62,21 @@ func (t *Toolbar) Build() fyne.CanvasObject {
 	backupBtn := widget.NewButtonWithIcon("Backup", theme.DocumentSaveIcon(), t.onBackup)
 	restoreBtn := widget.NewButtonWithIcon("Restore", theme.DocumentIcon(), t.onRestore)
 
+	// Selection mode buttons
+	t.selectModeBtn = widget.NewButtonWithIcon("Select", theme.CheckButtonIcon(), t.onToggleSelectMode)
+	t.bulkSelectAll = widget.NewButtonWithIcon("All", theme.MenuIcon(), t.onSelectAll)
+	t.bulkClearSel = widget.NewButtonWithIcon("None", theme.CancelIcon(), t.onClearSelection)
+	t.bulkPinBtn = widget.NewButtonWithIcon("Pin", theme.ConfirmIcon(), t.onBulkPin)
+	t.bulkUnpinBtn = widget.NewButtonWithIcon("Unpin", theme.RadioButtonIcon(), t.onBulkUnpin)
+	t.bulkDeleteBtn = widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), t.onBulkDelete)
+
+	// Hide bulk action buttons initially
+	t.bulkSelectAll.Hide()
+	t.bulkClearSel.Hide()
+	t.bulkPinBtn.Hide()
+	t.bulkUnpinBtn.Hide()
+	t.bulkDeleteBtn.Hide()
+
 	// First row: primary actions
 	row1 := container.NewHBox(
 		copyBtn,
@@ -76,9 +97,21 @@ func (t *Toolbar) Build() fyne.CanvasObject {
 		restoreBtn,
 	)
 
+	// Third row: selection mode and bulk actions
+	row3 := container.NewHBox(
+		t.selectModeBtn,
+		t.bulkSelectAll,
+		t.bulkClearSel,
+		widget.NewSeparator(),
+		t.bulkPinBtn,
+		t.bulkUnpinBtn,
+		t.bulkDeleteBtn,
+	)
+
 	t.container = container.NewVBox(
 		row1,
 		row2,
+		row3,
 	)
 	t.refreshToggleLabels()
 	return t.container
@@ -106,6 +139,25 @@ func (t *Toolbar) refreshToggleLabels() {
 // Refresh updates dynamic toolbar labels.
 func (t *Toolbar) Refresh() {
 	t.refreshToggleLabels()
+}
+
+// SetSelectionModeActive updates the toolbar UI based on selection mode state
+func (t *Toolbar) SetSelectionModeActive(active bool) {
+	if active {
+		t.selectModeBtn.SetText("Cancel")
+		t.bulkSelectAll.Show()
+		t.bulkClearSel.Show()
+		t.bulkPinBtn.Show()
+		t.bulkUnpinBtn.Show()
+		t.bulkDeleteBtn.Show()
+	} else {
+		t.selectModeBtn.SetText("Select")
+		t.bulkSelectAll.Hide()
+		t.bulkClearSel.Hide()
+		t.bulkPinBtn.Hide()
+		t.bulkUnpinBtn.Hide()
+		t.bulkDeleteBtn.Hide()
+	}
 }
 
 // onCopy handles copy button.
@@ -225,6 +277,113 @@ func (t *Toolbar) onClear() {
 				t.list.Refresh()
 			}
 			ShowNotification(t.app, "History cleared!")
+		},
+		t.window,
+	)
+}
+
+// onToggleSelectMode toggles multi-select mode
+func (t *Toolbar) onToggleSelectMode() {
+	if t.list == nil {
+		return
+	}
+
+	currentMode := t.list.IsSelectionMode()
+	newMode := !currentMode
+	t.list.SetSelectionMode(newMode)
+
+	if newMode {
+		ShowNotification(t.app, "Selection mode enabled - click items to select")
+	} else {
+		ShowNotification(t.app, "Selection mode disabled")
+	}
+
+	t.SetSelectionModeActive(newMode)
+	t.list.Refresh()
+}
+
+// onSelectAll selects all visible items
+func (t *Toolbar) onSelectAll() {
+	if t.list == nil {
+		return
+	}
+	t.list.SelectAll()
+	count := t.list.GetSelectedCount()
+	ShowNotification(t.app, fmt.Sprintf("%d items selected", count))
+}
+
+// onClearSelection clears the current selection
+func (t *Toolbar) onClearSelection() {
+	if t.list == nil {
+		return
+	}
+	t.list.ClearSelection()
+	ShowNotification(t.app, "Selection cleared")
+}
+
+// onBulkPin pins all selected items
+func (t *Toolbar) onBulkPin() {
+	if t.list == nil {
+		return
+	}
+
+	ids := t.list.GetSelectedIDs()
+	if len(ids) == 0 {
+		ShowNotification(t.app, "No items selected!")
+		return
+	}
+
+	count := t.manager.BulkPin(ids)
+	t.manager.SaveHistory()
+	t.list.ClearSelection()
+	t.list.Refresh()
+	ShowNotification(t.app, fmt.Sprintf("%d items pinned", count))
+}
+
+// onBulkUnpin unpins all selected items
+func (t *Toolbar) onBulkUnpin() {
+	if t.list == nil {
+		return
+	}
+
+	ids := t.list.GetSelectedIDs()
+	if len(ids) == 0 {
+		ShowNotification(t.app, "No items selected!")
+		return
+	}
+
+	count := t.manager.BulkUnpin(ids)
+	t.manager.SaveHistory()
+	t.list.ClearSelection()
+	t.list.Refresh()
+	ShowNotification(t.app, fmt.Sprintf("%d items unpinned", count))
+}
+
+// onBulkDelete deletes all selected items
+func (t *Toolbar) onBulkDelete() {
+	if t.list == nil {
+		return
+	}
+
+	ids := t.list.GetSelectedIDs()
+	if len(ids) == 0 {
+		ShowNotification(t.app, "No items selected!")
+		return
+	}
+
+	dialog.ShowConfirm(
+		"Delete Selected Items",
+		fmt.Sprintf("Are you sure you want to delete %d selected items? (Pinned items will be skipped)", len(ids)),
+		func(confirmed bool) {
+			if !confirmed {
+				return
+			}
+
+			count := t.manager.BulkDelete(ids)
+			t.manager.SaveHistory()
+			t.list.ClearSelection()
+			t.list.Refresh()
+			ShowNotification(t.app, fmt.Sprintf("%d items deleted", count))
 		},
 		t.window,
 	)
