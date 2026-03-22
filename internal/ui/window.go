@@ -4,22 +4,91 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
 )
 
 // MainWindow represents the main application window
 type MainWindow struct {
-	window    fyne.Window
-	app       fyne.App
-	manager   *clipboard.Manager
+	window     fyne.Window
+	app        fyne.App
+	manager    *clipboard.Manager
 	quickPanel *QuickPanel
 
-	list    *HistoryList
-	preview *PreviewPane
-	toolbar *Toolbar
-	search  *SearchBar
-	status  *StatusBar
+	list       *HistoryList
+	preview    *PreviewPane
+	toolbar    *Toolbar
+	search     *SearchBar
+	status     *StatusBar
+	keyHandler *KeyHandler
+}
+
+// KeyHandler is a hidden widget that captures keyboard shortcuts
+type KeyHandler struct {
+	widget.BaseWidget
+	mw *MainWindow
+}
+
+// FocusGained is called when the widget gains focus
+func (kh *KeyHandler) FocusGained() {}
+
+// FocusLost is called when the widget loses focus
+func (kh *KeyHandler) FocusLost() {}
+
+// TypedKey handles keyboard input
+func (kh *KeyHandler) TypedKey(key *fyne.KeyEvent) {
+	switch key.Name {
+	case fyne.KeyDown:
+		kh.mw.moveSelection(1)
+	case fyne.KeyUp:
+		kh.mw.moveSelection(-1)
+	case fyne.KeyEnter:
+		if kh.mw.toolbar != nil {
+			kh.mw.toolbar.onCopy()
+		}
+	case fyne.KeyDelete:
+		if kh.mw.toolbar != nil {
+			kh.mw.toolbar.onDelete()
+		}
+	case fyne.KeyEscape:
+		if kh.mw.list != nil && kh.mw.list.IsSelectionMode() {
+			kh.mw.list.SetSelectionMode(false)
+			if kh.mw.toolbar != nil {
+				kh.mw.toolbar.SetSelectionModeActive(false)
+			}
+		}
+	case fyne.KeySpace:
+		if kh.mw.list != nil && kh.mw.list.IsSelectionMode() {
+			idx := kh.mw.manager.GetSelectedIndex()
+			if idx >= 0 {
+				kh.mw.list.ToggleSelection(idx)
+			}
+		} else if kh.mw.toolbar != nil {
+			kh.mw.toolbar.onCopy()
+		}
+	case fyne.KeyHome:
+		kh.mw.moveToTop()
+	case fyne.KeyEnd:
+		kh.mw.moveToBottom()
+	case fyne.KeyF1:
+		if kh.mw.quickPanel != nil {
+			kh.mw.quickPanel.Show()
+		}
+	}
+}
+
+// TypedRune handles character input
+func (kh *KeyHandler) TypedRune(r rune) {
+	// Not used
+}
+
+// Tapped is required by Tappable interface but we don't use it
+func (kh *KeyHandler) Tapped(_ *fyne.PointEvent) {}
+
+// CreateRenderer is required by Widget interface
+func (kh *KeyHandler) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(fyne.NewContainer())
 }
 
 // NewMainWindow creates a new main window
@@ -67,7 +136,20 @@ func (mw *MainWindow) Build() fyne.CanvasObject {
 	// Setup keyboard shortcuts
 	mw.setupShortcuts()
 
+	// Setup key handler for keyboard shortcuts
+	mw.setupKeyHandler()
+
 	return content
+}
+
+// setupKeyHandler creates and focuses the key handler widget
+func (mw *MainWindow) setupKeyHandler() {
+	kh := &KeyHandler{mw: mw}
+	kh.ExtendBaseWidget(kh)
+	mw.keyHandler = kh
+	
+	// Focus the key handler so it receives keyboard events
+	mw.window.Canvas().Focus(kh)
 }
 
 // setupShortcuts sets up the menu
@@ -126,16 +208,6 @@ func (mw *MainWindow) setupShortcuts() {
 
 	mainMenu := fyne.NewMainMenu(editMenu, viewMenu, helpMenu)
 	mw.window.SetMainMenu(mainMenu)
-
-	// Setup keyboard capture for navigation
-	mw.setupKeyCapture()
-}
-
-// setupKeyCapture sets up key capture for vim-style navigation
-func (mw *MainWindow) setupKeyCapture() {
-	// Note: Keyboard navigation is handled through the list widget's built-in support.
-	// This method can be extended later for custom keyboard shortcuts.
-	// For now, the basic navigation (arrow keys, enter, delete) works out of the box.
 }
 
 // moveSelection moves the selection up or down
