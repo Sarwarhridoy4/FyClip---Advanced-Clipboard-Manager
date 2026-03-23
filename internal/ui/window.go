@@ -39,6 +39,7 @@ func (kh *KeyHandler) FocusGained() {}
 func (kh *KeyHandler) FocusLost() {
 	// Re-focus immediately to keep receiving keyboard events
 	if kh.mw != nil && kh.mw.window != nil {
+		defer func() { recover() }() // Ignore focus errors during shutdown
 		kh.mw.window.Canvas().Focus(kh)
 	}
 }
@@ -174,6 +175,7 @@ func (mw *MainWindow) setupKeyHandler() {
 			// Check if our key handler has focus, if not, refocus it
 			currentFocused := canvas.Focused()
 			if currentFocused != kh {
+				defer func() { recover() }() // Ignore focus errors during shutdown
 				canvas.Focus(kh)
 			}
 		}
