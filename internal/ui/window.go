@@ -2,6 +2,8 @@
 package ui
 
 import (
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -35,8 +37,10 @@ func (kh *KeyHandler) FocusGained() {}
 
 // FocusLost is called when the widget loses focus
 func (kh *KeyHandler) FocusLost() {
-	// Note: We don't re-focus here as it can cause errors.
-	// The window will re-focus when needed.
+	// Re-focus immediately to keep receiving keyboard events
+	if kh.mw != nil && kh.mw.window != nil {
+		kh.mw.window.Canvas().Focus(kh)
+	}
 }
 
 // TypedKey handles keyboard input
@@ -139,15 +143,10 @@ func (mw *MainWindow) Build() fyne.CanvasObject {
 	// Setup keyboard shortcuts
 	mw.setupShortcuts()
 
-	// Setup key handler for keyboard shortcuts FIRST
-	// This must happen before adding it to the container
+	// Setup key handler for keyboard shortcuts
 	mw.setupKeyHandler()
 
-	// Wrap in a container with the hidden key handler
-	// This ensures the key handler is part of the canvas tree
-	mainContainer := container.NewStack(content, mw.keyHandler)
-
-	return mainContainer
+	return content
 }
 
 // setupKeyHandler creates and focuses the key handler widget
@@ -155,15 +154,31 @@ func (mw *MainWindow) setupKeyHandler() {
 	kh := &KeyHandler{mw: mw}
 	kh.ExtendBaseWidget(kh)
 	mw.keyHandler = kh
-
+	
 	// Focus the key handler so it receives keyboard events
-	if mw.window != nil && mw.window.Canvas() != nil {
-		mw.window.Canvas().Focus(kh)
-	}
-
-	// Note: We don't start a goroutine for periodic focus maintenance.
-	// Instead, we rely on explicit focus calls when needed (e.g., after window activation).
-	// This prevents 'Failed to focus object' errors during window state changes.
+	mw.window.Canvas().Focus(kh)
+	
+	// Start a goroutine to periodically ensure focus is maintained
+	// This ensures keyboard shortcuts work even after clicking on other elements
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			if mw.window == nil {
+				return
+			}
+			canvas := mw.window.Canvas()
+			if canvas == nil {
+				return
+			}
+			// Check if our key handler has focus, if not, refocus it
+			currentFocused := canvas.Focused()
+			if currentFocused != kh {
+				defer func() { recover() }() // Ignore focus errors
+				canvas.Focus(kh)
+			}
+		}
+	}()
 }
 
 // setupShortcuts sets up the menu
