@@ -14,16 +14,17 @@ import (
 
 // SystemTray manages the system tray integration
 type SystemTray struct {
-	app          fyne.App
-	window       fyne.Window
-	manager      *clipboard.Manager
-	autoStartMgr *platform.AutoStart
-	icon         fyne.Resource
+	app           fyne.App
+	window        fyne.Window
+	manager       *clipboard.Manager
+	autoStartMgr  *platform.AutoStart
+	icon          fyne.Resource
 
-	menu           *fyne.Menu
-	autoStartItem *fyne.MenuItem
-	pauseItem     *fyne.MenuItem
-	recentMenu    *fyne.Menu
+	menu            *fyne.Menu
+	autoStartItem   *fyne.MenuItem
+	pauseItem       *fyne.MenuItem
+	recentMenu     *fyne.Menu
+	restartCount   int
 }
 
 // New creates a new system tray
@@ -105,6 +106,10 @@ func (st *SystemTray) buildRecentMenuItems() []*fyne.MenuItem {
 	}
 
 	history := st.manager.GetFiltered()
+	if len(history) == 0 {
+		return append(items, fyne.NewMenuItem("No items", nil))
+	}
+
 	maxItems := 5
 	if len(history) < maxItems {
 		maxItems = len(history)
@@ -114,7 +119,7 @@ func (st *SystemTray) buildRecentMenuItems() []*fyne.MenuItem {
 		item := history[i]
 		text := item.DisplayText(40)
 		if item.Pinned {
-			text = "📌 " + text
+			text = "★ " + text
 		}
 
 		index := i
@@ -133,8 +138,8 @@ func (st *SystemTray) buildRecentMenuItems() []*fyne.MenuItem {
 	return items
 }
 
-// refreshRecentMenu updates the recent items submenu
-func (st *SystemTray) refreshRecentMenu() {
+// RefreshRecentMenu updates the recent items submenu
+func (st *SystemTray) RefreshRecentMenu() {
 	if st.recentMenu == nil {
 		return
 	}
@@ -206,9 +211,9 @@ func (st *SystemTray) updateAutoStartLabel() {
 	}
 
 	if st.autoStartMgr.IsEnabled() {
-		st.autoStartItem.Label = "Disable AutoStart"
+		st.autoStartItem.Label = "✓ Auto-Start"
 	} else {
-		st.autoStartItem.Label = "Enable AutoStart"
+		st.autoStartItem.Label = "Auto-Start"
 	}
 }
 
@@ -217,9 +222,9 @@ func (st *SystemTray) updatePauseLabel() {
 		return
 	}
 	if st.manager != nil && st.manager.IsMonitoringPaused() {
-		st.pauseItem.Label = "Resume Monitoring"
+		st.pauseItem.Label = "▶ Resume Monitoring"
 	} else {
-		st.pauseItem.Label = "Pause Monitoring (5m)"
+		st.pauseItem.Label = "⏸ Pause Monitoring"
 	}
 }
 

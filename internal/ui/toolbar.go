@@ -49,7 +49,7 @@ func NewToolbar(window fyne.Window, app fyne.App, manager *clipboard.Manager, li
 // Build creates the toolbar widget.
 func (t *Toolbar) Build() fyne.CanvasObject {
 	copyBtn := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), t.onCopy)
-	pinBtn := widget.NewButtonWithIcon("Pin/Unpin", theme.ViewRefreshIcon(), t.onPin)
+	pinBtn := widget.NewButtonWithIcon("Pin", theme.ConfirmIcon(), t.onPin)
 	t.favoritesBtn = widget.NewButtonWithIcon("", theme.ConfirmIcon(), t.onFavorites)
 	t.pauseBtn = widget.NewButtonWithIcon("", theme.MediaPauseIcon(), t.onPause)
 	deleteBtn := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), t.onDelete)
@@ -120,9 +120,11 @@ func (t *Toolbar) Build() fyne.CanvasObject {
 func (t *Toolbar) refreshToggleLabels() {
 	if t.favoritesBtn != nil {
 		if t.manager.IsPinnedOnly() {
-			t.favoritesBtn.SetText("All Items")
+			t.favoritesBtn.SetText("Show All")
+			t.favoritesBtn.SetIcon(theme.MenuIcon())
 		} else {
-			t.favoritesBtn.SetText("Favorites")
+			t.favoritesBtn.SetText("Pinned Only")
+			t.favoritesBtn.SetIcon(theme.RadioButtonIcon())
 		}
 	}
 	if t.pauseBtn != nil {
@@ -130,7 +132,7 @@ func (t *Toolbar) refreshToggleLabels() {
 			t.pauseBtn.SetText("Resume")
 			t.pauseBtn.SetIcon(theme.MediaPlayIcon())
 		} else {
-			t.pauseBtn.SetText("Pause 5m")
+			t.pauseBtn.SetText("Pause")
 			t.pauseBtn.SetIcon(theme.MediaPauseIcon())
 		}
 	}
@@ -222,7 +224,7 @@ func (t *Toolbar) onFavorites() {
 	}
 	t.refreshToggleLabels()
 	if enabled {
-		ShowNotification(t.app, "Showing favorites only")
+		ShowNotification(t.app, "Showing pinned items only")
 	} else {
 		ShowNotification(t.app, "Showing all items")
 	}
@@ -230,8 +232,8 @@ func (t *Toolbar) onFavorites() {
 
 func (t *Toolbar) onPause() {
 	if t.manager.IsMonitoringPaused() {
-		t.manager.ResumeMonitoring()
-		ShowNotification(t.app, "Clipboard monitoring resumed")
+		t.manager.PauseMonitoringFor(5 * time.Minute)
+		ShowNotification(t.app, "Clipboard monitoring paused for 5 minutes")
 	} else {
 		t.manager.PauseMonitoringFor(5 * time.Minute)
 		ShowNotification(t.app, "Clipboard monitoring paused for 5 minutes")

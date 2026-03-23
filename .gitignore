@@ -6,3 +6,4 @@ dist
 *fyclip
 *.deb
 *.tar.xz
+*.log

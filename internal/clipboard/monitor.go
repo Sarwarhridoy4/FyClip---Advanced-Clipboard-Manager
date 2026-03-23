@@ -32,8 +32,9 @@ type Monitor struct {
 	programmaticHash string
 	pausedUntil      time.Time
 
-	stopChan chan struct{}
-	running  bool
+	stopChan     chan struct{}
+	running     bool
+	restartCount int
 }
 
 // NewMonitor creates a new clipboard monitor
@@ -138,13 +139,18 @@ func (m *Monitor) monitorLoop() {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("Panic in monitor loop: %v", r)
-			// Attempt restart after panic
-			time.Sleep(1 * time.Second)
-			m.mu.RLock()
+			m.mu.Lock()
+			restartCount := m.restartCount
+			m.restartCount++
 			running := m.running
-			m.mu.RUnlock()
-			if running {
+			m.mu.Unlock()
+
+			// Limit restart attempts to prevent infinite loop
+			if running && restartCount < 3 {
+				time.Sleep(1 * time.Second)
 				go m.monitorLoop()
+			} else {
+				log.Printf("Monitor loop stopped after %d panic restarts", restartCount)
 			}
 		}
 	}()

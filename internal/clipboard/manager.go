@@ -39,7 +39,7 @@ type Manager struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	history  []Item
-	filtered []Item
+	filtered []*Item  // Changed to pointers to reduce memory copies
 	storage  *Storage
 	snippets  *SnippetManager
 	exclusions *ExclusionManager
@@ -65,6 +65,9 @@ type Manager struct {
 	saveChan     chan struct{}
 	shutdownChan chan struct{}
 	running      bool
+
+	// Memory tracking
+	lastMemoryCheck time.Time
 
 	// Callbacks
 	onUpdate func()
@@ -327,7 +330,7 @@ func (m *Manager) updateFiltered() {
 	defer m.mu.Unlock()
 
 	if cap(m.filtered) < len(m.history) {
-		m.filtered = make([]Item, 0, len(m.history))
+		m.filtered = make([]*Item, 0, len(m.history))
 	} else {
 		m.filtered = m.filtered[:0]
 	}
@@ -349,7 +352,7 @@ func (m *Manager) updateFiltered() {
 			continue
 		}
 		if match(item) {
-			m.filtered = append(m.filtered, *item)
+			m.filtered = append(m.filtered, item)
 		}
 	}
 	for i := range m.history {
@@ -361,11 +364,42 @@ func (m *Manager) updateFiltered() {
 			continue
 		}
 		if match(item) {
-			m.filtered = append(m.filtered, *item)
+			m.filtered = append(m.filtered, item)
 		}
 	}
 
 	m.selectedIndex = -1
+}
+
+// CheckMemoryPressure checks memory usage and triggers cleanup if needed
+func (m *Manager) CheckMemoryPressure() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := time.Now()
+	// Only check every 30 seconds to avoid overhead
+	if now.Sub(m.lastMemoryCheck) < 30*time.Second {
+		return
+	}
+	m.lastMemoryCheck = now
+
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
+	// If heap usage > 100MB, reduce history size by 20%
+	if memStats.Alloc > 100*1024*1024 {
+		oldMax := m.maxHistoryItems
+		m.maxHistoryItems = int(float64(m.maxHistoryItems) * 0.8)
+		if m.maxHistoryItems < 100 {
+			m.maxHistoryItems = 100
+		}
+		if m.maxHistoryItems < oldMax {
+			m.trimHistory()
+			if m.onInfo != nil {
+				m.onInfo(fmt.Sprintf("Memory pressure: reduced history from %d to %d", oldMax, m.maxHistoryItems))
+			}
+		}
+	}
 }
 
 // SetPinnedOnly controls whether only pinned items are shown.
@@ -519,7 +553,9 @@ func (m *Manager) GetFiltered() []Item {
 	defer m.mu.RUnlock()
 
 	items := make([]Item, len(m.filtered))
-	copy(items, m.filtered)
+	for i, p := range m.filtered {
+		items[i] = *p
+	}
 	return items
 }
 
@@ -538,7 +574,7 @@ func (m *Manager) GetItem(index int) (Item, bool) {
 	if index < 0 || index >= len(m.filtered) {
 		return Item{}, false
 	}
-	return m.filtered[index], true
+	return *m.filtered[index], true
 }
 
 // GetSelected returns the currently selected item
@@ -549,7 +585,7 @@ func (m *Manager) GetSelected() (Item, bool) {
 	if m.selectedIndex < 0 || m.selectedIndex >= len(m.filtered) {
 		return Item{}, false
 	}
-	return m.filtered[m.selectedIndex], true
+	return *m.filtered[m.selectedIndex], true
 }
 
 // GetSelectedIndex returns the selected index
