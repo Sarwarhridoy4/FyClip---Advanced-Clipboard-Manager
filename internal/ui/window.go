@@ -136,13 +136,17 @@ func (mw *MainWindow) Build() fyne.CanvasObject {
 		split,
 	)
 
+	// Wrap in a container with the hidden key handler
+	// This ensures the key handler is part of the canvas tree
+	mainContainer := container.NewStack(content, mw.keyHandler)
+
 	// Setup keyboard shortcuts
 	mw.setupShortcuts()
 
 	// Setup key handler for keyboard shortcuts
 	mw.setupKeyHandler()
 
-	return content
+	return mainContainer
 }
 
 // setupKeyHandler creates and focuses the key handler widget
