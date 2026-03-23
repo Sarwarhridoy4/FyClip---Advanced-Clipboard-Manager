@@ -80,6 +80,10 @@ func New() *App {
 				if a.mainUI != nil {
 					a.mainUI.Refresh()
 				}
+				// Also refresh the tray menu to update recent items
+				if a.tray != nil {
+					a.tray.RefreshRecentMenu()
+				}
 			})
 		},
 		OnError: func(err error) {

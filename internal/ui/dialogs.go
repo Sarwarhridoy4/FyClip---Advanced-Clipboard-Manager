@@ -28,20 +28,24 @@ const (
 	appCopyright = "© 2024-2026"
 )
 
-// ShowAboutDialog displays a professional about dialog
+// ShowAboutDialog displays a professional about dialog with enhanced styling
 func ShowAboutDialog(window fyne.Window, app fyne.App) {
 	aboutWindow := app.NewWindow("About FyClip")
-	aboutWindow.Resize(fyne.NewSize(450, 550))
+	aboutWindow.Resize(fyne.NewSize(480, 620))
 	aboutWindow.SetFixedSize(true)
 
-	// App icon
-	appIcon := widget.NewIcon(theme.FyneLogo())
-	appIcon.Resize(fyne.NewSize(64, 64))
+	// Load custom app icon
+	appIconResource, err := fyne.LoadResourceFromPath("internal/app/assets/icon.png")
+	if err != nil || appIconResource == nil {
+		appIconResource = theme.FyneLogo()
+	}
+	appIcon := widget.NewIcon(appIconResource)
+	appIcon.Resize(fyne.NewSize(80, 80))
 
-	// Title
+	// Title with larger font
 	title := widget.NewLabel("FyClip")
 	title.Alignment = fyne.TextAlignCenter
-	title.TextStyle.Bold = true
+	title.TextStyle = fyne.TextStyle{Bold: true}
 
 	// Tagline
 	tagline := widget.NewLabel("Advanced Clipboard Manager")
@@ -51,70 +55,112 @@ func ShowAboutDialog(window fyne.Window, app fyne.App) {
 	// Version info
 	versionLabel := widget.NewLabel(fmt.Sprintf("Version %s", appVersion))
 	versionLabel.Alignment = fyne.TextAlignCenter
+	versionLabel.TextStyle = fyne.TextStyle{Bold: true}
 
-	// Separator
+	// Main separator
 	separator1 := widget.NewSeparator()
 
-	// Description
+	// Description with better formatting
 	descLabel := widget.NewLabel("A modular, high-performance clipboard manager\nbuilt with Go and Fyne.")
 	descLabel.Alignment = fyne.TextAlignCenter
 	descLabel.Wrapping = fyne.TextWrapWord
 
-	// Features section
-	featuresTitle := widget.NewLabel("Features")
+	// Features section with icons
+	featuresTitle := widget.NewLabel("✨ Features")
 	featuresTitle.Alignment = fyne.TextAlignCenter
-	featuresTitle.TextStyle.Bold = true
+	featuresTitle.TextStyle = fyne.TextStyle{Bold: true}
 
-	features := widget.NewLabel("• Clipboard History\n• Rich Text/HTML Support\n• File Path History\n• Encrypted Storage\n• Snippets & Templates\n• Global Hotkey Quick Panel")
-	features.Alignment = fyne.TextAlignLeading
-	features.Wrapping = fyne.TextWrapWord
+	// Create icon-based feature list
+	featureList := container.NewVBox()
+	featureItems := []struct {
+		icon  fyne.Resource
+		text string
+	}{
+		{theme.ContentCopyIcon(), "Clipboard History"},
+		{theme.FileTextIcon(), "Rich Text/HTML Support"},
+		{theme.FolderIcon(), "File Path History"},
+		{theme.ConfirmIcon(), "Encrypted Storage"},
+		{theme.DocumentCreateIcon(), "Snippets & Templates"},
+		{theme.SearchIcon(), "Global Hotkey Quick Panel"},
+	}
 
-	// Separator
+	for _, item := range featureItems {
+		icon := widget.NewIcon(item.icon)
+		icon.Resize(fyne.NewSize(16, 16))
+		label := widget.NewLabel(item.text)
+		row := container.NewHBox(icon, widget.NewLabel(" "), label)
+		featureList.Add(row)
+	}
+
+	// Wrap features in a card
+	featuresCard := widget.NewCard("", "", container.NewPadded(featureList))
+
+	// Developer section
 	separator2 := widget.NewSeparator()
-
-	// Developer info
-	devTitle := widget.NewLabel("Developer")
+	devTitle := widget.NewLabel("👨‍💻 Developer")
 	devTitle.Alignment = fyne.TextAlignCenter
-	devTitle.TextStyle.Bold = true
+	devTitle.TextStyle = fyne.TextStyle{Bold: true}
 
 	devName := widget.NewLabel("Sarwar Hossain")
 	devName.Alignment = fyne.TextAlignCenter
-	devName.TextStyle.Bold = true
+	devName.TextStyle = fyne.TextStyle{Bold: true}
 
-	// Contact links
+	// Contact links with icons
+	githubIcon := widget.NewIcon(theme.InfoIcon())
+	githubIcon.Resize(fyne.NewSize(16, 16))
 	githubLink := widget.NewHyperlink("GitHub", nil)
 	_ = githubLink.SetURLFromString("https://github.com/Sarwarhridoy4")
 	githubLink.Alignment = fyne.TextAlignCenter
 
+	emailIcon := widget.NewIcon(theme.MailSendIcon())
+	emailIcon.Resize(fyne.NewSize(16, 16))
 	emailLink := widget.NewHyperlink("Email", nil)
 	_ = emailLink.SetURLFromString("mailto:sarwarhridoy4@gmail.com")
 	emailLink.Alignment = fyne.TextAlignCenter
 
 	contactBox := container.NewHBox(
 		layout.NewSpacer(),
-		githubLink,
-		widget.NewLabel("  |  "),
-		emailLink,
+		container.NewHBox(githubIcon, githubLink),
+		widget.NewLabel("   |   "),
+		container.NewHBox(emailIcon, emailLink),
 		layout.NewSpacer(),
 	)
 
-	// Separator
+	// License and copyright
 	separator3 := widget.NewSeparator()
-
-	// License
-	licenseLabel := widget.NewLabel("MIT License")
+	licenseLabel := widget.NewLabel("📄 MIT License")
 	licenseLabel.Alignment = fyne.TextAlignCenter
-	licenseLabel.TextStyle.Italic = true
+	licenseLabel.TextStyle = fyne.TextStyle{Italic: true}
 
-	copyrightLabel := widget.NewLabel(fmt.Sprintf("%s Sarwar Hossain. All rights reserved.", appCopyright))
+	copyrightLabel := widget.NewLabel(fmt.Sprintf("© %s Sarwar Hossain. All rights reserved.", appCopyright))
 	copyrightLabel.Alignment = fyne.TextAlignCenter
 
-	// Technology stack
-	techTitle := widget.NewLabel("Built with")
+	// Technology stack with icons
+	techTitle := widget.NewLabel("🔧 Built With")
 	techTitle.Alignment = fyne.TextAlignCenter
+	techTitle.TextStyle = fyne.TextStyle{Bold: true}
 
-	techStack := widget.NewLabel("• Go 1.21+\n• Fyne v2.7+\n• AES-256-GCM Encryption")
-	techStack.Alignment = fyne.TextAlignCenter
+	techList := container.NewVBox()
+	techItems := []struct {
+		icon  fyne.Resource
+		text string
+	}{
+		{theme.FileTextIcon(), "Go 1.21+"},
+		{theme.FyneLogo(), "Fyne v2.7+"},
+		{theme.ConfirmIcon(), "AES-256-GCM Encryption"},
+	}
+
+	for _, item := range techItems {
+		icon := widget.NewIcon(item.icon)
+		icon.Resize(fyne.NewSize(16, 16))
+		label := widget.NewLabel(item.text)
+		label.Alignment = fyne.TextAlignLeading
+		row := container.NewHBox(icon, widget.NewLabel(" "), label)
+		techList.Add(row)
+	}
+
+	// Wrap tech stack in a card
+	techCard := widget.NewCard("", "", container.NewPadded(techList))
 
 	// Close button
 	closeBtn := widget.NewButton("Close", func() {
@@ -122,23 +168,23 @@ func ShowAboutDialog(window fyne.Window, app fyne.App) {
 	})
 	closeBtn.Importance = widget.HighImportance
 
-	// Main content
+	// Main content - organized with proper spacing
 	content := container.NewVBox(
 		container.NewHBox(layout.NewSpacer(), appIcon, layout.NewSpacer()),
-		title,
+		container.NewPadded(title),
 		tagline,
 		versionLabel,
 		separator1,
 		descLabel,
 		container.NewPadded(featuresTitle),
-		container.NewPadded(features),
+		container.NewPadded(featuresCard),
 		separator2,
 		container.NewPadded(devTitle),
 		devName,
 		contactBox,
 		separator3,
 		container.NewPadded(techTitle),
-		techStack,
+		techCard,
 		separator3,
 		licenseLabel,
 		copyrightLabel,
@@ -147,7 +193,7 @@ func ShowAboutDialog(window fyne.Window, app fyne.App) {
 
 	// Scroll container for smaller screens
 	scrollContent := container.NewScroll(content)
-	scrollContent.SetMinSize(fyne.NewSize(450, 550))
+	scrollContent.SetMinSize(fyne.NewSize(480, 620))
 
 	aboutWindow.SetContent(scrollContent)
 	aboutWindow.CenterOnScreen()
@@ -257,87 +303,109 @@ func SaveImage(item clipboard.Item, filename, format string) error {
 	return nil
 }
 
-// ShowFeaturesDialog displays a dialog explaining how each feature works
+// ShowFeaturesDialog displays a professional dialog with feature descriptions
 func ShowFeaturesDialog(window fyne.Window, app fyne.App) {
 	featuresWindow := app.NewWindow("Features Guide")
-	featuresWindow.Resize(fyne.NewSize(500, 600))
+	featuresWindow.Resize(fyne.NewSize(550, 650))
 	featuresWindow.SetFixedSize(true)
 
-	// Title
-	title := widget.NewLabel("FyClip Features Guide")
+	// Title with styling
+	title := widget.NewLabel("📖 FyClip Features Guide")
 	title.Alignment = fyne.TextAlignCenter
-	title.TextStyle.Bold = true
+	title.TextStyle = fyne.TextStyle{Bold: true}
 
-	// Separator
+	// Main separator
 	separator := widget.NewSeparator()
 
-	// Features list with descriptions
+	// Features list with icons and descriptions
 	features := []struct {
+		icon        fyne.Resource
 		name        string
 		description string
 	}{
 		{
-			name:        "Clipboard History",
+			icon:        theme.ContentCopyIcon(),
+			name:        "📋 Clipboard History",
 			description: "Automatically captures and stores all clipboard content (text, images, HTML, files). Access your history anytime with the global hotkey.",
 		},
 		{
-			name:        "Pin/Unpin Items",
+			icon:        theme.ConfirmIcon(),
+			name:        "📌 Pin/Unpin Items",
 			description: "Pin important items to keep them at the top of your history. Pinned items are never automatically cleared.",
 		},
 		{
-			name:        "Favorites Filter",
+			icon:        theme.RadioButtonIcon(),
+			name:        "⭐ Favorites Filter",
 			description: "Toggle between showing all items or only pinned favorites. Quickly access your most important clipboard entries.",
 		},
 		{
-			name:        "Pause Monitoring",
+			icon:        theme.MediaPauseIcon(),
+			name:        "⏸️ Pause Monitoring",
 			description: "Temporarily pause clipboard monitoring for 5 minutes. Useful when copying sensitive information you don't want stored.",
 		},
 		{
-			name:        "Search",
+			icon:        theme.SearchIcon(),
+			name:        "🔍 Search",
 			description: "Search through your clipboard history by content. Quickly find specific items you copied earlier.",
 		},
 		{
-			name:        "Preview Pane",
+			icon:        theme.FileIcon(),
+			name:        "👁️ Preview Pane",
 			description: "View detailed preview of selected items. Supports text, images, HTML, and file information with syntax highlighting.",
 		},
 		{
-			name:        "Export",
+			icon:        theme.DocumentSaveIcon(),
+			name:        "💾 Export",
 			description: "Export selected items to files. Text items are saved as .txt files, images can be saved as PNG or JPEG.",
 		},
 		{
-			name:        "Snippets",
+			icon:        theme.DocumentCreateIcon(),
+			name:        "✂️ Snippets",
 			description: "Create and manage text snippets for quick insertion. Use abbreviations for faster access.\n\nTemplate Variables:\n• {{date}} - Current date (YYYY-MM-DD)\n• {{time}} - Current time (HH:MM:SS)\n• {{datetime}} - Full date and time\n• {{year}} - Current year\n• {{month}} - Current month (01-12)\n• {{day}} - Current day (01-31)\n• {{clipboard}} - Current clipboard content\n\nTo use: Click Snippets button in toolbar, select a snippet, and click Use to copy to clipboard.",
 		},
 		{
-			name:        "Quick Panel",
+			icon:        theme.SearchReplaceIcon(),
+			name:        "⚡ Quick Panel",
 			description: "Access clipboard history with a global hotkey (Ctrl+Shift+V). Paste items without switching windows.",
 		},
 		{
-			name:        "Clear History",
+			icon:        theme.DeleteIcon(),
+			name:        "🗑️ Clear History",
 			description: "Clear all unpinned items from history. Pinned items are preserved for future use.",
 		},
 		{
-			name:        "Refresh",
+			icon:        theme.ViewRefreshIcon(),
+			name:        "🔄 Refresh",
 			description: "Manually refresh the clipboard history list. Useful if items aren't updating automatically.",
 		},
 	}
 
-	// Create feature items
-	featureItems := []fyne.CanvasObject{}
+	// Create feature cards with icons
+	var featureCardList []fyne.CanvasObject
 	for _, f := range features {
-		nameLabel := widget.NewLabel(f.name)
-		nameLabel.TextStyle.Bold = true
-		nameLabel.Wrapping = fyne.TextWrapWord
+		// Feature icon
+		icon := widget.NewIcon(f.icon)
+		icon.Resize(fyne.NewSize(18, 18))
 
+		// Feature name
+		nameLabel := widget.NewLabel(f.name)
+		nameLabel.TextStyle = fyne.TextStyle{Bold: true}
+		nameLabel.Wrapping = fyne.TextWrapOff
+
+		// Feature description
 		descLabel := widget.NewLabel(f.description)
 		descLabel.Wrapping = fyne.TextWrapWord
 
-		featureBox := container.NewVBox(
-			nameLabel,
+		// Use grid layout for horizontal arrangement: icon | name | description
+		gridContent := container.NewGridWithRows(1,
+			icon,
+			container.NewPadded(nameLabel),
 			descLabel,
-			widget.NewSeparator(),
 		)
-		featureItems = append(featureItems, featureBox)
+
+		// Wrap in a card for professional look
+		card := widget.NewCard("", "", container.NewPadded(gridContent))
+		featureCardList = append(featureCardList, card)
 	}
 
 	// Close button
@@ -351,14 +419,14 @@ func ShowFeaturesDialog(window fyne.Window, app fyne.App) {
 		title,
 		separator,
 	)
-	for _, item := range featureItems {
-		content.Add(item)
+	for _, card := range featureCardList {
+		content.Add(card)
 	}
 	content.Add(container.NewPadded(closeBtn))
 
 	// Scroll container for smaller screens
 	scrollContent := container.NewScroll(content)
-	scrollContent.SetMinSize(fyne.NewSize(500, 600))
+	scrollContent.SetMinSize(fyne.NewSize(550, 650))
 
 	featuresWindow.SetContent(scrollContent)
 	featuresWindow.CenterOnScreen()

@@ -174,6 +174,7 @@ func (mw *MainWindow) setupKeyHandler() {
 			// Check if our key handler has focus, if not, refocus it
 			currentFocused := canvas.Focused()
 			if currentFocused != kh {
+				defer func() { recover() }() // Ignore focus errors
 				canvas.Focus(kh)
 			}
 		}
