@@ -292,7 +292,7 @@ get_version() {
 # Main build function
 main() {
     echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}  FyClip Build Script v2.1${NC}"
+    echo -e "${BLUE}  FyClip Build Script v2.1.1${NC}"
     echo -e "${BLUE}  Auto-installs all dependencies${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""

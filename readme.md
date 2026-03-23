@@ -2,7 +2,7 @@
 
 A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
-**Current Version**: 2.1.0
+**Current Version**: 2.1.1
 
 ## Features
 
@@ -61,6 +61,7 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 - ✅ **Graceful Shutdown**: Context-based shutdown with hooks
 - ✅ **System Tray**: Recent items submenu, Clear History action
 - ✅ **Preview Enhancements**: JSON pretty-printing, file info display
+- ✅ **Test Coverage**: Improved test assertions to eliminate linter warnings
 
 ### Performance Snapshot (internal/clipboard benchmarks)
 

@@ -2,7 +2,7 @@
 Icon = "icon.png"
 Name = "FyClip"
 ID = "com.sarwar.fyclip"
-Version = "2.1.0"
+Version = "2.1.1"
 Build = 2
 
 [LinuxAndBSD]
