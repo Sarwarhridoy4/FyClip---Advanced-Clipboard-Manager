@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed unused write warnings in test files (improved test coverage)
 - Added missing field assertions in TestItemIDField, TestItemJSONFields, and TestItemCopyCount
+- Resolved import metadata issue with internal/ui package (gopls cache)
+- Updated .gitignore with proper build artifact patterns
+- Synced dependencies in go.sum
 
 ---
 
