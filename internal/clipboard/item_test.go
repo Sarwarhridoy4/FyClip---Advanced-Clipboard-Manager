@@ -303,6 +303,26 @@ func TestItemIDField(t *testing.T) {
 		t.Errorf("ID = %v; want test-id-123", item.ID)
 	}
 
+	// Verify Type field is set correctly
+	if item.Type != TypeText {
+		t.Errorf("Type = %v; want TypeText", item.Type)
+	}
+
+	// Verify Content field is set correctly
+	if item.Content != "Test content" {
+		t.Errorf("Content = %v; want Test content", item.Content)
+	}
+
+	// Verify Timestamp is set
+	if item.Timestamp.IsZero() {
+		t.Error("Timestamp should not be zero")
+	}
+
+	// Verify Hash is set correctly
+	if item.Hash != "abc123" {
+		t.Errorf("Hash = %v; want abc123", item.Hash)
+	}
+
 	// Note: Pinned defaults to false (zero value)
 	// Test is primarily checking field assignment
 	_ = item.Pinned
@@ -333,11 +353,23 @@ func TestItemJSONFields(t *testing.T) {
 	if item.Type != TypeText {
 		t.Errorf("Type = %v; want TypeText", item.Type)
 	}
+	if item.Content != "test" {
+		t.Errorf("Content = %v; want test", item.Content)
+	}
+	if item.Timestamp.IsZero() {
+		t.Error("Timestamp should not be zero")
+	}
 	if !item.Pinned {
 		t.Error("Pinned should be true")
 	}
 	if item.CopyCount != 5 {
 		t.Errorf("CopyCount = %v; want 5", item.CopyCount)
+	}
+	if item.Hash != "hash123" {
+		t.Errorf("Hash = %v; want hash123", item.Hash)
+	}
+	if item.searchContent != "search" {
+		t.Errorf("searchContent = %v; want search", item.searchContent)
 	}
 }
 
@@ -360,6 +392,17 @@ func TestItemCopyCount(t *testing.T) {
 
 	if item.CopyCount != 2 {
 		t.Errorf("CopyCount = %v; want 2", item.CopyCount)
+	}
+
+	// Verify fields are set correctly
+	if item.ID != "copy-test" {
+		t.Errorf("ID = %v; want copy-test", item.ID)
+	}
+	if item.Type != TypeText {
+		t.Errorf("Type = %v; want TypeText", item.Type)
+	}
+	if item.Content != "Test" {
+		t.Errorf("Content = %v; want Test", item.Content)
 	}
 }
 
