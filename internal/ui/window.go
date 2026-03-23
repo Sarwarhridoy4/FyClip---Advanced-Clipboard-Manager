@@ -35,11 +35,8 @@ func (kh *KeyHandler) FocusGained() {}
 
 // FocusLost is called when the widget loses focus
 func (kh *KeyHandler) FocusLost() {
-	// Re-focus immediately to keep receiving keyboard events
-	if kh.mw != nil && kh.mw.window != nil {
-		defer func() { recover() }() // Ignore focus errors during shutdown
-		kh.mw.window.Canvas().Focus(kh)
-	}
+	// Note: We don't re-focus here as it can cause errors.
+	// The window will re-focus when needed.
 }
 
 // TypedKey handles keyboard input
