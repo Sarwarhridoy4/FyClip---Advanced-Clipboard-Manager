@@ -136,15 +136,16 @@ func (mw *MainWindow) Build() fyne.CanvasObject {
 		split,
 	)
 
-	// Wrap in a container with the hidden key handler
-	// This ensures the key handler is part of the canvas tree
-	mainContainer := container.NewStack(content, mw.keyHandler)
-
 	// Setup keyboard shortcuts
 	mw.setupShortcuts()
 
-	// Setup key handler for keyboard shortcuts
+	// Setup key handler for keyboard shortcuts FIRST
+	// This must happen before adding it to the container
 	mw.setupKeyHandler()
+
+	// Wrap in a container with the hidden key handler
+	// This ensures the key handler is part of the canvas tree
+	mainContainer := container.NewStack(content, mw.keyHandler)
 
 	return mainContainer
 }
@@ -154,9 +155,11 @@ func (mw *MainWindow) setupKeyHandler() {
 	kh := &KeyHandler{mw: mw}
 	kh.ExtendBaseWidget(kh)
 	mw.keyHandler = kh
-	
+
 	// Focus the key handler so it receives keyboard events
-	mw.window.Canvas().Focus(kh)
+	if mw.window != nil && mw.window.Canvas() != nil {
+		mw.window.Canvas().Focus(kh)
+	}
 
 	// Note: We don't start a goroutine for periodic focus maintenance.
 	// Instead, we rely on explicit focus calls when needed (e.g., after window activation).
