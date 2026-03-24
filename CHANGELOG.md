@@ -73,6 +73,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated .gitignore with proper build artifact patterns
 - Synced dependencies in go.sum
 
+### Performance
+- **Object Pool Integration**: Added sync.Pool for Item reuse to reduce GC pressure
+- **Regex Cache**: Compiled regex patterns cached for faster repeated searches
+- **Fuzzy Search Optimization**: Optimized subsequence matching with reduced allocations
+
 ---
 
 ## [Previous Versions]

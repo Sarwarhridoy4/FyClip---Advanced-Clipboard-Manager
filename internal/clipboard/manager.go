@@ -256,17 +256,19 @@ func (m *Manager) AddItem(item Item) AddItemResult {
 	}
 
 	// Add new item
-	item.ID = fmt.Sprintf("%d", time.Now().UnixNano())
-	item.Timestamp = time.Now()
+	newItem := GetFromPool()
+	*newItem = item
+	newItem.ID = fmt.Sprintf("%d", time.Now().UnixNano())
+	newItem.Timestamp = time.Now()
 
 	// Auto-detect category based on content
-	item.AutoDetectCategory()
+	newItem.AutoDetectCategory()
 
 	// Add to history and update index maps
 	newIndex := len(m.history)
-	m.history = append(m.history, item)
+	m.history = append(m.history, *newItem)
 	m.hashIndexMap[hashKey] = newIndex
-	m.idIndexMap[item.ID] = newIndex
+	m.idIndexMap[newItem.ID] = newIndex
 
 	// Trim unpinned items
 	m.trimHistory()
@@ -294,6 +296,9 @@ func (m *Manager) removeAtIndex(idx int) {
 
 	// Remove from history
 	m.history = append(m.history[:idx], m.history[idx+1:]...)
+
+	// Return removed item to pool
+	ReturnToPool(&item)
 
 	// Rebuild index maps for indices after removed position
 	// This is necessary because all subsequent indices shift by 1

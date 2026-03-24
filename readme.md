@@ -398,6 +398,9 @@ Settings are automatically saved to:
 - **Coalesced Saves**: History persistence requests are serialized and debounced (250ms)
 - **O(1) Lookups**: Hash maps for duplicate detection and item access
 - **Efficient Filtering**: Search avoids repeated lowercasing and minimizes allocation churn
+- **Object Pool**: sync.Pool for Item reuse to reduce GC pressure
+- **Regex Cache**: Compiled regex patterns cached for faster repeated searches
+- **Fuzzy Search**: Optimized subsequence matching with reduced allocations
 - **Thread-Safe**: Proper mutex usage throughout
 - **Selection Fast Path**: Selecting list items avoids redundant full-window refreshes
 - **Duplicate Promotion**: Existing duplicates move to latest with notification
