@@ -1,6 +1,7 @@
 # Build outputs - dist folder is kept for releases
 # Files in dist/ with version numbers are tracked
-dist/
+dist
+
 
 # Build artifacts to ignore (not versioned)
 *.exe
