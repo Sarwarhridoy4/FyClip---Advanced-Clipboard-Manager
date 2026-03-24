@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-03-24
+
+### Fixed
+- **Unused Function Warning**: Exported `clearRegexCache` to `ClearRegexCache` for test usage
+- **Race Condition**: Fixed thread-safety issue in `searchWithRegex` by using single lock with defer
+
+### Performance
+- **Object Pool Integration**: Added sync.Pool for Item reuse to reduce GC pressure
+- **Regex Cache**: Compiled regex patterns cached for faster repeated searches
+- **Fuzzy Search Optimization**: Optimized subsequence matching with reduced allocations
+
 ## [2.1.1] - 2026-03-24
 
 ### Added
@@ -72,6 +83,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved import metadata issue with internal/ui package (gopls cache)
 - Updated .gitignore with proper build artifact patterns
 - Synced dependencies in go.sum
+
+### Performance
+- **Object Pool Integration**: Added sync.Pool for Item reuse to reduce GC pressure
+- **Regex Cache**: Compiled regex patterns cached for faster repeated searches
+- **Fuzzy Search Optimization**: Optimized subsequence matching with reduced allocations
 
 ---
 
