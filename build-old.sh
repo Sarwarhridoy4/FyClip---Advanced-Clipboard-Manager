@@ -1,6 +1,6 @@
 #!/bin/bash
 # =====================================================================
-# FyClip Build & Package Script (Debian + AppImage + Tarball)
+# FyClip Build & Package Script (Debian + AppImage)
 # Auto-installs all necessary tools for building
 # =====================================================================
 
@@ -25,7 +25,6 @@ WORK_DIR="${DIST_DIR}/work"
 FYNE_ROOT="${WORK_DIR}/fyne-root"
 DEB_ROOT="${WORK_DIR}/deb-root"
 APPDIR="${WORK_DIR}/FyClip.AppDir"
-TARBALL_ROOT="${WORK_DIR}/tarball-root"
 LOCAL_TOOLS_DIR="$(pwd)/${DIST_DIR}/.tools"
 
 # Detect package manager
@@ -327,7 +326,6 @@ main() {
     rm -rf "${FYNE_ROOT}" "${DEB_ROOT}" "${APPDIR}"
     rm -f "${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb" \
            "${DIST_DIR}/${PKG_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage" \
-           "${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.tar.gz" \
            "${APP_NAME}.tar.xz"
     
     # Build with Fyne
@@ -421,20 +419,8 @@ Section: utils
 Priority: optional
 Architecture: ${ARCH}
 Maintainer: ${AUTHOR} <${EMAIL}>
-Depends: libgl1, libx11-6, libxcursor1, libxrandr2, libxinerama1, libxi6, libgtk-3-0, xclip | xsel | wl-clipboard
-Description: A modular, high-performance clipboard manager
- FyClip is a powerful, feature-rich clipboard manager built with Go and Fyne.
- .
- Key features:
-  * Clipboard History: Automatically saves text, images, HTML, and files
-  * Pin Items: Keep important items at the top
-  * Enhanced Search: Regex, case-sensitive, and fuzzy matching
-  * Image Support: Preview and save clipboard images
-  * Encrypted Storage: AES-256-GCM encryption at rest
-  * Snippets: Save and expand text templates
-  * AutoStart: Launch on system startup
-  * Theme Support: Light, Dark, and System theme modes
-  * Auto Update: Check for and install updates from GitHub
+Depends: libgl1, libx11-6, libxcursor1, libxrandr2, libxinerama1, libxi6, libgtk-3-0, xclip, xsel, wl-clipboard
+Description: FyClip - Advanced Clipboard Manager
 EOF
     
     cat > "${DEB_ROOT}/DEBIAN/postinst" <<'EOF'
@@ -500,231 +486,8 @@ EOF
     
     log_success "AppImage built: ${DIST_DIR}/${PKG_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
     
-    # ---------------------------------------------------------------------
-    # Build Tarball
-    # ---------------------------------------------------------------------
-    log_info "Building tarball..."
-    rm -rf "${TARBALL_ROOT}"
-    mkdir -p "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}"
-    
-    # Copy application files
-    mkdir -p "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/bin"
-    cp -f "${BIN_PATH}" "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/bin/${BIN_NAME}"
-    chmod +x "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/bin/${BIN_NAME}"
-    
-    # Copy desktop file
-    mkdir -p "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/applications"
-    cp -f "${DESKTOP_PATH}" "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/applications/${APP_ID}.desktop"
-    
-    # Copy icon files
-    mkdir -p "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/icons/hicolor/256x256/apps"
-    cp -f "${ICON_PATH}" "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/icons/hicolor/256x256/apps/${APP_ID}.${ICON_EXT}"
-    
-    # Copy LICENSE file
-    cp -f "Licence" "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/LICENSE"
-    
-    # Create README for the tarball
-    cat > "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/README.md" <<'TARBALL_README'
-# FyClip - Advanced Clipboard Manager
-
-A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
-
-**Current Version**: ${VERSION}
-
-## Features
-
-- 📋 **Clipboard History**: Automatically saves text, images, HTML, and files
-- 📌 **Pin Items**: Keep important items at the top
-- ⭐ **Favorites View**: Toggle pinned-only view instantly
-- 🔍 **Enhanced Search**: Regex, case-sensitive, and fuzzy matching
-- ❌ **Clear Search**: One-click reset for the search box
-- 🖼️ **Image Support**: Preview and save clipboard images
-- 📝 **HTML Support**: Capture and preserve HTML formatting
-- 📁 **File History**: Track files copied from file manager
-- 📤 **Unified Export**: Export selected text or images from one action
-- 📝 **Markdown Preview**: Markdown content renders correctly in preview pane
-- 🕒 **Relative Time + Reuse Count**: List rows show recency and copy frequency
-- 💾 **Persistent Storage**: History saved across sessions
-- 🔒 **Encrypted Storage**: AES-256-GCM encryption at rest
-- ☁️ **Encrypted Backup**: Password-protected backup and restore
-- 📝 **Snippets**: Save and expand text templates
-- 🚀 **AutoStart**: Launch on system startup
-- ⏸️ **Pause Capture**: Pause monitoring for 5 minutes from toolbar/tray
-- 🎨 **Theme Support**: Light, Dark, and System theme modes with easy switching
-- ⚡ **Performance**: Debounced updates, async operations, O(1) lookups
-- 🔒 **Thread-Safe**: Proper concurrency handling
-- 🛡️ **Sensitive Data Detection**: Auto-detect credit cards, SSN, API keys
-- 📦 **Bulk Operations**: Multi-select items for batch delete/pin/unpin
-- 🏷️ **Smart Categories & Tags**: Auto-categorize content (Links, Code, Contacts, etc.)
-- ⌨️ **Enhanced Keyboard Navigation**: Arrow keys, Enter, Delete, Escape, Space, Home/End, F1
-- ⬆️ **Auto Update**: Check for and install updates from GitHub releases
-- 📦 **Linux Packaging**: Official support for .deb, .AppImage, and tarball
-
-## Installation
-
-### Using DEB Package (Debian/Ubuntu)
-```bash
-sudo dpkg -i fyclip_<version>_amd64.deb
-sudo apt-get install -f  # Install dependencies
-```
-
-### Using AppImage
-```bash
-chmod +x fyclip_<version>_x86_64.AppImage
-./fyclip_<version>_x86_64.AppImage
-```
-
-### Using Tarball
-```bash
-tar -xzf fyclip_<version>_linux_amd64.tar.gz
-cd fyclip_<version>_linux_amd64
-sudo ./install.sh
-```
-
-## Usage
-
-- Launch FyClip from your application menu or terminal
-- Use the system tray icon to access clipboard history
-- Press the global hotkey (default: Ctrl+Alt+V) to show the quick paste panel
-- Right-click on tray icon for settings and options
-- Use search with regex, case-sensitive, or fuzzy matching
-- Pin important items to keep them at the top
-- Create snippets for frequently used text templates
-
-## System Requirements
-
-- Linux with X11 or Wayland
-- GTK 3.0
-- xclip, xsel, or wl-clipboard for clipboard access
-- libgl1, libx11-6, libxcursor1, libxrandr2, libxinerama1, libxi6
-
-## License
-
-MIT License - See LICENSE file for details
-
-## Author
-
-Copyright (c) 2026 Sarwar Hossain
-Email: sarwarhridoy4@gmail.com
-TARBALL_README
-    
-    # Create INSTALL file
-    cat > "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/INSTALL" <<'TARBALL_INSTALL'
-# FyClip Installation Instructions
-
-## Quick Install
-
-1. Extract the tarball:
-   tar -xzf fyclip_<version>_linux_amd64.tar.gz
-
-2. Run the install script (as root):
-   cd fyclip_<version>_linux_amd64
-   sudo ./install.sh
-
-3. Launch FyClip from your application menu or run 'fyclip'
-
-## Manual Install
-
-If you prefer manual installation:
-
-1. Copy the binary to /usr/local/bin:
-   sudo cp bin/fyclip /usr/local/bin/
-
-2. Copy desktop file:
-   sudo cp share/applications/com.sarwar.fyclip.desktop /usr/share/applications/
-
-3. Copy icon files:
-   sudo cp -r share/icons/* /usr/share/icons/
-
-4. Update icon cache:
-   sudo gtk-update-icon-cache -f /usr/share/icons/hicolor
-
-## Uninstall
-
-Run (as root):
-   ./uninstall.sh
-
-Or manually remove:
-   sudo rm /usr/local/bin/fyclip
-   sudo rm /usr/share/applications/com.sarwar.fyclip.desktop
-   sudo rm -rf /usr/share/icons/hicolor/apps/com.sarwar.fyclip*
-TARBALL_INSTALL
-    
-    # Create install/uninstall scripts
-    cat > "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/install.sh" <<'INSTALL_SCRIPT'
-#!/bin/bash
-# FyClip Install Script
-
-set -e
-
-APP_NAME="FyClip Clipboard Manager"
-BIN_NAME="fyclip"
-APP_ID="com.sarwar.fyclip"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-install -d "${DESTDIR:-}/usr/local/bin"
-install -d "${DESTDIR:-}/usr/share/applications"
-install -d "${DESTDIR:-}/usr/share/icons/hicolor/256x256/apps"
-
-install -m 755 "${SCRIPT_DIR}/bin/${BIN_NAME}" "${DESTDIR:-}/usr/local/bin/${BIN_NAME}"
-install -m 644 "${SCRIPT_DIR}/share/applications/${APP_ID}.desktop" "${DESTDIR:-}/usr/share/applications/${APP_ID}.desktop"
-install -m 644 "${SCRIPT_DIR}/share/icons/hicolor/256x256/apps/${APP_ID}.png" "${DESTDIR:-}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png"
-
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-    gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
-fi
-
-echo "FyClip installed successfully!"
-INSTALL_SCRIPT
-    chmod +x "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/install.sh"
-    
-    cat > "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/uninstall.sh" <<'UNINSTALL_SCRIPT'
-#!/bin/bash
-# FyClip Uninstall Script
-
-set -e
-
-BIN_NAME="fyclip"
-APP_ID="com.sarwar.fyclip"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-rm -f "/usr/local/bin/${BIN_NAME}"
-rm -f "/usr/share/applications/${APP_ID}.desktop"
-rm -f "/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png"
-
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-    gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
-fi
-
-echo "FyClip uninstalled successfully!"
-UNINSTALL_SCRIPT
-    chmod +x "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/uninstall.sh"
-    
-    # Create version info file
-    cat > "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/VERSION" <<EOF
-APP_NAME=${APP_NAME}
-BIN_NAME=${BIN_NAME}
-APP_ID=${APP_ID}
-VERSION=${VERSION}
-ARCH=${ARCH}
-BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-AUTHOR=${AUTHOR}
-EMAIL=${EMAIL}
-EOF
-    
-    # Create tarball
-    # Use absolute path for DIST_DIR since we cd to TARBALL_ROOT
-    DIST_DIR_ABS="$(pwd)/${DIST_DIR}"
-    cd "${TARBALL_ROOT}"
-    tar -czf "${DIST_DIR_ABS}/${PKG_NAME}_${VERSION}_${ARCH}.tar.gz" "${APP_NAME}-${VERSION}-linux-${ARCH}"
-    cd - >/dev/null
-    
-    log_success "Tarball built: ${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.tar.gz"
-    
     # Cleanup
-    rm -rf "${WORK_DIR}" "${TARBALL_ROOT}" "${APP_NAME}.tar.xz"
+    rm -rf "${WORK_DIR}" "${APP_NAME}.tar.xz"
     
     echo ""
     echo -e "${GREEN}========================================${NC}"
@@ -733,7 +496,6 @@ EOF
     echo ""
     echo -e "Debian:   ${BLUE}${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb${NC}"
     echo -e "AppImage: ${BLUE}${DIST_DIR}/${PKG_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage${NC}"
-    echo -e "Tarball:  ${BLUE}${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.tar.gz${NC}"
     echo ""
 }
 
