@@ -458,16 +458,13 @@ Version: ${VERSION}
 Section: ${CATEGORY}
 Priority: optional
 Architecture: ${ARCH}
-Depends: ${PKG_NAME}-common (>= ${VERSION}), \
-         libgl1, \
+Depends: libgl1, \
          libx11-6, \
          libxcursor1, \
          libxrandr2, \
          libxinerama1, \
          libxi6, \
-         libgtk-3-0, \
-         xclip | xsel, \
-         wl-clipboard
+         libgtk-3-0
 Maintainer: ${AUTHOR} <${EMAIL}>
 Description: ${SHORT_DESC}
  ${LONG_DESC}
@@ -602,14 +599,21 @@ EOF
     cp -a "${USR_NORMALIZED}/." "${APPDIR}/usr/"
     
     # Create AppRun with proper AppImage metadata
+    # This version forces extraction to work around FUSE/noexec issues
     cat > "${APPDIR}/AppRun" <<'EOF'
 #!/bin/sh
 # AppRun script for FyClip AppImage
 # This script is required for AppImage to work properly
 
+set -e
+
 # Get the directory where this script is located
 APPIMAGE="$(readlink -f "${0}")"
 HERE="$(dirname "${APPIMAGE}")"
+
+# Force extraction-based execution to work around FUSE/noexec issues
+# This extracts the app to a temp dir and runs from there
+export APPIMAGE_EXTRACT_AND_RUN=1
 
 # Export library path
 export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
@@ -621,7 +625,7 @@ export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
 export QML2_IMPORT_PATH="${HERE}/usr/qml:${QML2_IMPORT_PATH}"
 
 # Execute the application
-exec "${HERE}/usr/bin/${BIN_NAME}" "$@"
+exec "${HERE}/usr/bin/fyclip" "$@"
 EOF
     chmod +x "${APPDIR}/AppRun"
     
