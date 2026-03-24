@@ -23,6 +23,7 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 - 📝 **Snippets**: Save and expand text templates
 - 🚀 **AutoStart**: Launch on system startup
 - ⏸️ **Pause Capture**: Pause monitoring for 5 minutes from toolbar/tray
+- 🎨 **Theme Support**: Light, Dark, and System theme modes with easy switching
 - 🎨 **Modern UI**: Dark theme with responsive design
 - ⚡ **Performance**: Debounced updates, async operations, O(1) lookups
 - 🐧 **Linux Packaging**: Official Fyne Linux package pipeline for `.deb` and `.AppImage`
@@ -44,6 +45,7 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
 ### Recently Implemented
 
+- ✅ **Theme Support**: Light, Dark, and System theme modes with centered popup selection
 - ✅ **Bulk Operations**: Multi-select with checkboxes, batch delete/pin/unpin actions
 - ✅ **Smart Categories**: Auto-detect content types (Links→Links, Code snippets→Code, Emails→Contacts, Phone numbers→Contacts)
 - ✅ **Tags**: Add custom tags to organize clipboard items
@@ -320,7 +322,8 @@ fyne-cross darwin -arch=amd64
 11. **Backup**: Create encrypted backups of your history
 12. **Categories**: Auto-categorized content (Links, Code, Contacts, Images, Files, Text)
 13. **Tags**: Add custom tags to organize items
-14. **Bulk Operations**: Multi-select items for batch actions
+14. **Theme**: Switch between Light, Dark, and System themes
+15. **Bulk Operations**: Multi-select items for batch actions
 
 ### Snippets
 

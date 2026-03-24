@@ -23,8 +23,8 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("expected StartMinimized to be false, got %v", cfg.StartMinimized)
 	}
 	
-	if cfg.Theme != "dark" {
-		t.Errorf("expected Theme to be 'dark', got %s", cfg.Theme)
+	if cfg.Theme != "system" {
+		t.Errorf("expected Theme to be 'system', got %s", cfg.Theme)
 	}
 	
 	if cfg.PauseDuration != 30*time.Second {
@@ -390,8 +390,8 @@ func TestConfigManagerMigrate(t *testing.T) {
 	if cm.config.AutoSaveInterval != 5*time.Second {
 		t.Errorf("AutoSaveInterval = %v, want 5s", cm.config.AutoSaveInterval)
 	}
-	if cm.config.Theme != "dark" {
-		t.Errorf("Theme = %s, want dark", cm.config.Theme)
+	if cm.config.Theme != "system" {
+		t.Errorf("Theme = %s, want system", cm.config.Theme)
 	}
 }
 
