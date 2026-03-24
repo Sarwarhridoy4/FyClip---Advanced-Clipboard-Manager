@@ -229,11 +229,15 @@ func (mw *MainWindow) setupShortcuts() {
 		ShowFeaturesDialog(mw.window, mw.app)
 	})
 
+	updateItem := fyne.NewMenuItem("Check for Updates", func() {
+		ShowUpdateDialog(mw.window, mw.app, "2.1.2")
+	})
+
 	aboutItem := fyne.NewMenuItem("About", func() {
 		ShowAboutDialog(mw.window, mw.app)
 	})
 
-	helpMenu := fyne.NewMenu("Help", featuresItem, aboutItem)
+	helpMenu := fyne.NewMenu("Help", featuresItem, updateItem, aboutItem)
 
 	mainMenu := fyne.NewMainMenu(editMenu, viewMenu, helpMenu)
 	mw.window.SetMainMenu(mainMenu)

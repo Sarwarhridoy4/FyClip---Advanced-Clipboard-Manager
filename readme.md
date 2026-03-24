@@ -2,7 +2,7 @@
 
 A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
-**Current Version**: 2.1.2
+**Current Version**: 2.1.3
 
 ## Features
 
@@ -32,6 +32,7 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 - 📦 **Bulk Operations**: Multi-select items for batch delete/pin/unpin
 - 🏷️ **Smart Categories & Tags**: Auto-categorize content (Links, Code, Contacts, etc.)
 - ⌨️ **Enhanced Keyboard Navigation**: Arrow keys, Enter, Delete, Escape, Space, Home/End, F1
+- ⬆️ **Auto Update**: Check for and install updates from GitHub releases
 
 ## Screenshots
 
@@ -45,6 +46,9 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
 ### Recently Implemented
 
+- ✅ **Auto Update**: Check for and install updates from GitHub releases
+  - Terminal: `fyclip --check-update` and `fyclip --update`
+  - UI: Help → Check for Updates
 - ✅ **HTML Preview**: Auto-detect HTML content and display as code block in preview
   - Fast detection: Any content starting with `<` followed by a letter is detected as HTML
   - HTML content displays as code block in preview pane
