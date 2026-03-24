@@ -23,6 +23,7 @@ import (
 type PreviewPane struct {
 	manager   *clipboard.Manager
 	text      *widget.RichText
+	label     *widget.Label // For plain text display
 	scroll    *container.Scroll
 	image     *canvas.Image
 	copyBtn   *widget.Button
@@ -53,6 +54,11 @@ func NewPreviewPane(manager *clipboard.Manager) *PreviewPane {
 
 	pp.scroll = container.NewVScroll(pp.text)
 	pp.scroll.Hide()
+	
+	// Label for plain text display (used for HTML)
+	pp.label = widget.NewLabel("")
+	pp.label.Wrapping = fyne.TextWrapWord
+	pp.label.Hide()
 
 	pp.image = canvas.NewImageFromResource(theme.BrokenImageIcon())
 	pp.image.FillMode = canvas.ImageFillContain
@@ -72,7 +78,7 @@ func NewPreviewPane(manager *clipboard.Manager) *PreviewPane {
 		nil,
 		nil,
 		nil,
-		container.NewStack(pp.scroll, pp.image),
+		container.NewStack(pp.scroll, pp.label, pp.image),
 	)
 
 	pp.showPlaceholder()
@@ -105,7 +111,7 @@ func (pp *PreviewPane) Refresh() {
 	case clipboard.TypeImage:
 		pp.showImage(item)
 	case clipboard.TypeHTML:
-		pp.showHTML(item)
+		pp.showCode(item)
 	case clipboard.TypeFile:
 		pp.showFile(item)
 	}
@@ -114,6 +120,8 @@ func (pp *PreviewPane) Refresh() {
 // showText renders markdown text with scrollbar
 func (pp *PreviewPane) showText(item clipboard.Item) {
 	pp.image.Hide()
+	pp.label.Hide()
+	pp.scroll.Show()
 	pp.copyBtn.Show()
 
 	pp.rawText = item.Content
@@ -142,29 +150,28 @@ func (pp *PreviewPane) showText(item clipboard.Item) {
 	pp.markRendered(item)
 }
 
-// showHTML renders HTML content
-func (pp *PreviewPane) showHTML(item clipboard.Item) {
+
+// showCode renders HTML content as code block
+func (pp *PreviewPane) showCode(item clipboard.Item) {
 	pp.image.Hide()
+	pp.scroll.Show()
 	pp.copyBtn.Show()
 
 	pp.rawText = item.Content
 
-	// Show plain text version of HTML
-	content := item.GetDisplayContent()
-	if item.HTMLContent != "" {
-		content = "**HTML Content**\n\n" + content + "\n\n---\n\n*HTML available - copy as HTML to preserve formatting*"
-	}
+	// Show HTML as code block
+	content := "```html\n" + item.HTMLContent + "\n```"
 
 	pp.setMarkdown(content)
 
-	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
 	pp.markRendered(item)
 }
 
-// showFile displays file information
 func (pp *PreviewPane) showFile(item clipboard.Item) {
 	pp.image.Hide()
+	pp.label.Hide()
+	pp.scroll.Show()
 	pp.copyBtn.Show()
 
 	if item.FileInfo == nil {
@@ -356,6 +363,8 @@ func formatFileSize(bytes int64) string {
 // showImage displays image preview
 func (pp *PreviewPane) showImage(item clipboard.Item) {
 	pp.copyBtn.Hide()
+	pp.label.Hide()
+	pp.scroll.Hide()
 	pp.rawText = ""
 
 	if item.ImageData == "" {
@@ -409,6 +418,8 @@ func (pp *PreviewPane) showImage(item clipboard.Item) {
 // showImageError displays an error for image preview
 func (pp *PreviewPane) showImageError(item clipboard.Item, errMsg string) {
 	pp.copyBtn.Hide()
+	pp.label.Hide()
+	pp.scroll.Hide()
 	pp.rawText = ""
 
 	info := fmt.Sprintf(
@@ -433,6 +444,7 @@ func (pp *PreviewPane) clear() {
 	pp.lastItemID = ""
 	pp.showPlaceholder()
 	pp.image.Hide()
+	pp.label.Hide()
 	// Clear caches
 	pp.cachedImageData = ""
 	pp.cachedImageResource = nil
@@ -440,6 +452,7 @@ func (pp *PreviewPane) clear() {
 }
 
 func (pp *PreviewPane) showPlaceholder() {
+	pp.label.Hide()
 	pp.setMarkdown("_Select an item to preview..._")
 	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
@@ -449,12 +462,8 @@ func (pp *PreviewPane) setMarkdown(markdown string) {
 	normalized := strings.ReplaceAll(markdown, "\r\n", "\n")
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
 	
-	// Use cached markdown if available
-	if pp.cachedMarkdown == normalized {
-		return
-	}
-	
-	pp.cachedMarkdown = normalized
+	// Force update - don't use cache for HTML content
+	pp.text.Segments = nil
 	pp.text.ParseMarkdown(normalized)
 	pp.text.Refresh()
 }

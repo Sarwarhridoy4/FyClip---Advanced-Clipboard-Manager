@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Theme selection popup centered on window for better UX
 
 ### Fixed
+- **HTML Preview**: Auto-detect HTML content and display as code block
+  - Added fast HTML detection in clipboard monitor
+  - Any content starting with `<` followed by a letter is detected as HTML
+  - HTML content displays as code block in preview pane using `showCode()` function
 - **Unused Function Warning**: Exported `clearRegexCache` to `ClearRegexCache` for test usage
 - **Race Condition**: Fixed thread-safety issue in `searchWithRegex` by using single lock with defer
 - **Unused Theme Select**: Removed unused `onThemeSelect` method and incomplete dropdown code

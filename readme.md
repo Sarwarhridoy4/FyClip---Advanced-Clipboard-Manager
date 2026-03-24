@@ -2,7 +2,7 @@
 
 A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 
-**Current Version**: 2.1.1
+**Current Version**: 2.1.2
 
 ## Features
 
@@ -44,6 +44,10 @@ A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
 ## Improvements
 
 ### Recently Implemented
+
+- ✅ **HTML Preview**: Auto-detect HTML content and display as code block in preview
+  - Fast detection: Any content starting with `<` followed by a letter is detected as HTML
+  - HTML content displays as code block in preview pane
 
 - ✅ **Theme Support**: Light, Dark, and System theme modes with centered popup selection
 - ✅ **Bulk Operations**: Multi-select with checkboxes, batch delete/pin/unpin actions
