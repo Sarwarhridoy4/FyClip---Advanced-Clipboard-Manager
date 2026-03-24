@@ -378,6 +378,11 @@ func ShowFeaturesDialog(window fyne.Window, app fyne.App) {
 			name:        "🔄 Refresh",
 			description: "Manually refresh the clipboard history list. Useful if items aren't updating automatically.",
 		},
+		{
+			icon:        theme.DownloadIcon(),
+			name:        "⬆️ Auto Update",
+			description: "Check for and install application updates automatically. Access via Help > Check for Updates in the menu bar. You can also use terminal commands: 'fyclip --check-update' to check for updates and 'fyclip --update' to download and install the latest version.",
+		},
 	}
 
 	// Create feature cards with icons
