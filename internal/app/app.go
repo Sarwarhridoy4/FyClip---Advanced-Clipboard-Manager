@@ -4,6 +4,7 @@ package app
 import (
 	_ "embed"
 	"fmt"
+	"image/color"
 	"log"
 	"runtime"
 
@@ -22,6 +23,23 @@ var iconICO []byte
 
 //go:embed assets/icon.png
 var iconPNG []byte
+
+// forcedVariantTheme is a custom theme that wraps the default theme
+// but forces a specific variant (light or dark) instead of following system preference.
+type forcedVariantTheme struct {
+	fyne.Theme
+	variant fyne.ThemeVariant
+}
+
+// Color overrides the default Color method to return colors for the forced variant.
+func (f forcedVariantTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	return f.Theme.Color(name, f.variant)
+}
+
+// Variant returns the forced theme variant.
+func (f forcedVariantTheme) Variant() fyne.ThemeVariant {
+	return f.variant
+}
 
 // App represents the FyClip application
 type App struct {
@@ -50,16 +68,24 @@ func New() *App {
 		return nil
 	}
 
-	// Apply theme from config
+	// Apply theme from config using custom theme to avoid deprecated LightTheme/DarkTheme
 	if a.configMgr != nil {
 		cfg := a.configMgr.Get()
-		if cfg.Theme == "light" {
-			a.fyneApp.Settings().SetTheme(theme.LightTheme())
-		} else {
-			a.fyneApp.Settings().SetTheme(theme.DarkTheme())
+		switch cfg.Theme {
+		case "light":
+			// Create a custom theme that forces light variant
+			a.fyneApp.Settings().SetTheme(forcedVariantTheme{
+				Theme:   theme.DefaultTheme(),
+				variant: theme.VariantLight,
+			})
+		case "dark":
+			// Create a custom theme that forces dark variant
+			a.fyneApp.Settings().SetTheme(forcedVariantTheme{
+				Theme:   theme.DefaultTheme(),
+				variant: theme.VariantDark,
+			})
 		}
-	} else {
-		a.fyneApp.Settings().SetTheme(theme.DarkTheme())
+		// "system" theme uses default theme which follows system preference (no custom theme set)
 	}
 
 	icon := a.loadIcon()

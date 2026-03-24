@@ -26,7 +26,7 @@ func DefaultConfig() *Config {
 		MaxHistoryItems:     1000,
 		MonitoringInterval:  500 * time.Millisecond,
 		StartMinimized:      false,
-		Theme:               "dark",
+		Theme:               "system",
 		PauseDuration:       30 * time.Second,
 		AutoSaveInterval:    5 * time.Second,
 		EnableNotifications: true,
@@ -134,7 +134,7 @@ func (cm *ConfigManager) migrate() {
 		cm.config.AutoSaveInterval = 5 * time.Second
 	}
 	if cm.config.Theme == "" {
-		cm.config.Theme = "dark"
+		cm.config.Theme = "system"
 	}
 }
 

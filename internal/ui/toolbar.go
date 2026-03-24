@@ -3,6 +3,7 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,6 +18,23 @@ import (
 
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
 )
+
+// forcedVariantTheme is a custom theme that wraps the default theme
+// but forces a specific variant (light or dark) instead of following system preference.
+type forcedVariantTheme struct {
+	fyne.Theme
+	variant fyne.ThemeVariant
+}
+
+// Color overrides the default Color method to return colors for the forced variant.
+func (f forcedVariantTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	return f.Theme.Color(name, f.variant)
+}
+
+// Variant returns the forced theme variant.
+func (f forcedVariantTheme) Variant() fyne.ThemeVariant {
+	return f.variant
+}
 
 // Toolbar provides action buttons.
 type Toolbar struct {
@@ -34,6 +52,8 @@ type Toolbar struct {
 	bulkUnpinBtn   *widget.Button
 	bulkSelectAll  *widget.Button
 	bulkClearSel   *widget.Button
+	themeBtn       *widget.Button
+	themeMenu      *fyne.Menu
 }
 
 // NewToolbar creates a new toolbar.
@@ -61,6 +81,11 @@ func (t *Toolbar) Build() fyne.CanvasObject {
 	refreshBtn := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), t.onRefresh)
 	backupBtn := widget.NewButtonWithIcon("Backup", theme.DocumentSaveIcon(), t.onBackup)
 	restoreBtn := widget.NewButtonWithIcon("Restore", theme.DocumentIcon(), t.onRestore)
+
+	// Theme selector with icons using a button that opens a popup menu
+	t.themeBtn = widget.NewButtonWithIcon("Theme", theme.ColorPaletteIcon(), t.onThemeButtonClicked)
+	// Create the theme popup menu
+	t.createThemeMenu()
 
 	// Selection mode buttons
 	t.selectModeBtn = widget.NewButtonWithIcon("Select", theme.CheckButtonIcon(), t.onToggleSelectMode)
@@ -90,6 +115,7 @@ func (t *Toolbar) Build() fyne.CanvasObject {
 	// Second row: secondary actions
 	row2 := container.NewHBox(
 		snippetsBtn,
+		t.themeBtn,
 		settingsBtn,
 		exportBtn,
 		refreshBtn,
@@ -141,7 +167,139 @@ func (t *Toolbar) refreshToggleLabels() {
 // Refresh updates dynamic toolbar labels.
 func (t *Toolbar) Refresh() {
 	t.refreshToggleLabels()
+	t.updateThemeButton()
 }
+
+// updateThemeButton updates the theme button text and icon based on current theme
+func (t *Toolbar) updateThemeButton() {
+	if t.app == nil {
+		return
+	}
+
+	settings := t.app.Settings()
+	if settings == nil {
+		return
+	}
+
+	currentThemeObj := settings.Theme()
+
+	// Determine current theme variant by checking colors
+	// Default to system
+	selected := "System"
+
+	if currentThemeObj != nil {
+		// Check if it's our custom forced variant theme
+		if fvt, ok := currentThemeObj.(interface{ variant() fyne.ThemeVariant }); ok {
+			v := fvt.variant()
+			switch v {
+			case theme.VariantLight:
+				selected = "Light"
+			case theme.VariantDark:
+				selected = "Dark"
+			}
+		} else {
+			// For other themes, default to System (follows system preference)
+			selected = "System"
+		}
+	}
+
+	if t.themeBtn != nil {
+		t.themeBtn.SetText(selected)
+		t.updateThemeButtonIcon(selected)
+	}
+}
+
+// createThemeMenu creates the theme selection menu with icons
+func (t *Toolbar) createThemeMenu() {
+		if t.window == nil {
+		return
+	}
+
+	// Create menu items - use available icons
+	systemItem := fyne.NewMenuItem("System (Follow OS)", func() { t.setTheme("System") })
+	systemItem.Icon = theme.ComputerIcon()
+
+	darkItem := fyne.NewMenuItem("Dark", func() { t.setTheme("Dark") })
+	darkItem.Icon = theme.VisibilityIcon()
+
+	lightItem := fyne.NewMenuItem("Light", func() { t.setTheme("Light") })
+	lightItem.Icon = theme.ColorPaletteIcon()
+
+	t.themeMenu = fyne.NewMenu("", systemItem, darkItem, lightItem)
+}
+
+// onThemeButtonClicked shows the theme popup menu
+func (t *Toolbar) onThemeButtonClicked() {
+	if t.themeMenu != nil && t.window != nil {
+		// Create a popup menu
+		popup := widget.NewPopUpMenu(t.themeMenu, t.window.Canvas())
+
+		// Position popup at center of window
+		windowSize := t.window.Canvas().Size()
+		menuSize := popup.MinSize()
+		centerPos := fyne.NewPos(
+			(windowSize.Width-menuSize.Width)/2,
+			(windowSize.Height-menuSize.Height)/2,
+		)
+		popup.ShowAtPosition(centerPos)
+	}
+}
+
+// setTheme sets the application theme
+func (t *Toolbar) setTheme(themeName string) {
+	if t.app == nil {
+		return
+	}
+
+	settings := t.app.Settings()
+	if settings == nil {
+		return
+	}
+
+	switch themeName {
+	case "Light":
+		settings.SetTheme(forcedVariantTheme{
+			Theme:   theme.DefaultTheme(),
+			variant: theme.VariantLight,
+		})
+		ShowNotification(t.app, "Theme set to Light")
+	case "Dark":
+		settings.SetTheme(forcedVariantTheme{
+			Theme:   theme.DefaultTheme(),
+			variant: theme.VariantDark,
+		})
+		ShowNotification(t.app, "Theme set to Dark")
+	case "System":
+		// Reset to default theme to follow system preference
+		settings.SetTheme(theme.DefaultTheme())
+		ShowNotification(t.app, "Theme set to System (follows OS)")
+	}
+
+	// Update button appearance
+	t.updateThemeButtonIcon(themeName)
+	t.themeBtn.SetText(themeName)
+}
+
+// updateThemeButtonIcon updates the theme button icon based on current selection
+func (t *Toolbar) updateThemeButtonIcon(themeName string) {
+	if t.themeBtn == nil {
+		return
+	}
+
+	var icon fyne.Resource
+	switch themeName {
+	case "Light":
+		icon = theme.ColorPaletteIcon()
+	case "Dark":
+		icon = theme.VisibilityIcon()
+	default:
+		icon = theme.ComputerIcon()
+	}
+
+	t.themeBtn.SetIcon(icon)
+}
+
+
 
 // SetSelectionModeActive updates the toolbar UI based on selection mode state
 func (t *Toolbar) SetSelectionModeActive(active bool) {

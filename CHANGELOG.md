@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.2] - 2026-03-24
 
+### Added
+- **Theme Support**: Light, Dark, and System theme modes with centered popup selection
+  - Toggle between Light, Dark, and System (follows OS) themes
+  - Theme selection popup centered on window for better UX
+
 ### Fixed
 - **Unused Function Warning**: Exported `clearRegexCache` to `ClearRegexCache` for test usage
 - **Race Condition**: Fixed thread-safety issue in `searchWithRegex` by using single lock with defer
+- **Unused Theme Select**: Removed unused `onThemeSelect` method and incomplete dropdown code
+- **Theme Popup Position**: Centered theme selection popup menu on the window
 
 ### Performance
 - **Object Pool Integration**: Added sync.Pool for Item reuse to reduce GC pressure
