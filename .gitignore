@@ -1,9 +1,18 @@
-dist
-*exe
-*fyclip-deb
-*FyClip.AppDir
-*.AppImage
-*fyclip
-*.deb
-*.tar.xz
+# Build outputs - dist folder is kept for releases
+# Files in dist/ with version numbers are tracked
+dist/
+
+# Build artifacts to ignore (not versioned)
+*.exe
 *.log
+FyClip*
+FyClip.AppDir*
+*AppImage
+*fyclip-deb*
+*.test
+fyclip
+coverage.out
+
+# Go build
+vendor/
+*.test

@@ -221,6 +221,12 @@ func (m *Monitor) handleText(data []byte, programmaticHash string) {
 		return
 	}
 
+	// Check if content looks like HTML - auto-detect HTML
+	if looksLikeHTML(content) {
+		m.handleHTML(data, programmaticHash)
+		return
+	}
+
 	hash := sha256.Sum256(data)
 	hashStr := hex.EncodeToString(hash[:])
 
@@ -252,6 +258,31 @@ func (m *Monitor) handleText(data []byte, programmaticHash string) {
 		m.manager.updateFiltered()
 		m.manager.triggerUpdate()
 	}
+}
+
+// looksLikeHTML checks if the content appears to be HTML
+// Uses a fast, lightweight check for common HTML tag patterns
+func looksLikeHTML(content string) bool {
+	content = strings.TrimSpace(content)
+	if len(content) < 3 {
+		return false
+	}
+	// Must start with <
+	if content[0] != '<' {
+		return false
+	}
+	// Check if it starts with common HTML patterns
+	if strings.HasPrefix(content, "<html") ||
+		strings.HasPrefix(content, "<!DOCTYPE") ||
+		strings.HasPrefix(content, "<!--") {
+		return true
+	}
+	// Check for single tags like <div>, <span>, <p>, <a>, <img>, etc.
+	// Just check if first char is < and second is a letter
+	if content[1] >= 'a' && content[1] <= 'z' {
+		return true
+	}
+	return false
 }
 
 // handleImage processes image clipboard content
