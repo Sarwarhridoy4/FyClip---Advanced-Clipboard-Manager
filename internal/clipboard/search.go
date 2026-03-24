@@ -4,6 +4,7 @@ package clipboard
 import (
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // SearchOptions contains search configuration
@@ -20,6 +21,19 @@ func DefaultSearchOptions() *SearchOptions {
 		RegexEnabled:  false,
 		FuzzyEnabled:  false,
 	}
+}
+
+// regexCache stores compiled regex patterns for performance
+var (
+	regexCacheMu sync.RWMutex
+	regexCache   = make(map[string]*regexp.Regexp)
+)
+
+// ClearRegexCache clears the regex cache (useful for testing)
+func ClearRegexCache() {
+	regexCacheMu.Lock()
+	defer regexCacheMu.Unlock()
+	regexCache = make(map[string]*regexp.Regexp)
 }
 
 // SearchItem searches an item with the given query and options
@@ -63,10 +77,19 @@ func searchWithSubstring(content, query string, caseSensitive bool) bool {
 
 // searchWithRegex performs regex-based search
 func searchWithRegex(content, pattern string) bool {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		// If regex is invalid, fall back to substring search
-		return strings.Contains(content, pattern)
+	regexCacheMu.Lock()
+	defer regexCacheMu.Unlock()
+
+	re, exists := regexCache[pattern]
+
+	if !exists {
+		var err error
+		re, err = regexp.Compile(pattern)
+		if err != nil {
+			// If regex is invalid, fall back to substring search
+			return strings.Contains(content, pattern)
+		}
+		regexCache[pattern] = re
 	}
 	return re.MatchString(content)
 }
@@ -89,13 +112,21 @@ func searchWithFuzzy(content, query string, caseSensitive bool) bool {
 
 // isSubsequence checks if query is a subsequence of text
 func isSubsequence(query, text string) bool {
+	if len(query) == 0 {
+		return true
+	}
+	// Convert query to rune slice once to avoid allocations in loop
+	q := []rune(query)
 	qIdx := 0
 	for _, ch := range text {
-		if qIdx < len(query) && string(ch) == string(query[qIdx]) {
+		if qIdx < len(q) && ch == q[qIdx] {
 			qIdx++
+			if qIdx == len(q) {
+				return true
+			}
 		}
 	}
-	return qIdx == len(query)
+	return false
 }
 
 // SearchHistoryItem searches an item for history display
