@@ -309,11 +309,18 @@ func (m *Monitor) handleImage(data []byte, imageType, programmaticHash string) {
 	m.lastFileHash = ""   // Clear file hash when image is copied
 	m.mu.Unlock()
 
+	// Encode image data to base64
+	base64Data := base64.StdEncoding.EncodeToString(data)
+
+	// Generate thumbnail for efficient list display
+	thumbnail := GenerateThumbnail(base64Data)
+
 	item := Item{
 		Type:      TypeImage,
 		Content:   fmt.Sprintf("Image (%d bytes)", len(data)),
-		ImageData: base64.StdEncoding.EncodeToString(data),
+		ImageData: base64Data,
 		ImageType: imageType,
+		Thumbnail: thumbnail,
 		Hash:      hashStr,
 	}
 

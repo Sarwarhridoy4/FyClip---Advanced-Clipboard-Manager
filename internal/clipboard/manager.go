@@ -110,7 +110,7 @@ func NewManager(cfg Config) (*Manager, error) {
 		hashIndexMap:  make(map[string]int),
 		idIndexMap:    make(map[string]int),
 		selectedIndex: -1,
-		updateChan:     make(chan struct{}, 100),
+		updateChan:     make(chan struct{}, 10), // Reduced from 100 - updates are debounced
 		saveChan:       make(chan struct{}, 1),
 		shutdownChan:  make(chan struct{}),
 		running:       true,

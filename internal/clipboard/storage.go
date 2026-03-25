@@ -2,6 +2,8 @@
 package clipboard
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -106,9 +108,21 @@ func (s *Storage) Load() ([]Item, error) {
 		return nil, fmt.Errorf("failed to decrypt history: %w", err)
 	}
 
+	// Decompress data if compressed
+	decompressedData, err := decompress(decryptedData)
+	if err != nil {
+		// If decompression fails, try using the data as-is (for backward compatibility)
+		decompressedData = decryptedData
+	}
+
 	var items []Item
-	if err := json.Unmarshal(decryptedData, &items); err != nil {
+	if err := json.Unmarshal(decompressedData, &items); err != nil {
 		return nil, fmt.Errorf("failed to parse history file: %w", err)
+	}
+
+	// Generate thumbnails for items that don't have them (backward compatibility)
+	for i := range items {
+		items[i].EnsureThumbnail()
 	}
 
 	return items, nil
@@ -119,13 +133,16 @@ func (s *Storage) Save(items []Item) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	jsonData, err := json.MarshalIndent(items, "", "  ")
+	jsonData, err := json.Marshal(items)
 	if err != nil {
 		return fmt.Errorf("failed to marshal history: %w", err)
 	}
 
+	// Compress data before encryption
+	compressedData := compress(jsonData)
+
 	// Encrypt data
-	encryptedData, err := encrypt(jsonData, s.key)
+	encryptedData, err := encrypt(compressedData, s.key)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt history: %w", err)
 	}
@@ -215,4 +232,44 @@ func decrypt(ciphertext []byte, key []byte) ([]byte, error) {
 		return nil, err
 	}
 	return plaintext, nil
+}
+
+// compress compresses data using gzip
+// Returns the original data if compression fails (for safety)
+func compress(data []byte) []byte {
+	var buf bytes.Buffer
+	writer, err := gzip.NewWriterLevel(&buf, gzip.DefaultCompression)
+	if err != nil {
+		return data // Return original if compression fails
 	}
+
+	_, err = writer.Write(data)
+	if err != nil {
+		writer.Close()
+		return data
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return data
+	}
+
+	return buf.Bytes()
+}
+
+// decompress decompresses gzip data
+// Returns original data if decompression fails (for backward compatibility)
+func decompress(data []byte) ([]byte, error) {
+	// Check if data is gzip compressed (magic number)
+	if len(data) < 2 || data[0] != 0x1f || data[1] != 0x8b {
+		return data, fmt.Errorf("not gzip compressed")
+	}
+
+	reader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return data, err
+	}
+	defer reader.Close()
+
+	return io.ReadAll(reader)
+}
