@@ -2,11 +2,24 @@
 package clipboard
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"regexp"
 	"strings"
 	"time"
+)
+
+const (
+	// Thumbnail dimensions
+	ThumbnailWidth  = 150
+	ThumbnailHeight = 150
+	// JPEG quality for thumbnails
+	ThumbnailQuality = 70
 )
 
 // ItemType represents the type of clipboard content
@@ -50,6 +63,7 @@ type Item struct {
 	Content      string    `json:"content"`
 	ImageData    string    `json:"image_data,omitempty"`
 	ImageType    string    `json:"image_type,omitempty"`
+	Thumbnail    string    `json:"thumbnail,omitempty"` // Compressed thumbnail for list display
 	HTMLContent  string    `json:"html_content,omitempty"`
 	FileInfo     *FileInfo `json:"file_info,omitempty"`
 	Timestamp    time.Time `json:"timestamp"`
@@ -59,7 +73,7 @@ type Item struct {
 	Category     string    `json:"category,omitempty"`
 	Tags         []string  `json:"tags,omitempty"`
 
-	searchContent string `json:"-"`
+	searchContent string    `json:"-"`
 }
 
 // PrepareForSearch builds cached normalized text used for filtering.
@@ -106,6 +120,34 @@ func (i *Item) Size() int {
 		return int(i.FileInfo.Size)
 	}
 	return len(i.Content)
+}
+
+// GetDisplayImage returns the appropriate image for display
+// For list view, returns thumbnail (if available), for preview returns full image
+func (i *Item) GetDisplayImage(forList bool) string {
+	if i.Type != TypeImage {
+		return ""
+	}
+
+	// For list view, prefer thumbnail
+	if forList && i.Thumbnail != "" {
+		return i.Thumbnail
+	}
+
+	// Otherwise return full image data
+	return i.ImageData
+}
+
+// HasThumbnail returns true if the item has a thumbnail
+func (i *Item) HasThumbnail() bool {
+	return i.Type == TypeImage && i.Thumbnail != ""
+}
+
+// EnsureThumbnail generates thumbnail if missing (for backward compatibility)
+func (i *Item) EnsureThumbnail() {
+	if i.Type == TypeImage && i.Thumbnail == "" && i.ImageData != "" {
+		i.Thumbnail = GenerateThumbnail(i.ImageData)
+	}
 }
 
 // HasHTML returns true if the item has HTML content
@@ -329,4 +371,145 @@ func isJSON(content string) bool {
 		return json.Unmarshal([]byte(content), &js) == nil
 	}
 	return false
+}
+
+// GenerateThumbnail creates a compressed thumbnail from base64 image data
+// Returns empty string if generation fails
+func GenerateThumbnail(base64Data string) string {
+	if base64Data == "" {
+		return ""
+	}
+
+	// Decode base64
+	data, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return ""
+	}
+
+	// Decode image
+	img, format, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return ""
+	}
+
+	// Calculate thumbnail dimensions while maintaining aspect ratio
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+
+	var thumbW, thumbH int
+	if w > h {
+		thumbW = ThumbnailWidth
+		thumbH = (h * ThumbnailWidth) / w
+	} else {
+		thumbH = ThumbnailHeight
+		thumbW = (w * ThumbnailHeight) / h
+	}
+
+	// Create thumbnail using nearest neighbor for speed
+	thumb := image.NewNRGBA(image.Rect(0, 0, thumbW, thumbH))
+
+	// Scale down the image
+	sx := float64(w) / float64(thumbW)
+	sy := float64(h) / float64(thumbH)
+
+	for y := 0; y < thumbH; y++ {
+		for x := 0; x < thumbW; x++ {
+			sxInt := int(float64(x) * sx)
+			syInt := int(float64(y) * sy)
+			if sxInt >= w {
+				sxInt = w - 1
+			}
+			if syInt >= h {
+				syInt = h - 1
+			}
+			thumb.Set(x, y, img.At(sxInt, syInt))
+		}
+	}
+
+	// Encode thumbnail
+	var buf bytes.Buffer
+	if format == "png" {
+		err = png.Encode(&buf, thumb)
+	} else {
+		err = jpeg.Encode(&buf, thumb, &jpeg.Options{Quality: ThumbnailQuality})
+	}
+
+	if err != nil {
+		return ""
+	}
+
+	// Return base64 encoded thumbnail
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
+}
+
+// CompressImage compresses the image data to reduce memory footprint
+// Returns the compressed base64 string
+func CompressImage(base64Data string, maxWidth, maxHeight int, quality int) string {
+	if base64Data == "" {
+		return ""
+	}
+
+	// Decode base64
+	data, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return base64Data // Return original if decode fails
+	}
+
+	// Decode image
+	img, format, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return base64Data // Return original if decode fails
+	}
+
+	// Check if resizing is needed
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+
+	if w <= maxWidth && h <= maxHeight {
+		return base64Data // No resize needed
+	}
+
+	// Calculate new dimensions maintaining aspect ratio
+	var newW, newH int
+	if w > h {
+		newW = maxWidth
+		newH = (h * maxWidth) / w
+	} else {
+		newH = maxHeight
+		newW = (w * maxHeight) / h
+	}
+
+	// Resize image
+	resized := image.NewNRGBA(image.Rect(0, 0, newW, newH))
+
+	sx := float64(w) / float64(newW)
+	sy := float64(h) / float64(newH)
+
+	for y := 0; y < newH; y++ {
+		for x := 0; x < newW; x++ {
+			sxInt := int(float64(x) * sx)
+			syInt := int(float64(y) * sy)
+			if sxInt >= w {
+				sxInt = w - 1
+			}
+			if syInt >= h {
+				syInt = h - 1
+			}
+			resized.Set(x, y, img.At(sxInt, syInt))
+		}
+	}
+
+	// Encode compressed image
+	var buf bytes.Buffer
+	if format == "png" {
+		err = png.Encode(&buf, resized)
+	} else {
+		err = jpeg.Encode(&buf, resized, &jpeg.Options{Quality: quality})
+	}
+
+	if err != nil {
+		return base64Data // Return original if encode fails
+	}
+
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
 }

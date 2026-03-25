@@ -124,6 +124,9 @@ FyClip is a feature-rich clipboard manager designed for power users. Here's a co
 | ⚡ **Async Operations** | Non-blocking clipboard monitoring |
 | ⚡ **O(1) Lookups** | Hash map-based duplicate detection |
 | 🔒 **Thread-Safe** | Proper concurrency handling |
+| 🖼️ **Image Thumbnails** | 150x150px thumbnails for efficient list display |
+| 📦 **Compression** | Gzip compression before encryption for smaller storage |
+| 💾 **Memory Optimized** | Lazy loading and efficient data structures |
 
 ---
 

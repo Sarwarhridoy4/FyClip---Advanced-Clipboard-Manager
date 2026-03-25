@@ -39,6 +39,7 @@ func (p *ItemPool) Put(item *Item) {
 	item.Content = ""
 	item.ImageData = ""
 	item.ImageType = ""
+	item.Thumbnail = ""
 	item.HTMLContent = ""
 	item.FileInfo = nil
 	item.Timestamp = time.Time{}
