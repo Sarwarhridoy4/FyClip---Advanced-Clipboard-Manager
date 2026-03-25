@@ -3,8 +3,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"runtime"
 	"time"
 
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/app"
@@ -62,6 +65,20 @@ func main() {
 			log.Printf("Fatal panic: %v", r)
 		}
 	}()
+
+	// Check for single instance - prevents multiple instances from running
+	lock, err := app.NewSingleInstanceLock()
+	if err != nil {
+		log.Printf("Another instance is already running: %v", err)
+		log.Println("If you believe this is an error, you may need to manually remove the lock file.")
+
+		// Try to show a notification using platform-specific methods
+		time.Sleep(500 * time.Millisecond) // Small delay to ensure environment is ready
+		showNotification("FyClip is already running")
+
+		os.Exit(1)
+	}
+	defer lock.Release()
 
 	application := app.New()
 	if application == nil {
@@ -140,4 +157,45 @@ func handleUpdate() {
 
 	log.Println("Update installed successfully!")
 	log.Println("Please restart FyClip to use the new version.")
+}
+
+// showNotification shows a notification to the user
+// This is used when another instance is already running
+func showNotification(message string) {
+	switch runtime.GOOS {
+	case "windows":
+		// Use PowerShell to show a toast notification on Windows
+		cmd := exec.Command("powershell", "-Command",
+			fmt.Sprintf(`[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; `+
+				`[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null; `+
+				`$template = '<visual><binding template="ToastText02"><text id="1">FyClip</text><text id="2">%s</text></binding></visual>'; `+
+				`$xml = New-Object Windows.Data.Xml.Dom.XmlDocument; `+
+				`$xml.LoadXml($template); `+
+				`$toast = [Windows.UI.Notifications.ToastNotification]::new($xml); `+
+				`[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("FyClip").Show($toast)`, message))
+		cmd.Run() // Ignore errors - this is a best-effort notification
+
+	case "darwin":
+		// Use osascript to show a notification on macOS
+		cmd := exec.Command("osascript", "-e",
+			fmt.Sprintf(`display notification "%s" with title "FyClip"`, message))
+		cmd.Run()
+
+	default: // linux
+		// Try notify-send first
+		cmd := exec.Command("notify-send", "-u", "critical", "-t", "3000", "FyClip", message)
+		// Set a timeout to prevent hanging
+		timer := time.AfterFunc(2*time.Second, func() {
+			cmd.Process.Kill()
+		})
+		defer timer.Stop()
+		if err := cmd.Run(); err != nil {
+			log.Printf("notify-send failed: %v, trying zenity", err)
+			// Try zenity as fallback
+			cmd := exec.Command("zenity", "--info", "--text="+message, "--title=FyClip")
+			if err := cmd.Run(); err != nil {
+				log.Printf("zenity failed: %v", err)
+			}
+		}
+	}
 }
