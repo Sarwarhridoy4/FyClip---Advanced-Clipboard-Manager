@@ -17,6 +17,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Windows: PowerShell toast notification
     - macOS: `osascript` notification
 
+### Performance
+- **Image Thumbnails**: Added 150x150px thumbnails for efficient memory usage
+  - List view displays thumbnails instead of full images
+  - Preview pane shows full images when requested
+  - Generates thumbnails automatically for captured images
+  - Backward compatibility: auto-generates thumbnails for existing items on load
+  - Expected: 50-80% memory reduction for image-heavy clipboard history
+- **Storage Compression**: Added gzip compression before encryption
+  - Compresses JSON data before AES-256-GCM encryption
+  - Decompresses after decryption on load
+  - Backward compatibility: handles both compressed and uncompressed data
+  - Expected: 30-60% reduction in storage file size
+- **JSON Optimization**: Removed indentation whitespace from saved JSON
+  - Changed from `json.MarshalIndent()` to `json.Marshal()`
+  - Expected: ~10-15% additional reduction in storage file size
+- **Channel Buffer Optimization**: Reduced update channel buffer from 100 to 10
+  - Updates are debounced anyway, so smaller buffer is sufficient
+  - Minor memory reduction for channel buffers
+
 ## [2.1.3] - 2026-03-24
 
 ### Added
