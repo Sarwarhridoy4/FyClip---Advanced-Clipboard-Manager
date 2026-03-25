@@ -1,187 +1,218 @@
 # FyClip - Advanced Clipboard Manager
 
-A modular, high-performance clipboard manager built with Go and Fyne v2.7+.
+<p align="center">
+  <img src="internal/app/assets/icon.png" alt="FyClip Logo" width="128" height="128"/>
+  <br>
+  <a href="https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases/latest">
+    <img src="https://img.shields.io/github/v/release/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager?include_prereleases&style=flat" alt="GitHub release">
+  </a>
+  <a href="https://goreportcard.com/report/github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager">
+    <img src="https://goreportcard.com/badge/github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager" alt="Go Report Card">
+  </a>
+  <a href="https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager" alt="License">
+  </a>
+  <a href="https://discord.gg/fyclip">
+    <img src="https://img.shields.io/discord/123456789" alt="Discord">
+  </a>
+</p>
+
+> A modular, high-performance clipboard manager built with Go and Fyne v2.7+
 
 **Current Version**: 2.2.0
 
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+  - [Linux](#linux)
+  - [Windows](#windows)
+  - [macOS](#macos)
+  - [Building from Source](#building-from-source)
+- [Building for Release](#building-for-release)
+- [Usage](#usage)
+  - [Keyboard Shortcuts](#keyboard-shortcuts)
+  - [Bulk Operations](#bulk-operations)
+  - [Snippets](#snippets)
+- [Configuration](#configuration)
+- [Architecture](#architecture)
+  - [Project Structure](#project-structure)
+  - [Design Principles](#design-principles)
+  - [Performance Optimizations](#performance-optimizations)
+  - [Security](#security)
+- [Development](#development)
+  - [Prerequisites](#prerequisites)
+  - [Makefile Targets](#makefile-targets)
+  - [Adding New Features](#adding-new-features)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Changelog](#changelog)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+
+---
+
 ## Features
 
-- 📋 **Clipboard History**: Automatically saves text, images, HTML, and files
-- 📌 **Pin Items**: Keep important items at the top
-- ⭐ **Favorites View**: Toggle pinned-only view instantly
-- 🔍 **Enhanced Search**: Regex, case-sensitive, and fuzzy matching
-- ❌ **Clear Search**: One-click reset for the search box
-- 🖼️ **Image Support**: Preview and save clipboard images
-- 📝 **HTML Support**: Capture and preserve HTML formatting
-- 📁 **File History**: Track files copied from file manager
-- 📤 **Unified Export**: Export selected text or images from one action
-- 📝 **Markdown Preview**: Markdown content renders correctly in preview pane
-- 🕒 **Relative Time + Reuse Count**: List rows show recency and copy frequency
-- 💾 **Persistent Storage**: History saved across sessions
-- 🔒 **Encrypted Storage**: AES-256-GCM encryption at rest
-- ☁️ **Encrypted Backup**: Password-protected backup and restore
-- 📝 **Snippets**: Save and expand text templates
-- 🚀 **AutoStart**: Launch on system startup
-- ⏸️ **Pause Capture**: Pause monitoring for 5 minutes from toolbar/tray
-- 🎨 **Theme Support**: Light, Dark, and System theme modes with easy switching
-- 🎨 **Modern UI**: Dark theme with responsive design
-- ⚡ **Performance**: Debounced updates, async operations, O(1) lookups
-- 🐧 **Linux Packaging**: Official Fyne Linux package pipeline for `.deb` and `.AppImage`
-- 🔒 **Thread-Safe**: Proper concurrency handling
-- 🛡️ **Sensitive Data Detection**: Auto-detect credit cards, SSN, API keys
-- 📦 **Bulk Operations**: Multi-select items for batch delete/pin/unpin
-- 🏷️ **Smart Categories & Tags**: Auto-categorize content (Links, Code, Contacts, etc.)
-- ⌨️ **Enhanced Keyboard Navigation**: Arrow keys, Enter, Delete, Escape, Space, Home/End, F1
-- ⬆️ **Auto Update**: Check for and install updates from GitHub releases
+FyClip is a feature-rich clipboard manager designed for power users. Here's a comprehensive breakdown of what it offers:
+
+### Core Functionality
+
+| Feature | Description |
+|---------|-------------|
+| 📋 **Clipboard History** | Automatically saves text, images, HTML, and files |
+| 🔍 **Enhanced Search** | Regex, case-sensitive, and fuzzy matching |
+| 📌 **Pin Items** | Keep important items at the top |
+| ⭐ **Favorites View** | Toggle pinned-only view instantly |
+| ❌ **Clear Search** | One-click reset for the search box |
+
+### Content Support
+
+| Feature | Description |
+|---------|-------------|
+| 🖼️ **Image Support** | Preview and save clipboard images |
+| 📝 **HTML Support** | Capture and preserve HTML formatting |
+| 📁 **File History** | Track files copied from file manager |
+| 📝 **Markdown Preview** | Markdown content renders correctly in preview pane |
+| 📤 **Unified Export** | Export selected text or images from one action |
+
+### Organization & Management
+
+| Feature | Description |
+|---------|-------------|
+| 🏷️ **Smart Categories** | Auto-categorize content (Links, Code, Contacts, etc.) |
+| 🏷️ **Custom Tags** | Add custom tags to organize clipboard items |
+| 📝 **Snippets** | Save and expand text templates with variables |
+| 📦 **Bulk Operations** | Multi-select items for batch delete/pin/unpin |
+
+### Security
+
+| Feature | Description |
+|---------|-------------|
+| 🔒 **Encrypted Storage** | AES-256-GCM encryption at rest |
+| ☁️ **Encrypted Backup** | Password-protected backup and restore |
+| 🛡️ **Sensitive Data Detection** | Auto-detect credit cards, SSN, API keys |
+
+### System Integration
+
+| Feature | Description |
+|---------|-------------|
+| 🚀 **AutoStart** | Launch on system startup |
+| ⏸️ **Pause Capture** | Pause monitoring for 5 minutes from toolbar/tray |
+| 🖥️ **System Tray** | Recent items submenu, Clear History action |
+| ⬆️ **Auto Update** | Check for and install updates from GitHub releases |
+
+### User Interface
+
+| Feature | Description |
+|---------|-------------|
+| 🎨 **Theme Support** | Light, Dark, and System theme modes |
+| 🎨 **Modern UI** | Dark theme with responsive design |
+| ⌨️ **Keyboard Navigation** | Arrow keys, Enter, Delete, Escape, Space, Home/End, F1 |
+| 🕒 **Relative Time** | List rows show recency and copy frequency |
+| 💾 **Persistent Storage** | History saved across sessions |
+
+### Performance
+
+| Feature | Description |
+|---------|-------------|
+| ⚡ **Debounced Updates** | Batched UI updates for smooth performance |
+| ⚡ **Async Operations** | Non-blocking clipboard monitoring |
+| ⚡ **O(1) Lookups** | Hash map-based duplicate detection |
+| 🔒 **Thread-Safe** | Proper concurrency handling |
+
+---
 
 ## Screenshots
 
-![Main Window - Clipboard History with Search and Preview](internal/app/assets/screenshots/screenshot1.png)
+<div align="center">
+  <img src="internal/app/assets/screenshots/screenshot1.png" alt="Main Window - Clipboard History with Search and Preview" width="800"/>
+  <p><em>Main Window - Clipboard History with Search and Preview</em></p>
+</div>
 
-![Preview Pane with JSON Formatting](internal/app/assets/screenshots/screenshot2.png)
+<div align="center">
+  <img src="internal/app/assets/screenshots/screenshot2.png" alt="Preview Pane with JSON Formatting" width="800"/>
+  <p><em>Preview Pane with JSON Formatting</em></p>
+</div>
 
-![Quick Panel - Global Hotkey Access](internal/app/assets/screenshots/screenshot3.png)
+<div align="center">
+  <img src="internal/app/assets/screenshots/screenshot3.png" alt="Quick Panel - Global Hotkey Access" width="800"/>
+  <p><em>Quick Panel - Global Hotkey Access</em></p>
+</div>
 
-## Improvements
+---
 
-### Recently Implemented
+## Quick Start
 
-- ✅ **Auto Update**: Check for and install updates from GitHub releases
-  - Terminal: `fyclip --check-update` and `fyclip --update`
-  - UI: Help → Check for Updates
-- ✅ **HTML Preview**: Auto-detect HTML content and display as code block in preview
-  - Fast detection: Any content starting with `<` followed by a letter is detected as HTML
-  - HTML content displays as code block in preview pane
-
-- ✅ **Theme Support**: Light, Dark, and System theme modes with centered popup selection
-- ✅ **Bulk Operations**: Multi-select with checkboxes, batch delete/pin/unpin actions
-- ✅ **Smart Categories**: Auto-detect content types (Links→Links, Code snippets→Code, Emails→Contacts, Phone numbers→Contacts)
-- ✅ **Tags**: Add custom tags to organize clipboard items
-- ✅ **Enhanced Keyboard Navigation**: Arrow keys, Enter, Delete, Escape, Space, Home/End, F1
-- ✅ **Quick Panel**: Global hotkey quick access popup for fast paste (Ctrl+Shift+V)
-- ✅ **Snippets/Templates**: Create text templates with variables ({{date}}, {{time}}, {{clipboard}})
-- ✅ **Pattern Exclusion**: Regex, app, and size-based content filtering
-- ✅ **Hash Maps**: O(1) duplicate detection and item lookup
-- ✅ **Encrypted Backup**: Password-protected backup with AES-256-GCM
-- ✅ **Rich Text/HTML**: Capture and preserve HTML clipboard content
-- ✅ **File History**: Track files copied from file manager
-- ✅ **Enhanced Search**: Regex, case-sensitive, and fuzzy matching
-- ✅ **Sensitive Data**: Auto-detect and handle sensitive content
-- ✅ **Structured Logging**: slog-based logging with file rotation
-- ✅ **Graceful Shutdown**: Context-based shutdown with hooks
-- ✅ **System Tray**: Recent items submenu, Clear History action
-- ✅ **Preview Enhancements**: JSON pretty-printing, file info display
-- ✅ **Test Coverage**: Improved test assertions to eliminate linter warnings
-
-### Performance Snapshot (internal/clipboard benchmarks)
-
-Run command:
+### Linux
 
 ```bash
-go test -bench 'Benchmark(UpdateFilteredSearch1000|AddItemWithDuplicateScan1000|StorageSave1000)$' -benchmem ./internal/clipboard
-```
+# Install dependencies (X11)
+sudo apt install xclip
 
-Latest measured deltas:
-- `BenchmarkUpdateFilteredSearch1000`: `604006 ns/op` -> `37772 ns/op` (~16x faster)
-- `BenchmarkUpdateFilteredSearch1000` allocations: `1020 allocs/op` -> `0 allocs/op`
-- `BenchmarkAddItemWithDuplicateScan1000`: `966.1 ns/op` -> `1523 ns/op` (small regression, low absolute cost)
-- `BenchmarkStorageSave1000`: raw `Storage.Save` micro-benchmark unchanged/slower, but save requests are now coalesced in runtime manager flow
+# Or for Wayland
+sudo apt install wl-clipboard
 
-### Planned Enhancements
-
-- Virtualized list rendering for large history
-- Lazy loading for images
-- Memory optimization with compression
-
-## Project Structure
-
-```
-fyclip/
-├── main.go                      # Application entry point
-├── Makefile                     # Build automation
-├── go.mod                       # Go module dependencies
-├── icon.png                     # Application icon
-├── internal/
-│   ├── app/
-│   │   └── app.go              # App initialization
-│   ├── clipboard/
-│   │   ├── item.go             # Clipboard item types (Text, Image, HTML, File)
-│   │   ├── manager.go          # Core manager logic
-│   │   ├── monitor.go          # Clipboard monitoring
-│   │   ├── native.go           # Platform clipboard ops
-│   │   ├── storage.go          # Persistence layer
-│   │   ├── snippet.go          # Snippet management
-│   │   ├── exclusion.go        # Pattern exclusion rules
-│   │   ├── search.go           # Enhanced search
-│   │   ├── backup.go           # Encrypted backup
-│   │   └── sensitive.go        # Sensitive data handling
-│   ├── config/
-│   │   └── config.go           # Configuration management
-│   ├── errors/
-│   │   └── errors.go           # Custom error types
-│   ├── logger/
-│   │   └── logger.go           # Structured logging
-│   ├── ui/
-│   │   ├── window.go           # Main window
-│   │   ├── list.go             # History list
-│   │   ├── preview.go          # Preview pane
-│   │   ├── toolbar.go          # Action buttons
-│   │   ├── search.go           # Search bar
-│   │   ├── status.go           # Status bar
-│   │   └── dialogs.go          # Dialogs & utilities
-│   ├── platform/
-│   │   ├── autostart.go        # Autostart interface
-│   │   ├── autostart_linux.go  # Linux implementation
-│   │   ├── autostart_windows.go # Windows implementation
-│   │   └── autostart_darwin.go # macOS implementation
-│   └── tray/
-│       └── tray.go             # System tray
-└── README.md
-```
-
-## Requirements
-
-- Go 1.21 or later
-- Fyne v2.5+
-- For Linux:
-  - X11: `xclip` package
-  - Wayland: `wl-clipboard` package
-- For Windows: No additional dependencies
-- For macOS: No additional dependencies
-
-## Installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager.git
-cd FyClip---Advanced-Clipboard-Manager
-```
-
-### 2. Install dependencies
-
-```bash
-go mod download
-```
-
-### 3. Build
-
-```bash
-make build
-# or
-go build -o fyclip
-```
-
-### 4. Run
-
-```bash
+# Run the application
 ./fyclip
 ```
 
-## Linux Dependencies
+### Windows
 
-### Ubuntu/Debian
+```bash
+# Simply run the executable
+fyclip.exe
+```
 
+### macOS
+
+```bash
+# Run the application
+./fyclip
+```
+
+---
+
+## Installation
+
+### Pre-built Packages
+
+#### Linux
+
+| Format | Command |
+|--------|---------|
+| **.deb** | `sudo dpkg -i fyclip_<version>_<arch>.deb` |
+| **.AppImage** | `chmod +x fyclip_<version>_<arch>.AppImage && ./fyclip_<version>_<arch>.AppImage` |
+
+Download from [Releases](https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases)
+
+#### Windows
+
+Download the installer from [Releases](https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases)
+
+#### macOS
+
+```bash
+# Using Homebrew (if available)
+brew install fyclip
+```
+
+### Building from Source
+
+#### Prerequisites
+
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Go | 1.21+ | Programming language |
+| Fyne | 2.5+ | UI framework |
+
+#### Linux Dependencies
+
+**Ubuntu/Debian:**
 ```bash
 # For X11
 sudo apt install xclip
@@ -190,8 +221,7 @@ sudo apt install xclip
 sudo apt install wl-clipboard
 ```
 
-### Arch Linux
-
+**Arch Linux:**
 ```bash
 # For X11
 sudo pacman -S xclip
@@ -200,8 +230,7 @@ sudo pacman -S xclip
 sudo pacman -S wl-clipboard
 ```
 
-### Fedora
-
+**Fedora:**
 ```bash
 # For X11
 sudo dnf install xclip
@@ -210,38 +239,49 @@ sudo dnf install xclip
 sudo dnf install wl-clipboard
 ```
 
-## Building for Release
-
-### Linux Debian + AppImage (Recommended)
-
-Use the project script, which now follows Fyne's official Linux packaging flow (`fyne package --os linux`) and then builds:
-- Debian package: `dist/fyclip_<version>_<arch>.deb`
-- AppImage: `dist/fyclip_<version>_<arch>.AppImage`
+#### Build Steps
 
 ```bash
-./build.sh
-# or pass explicit version
-./build.sh 1.6.0
+# 1. Clone the repository
+git clone https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager.git
+cd FyClip---Advanced-Clipboard-Manager
+
+# 2. Install dependencies
+go mod download
+
+# 3. Build
+make build
+
+# 4. Run
+./fyclip
 ```
 
-Requirements for the script:
+---
+
+## Building for Release
+
+### Using Build Script (Recommended for Linux)
+
+The build script follows Fyne's official Linux packaging flow:
+
+```bash
+# Build with default version
+./build.sh
+
+# Build with explicit version
+./build.sh 2.2.0
+```
+
+This produces:
+- `dist/fyclip_<version>_<arch>.deb` - Debian package
+- `dist/fyclip_<version>_<arch>.AppImage` - AppImage
+
+**Requirements:**
 - `go`
-- `fyne` CLI
+- `fyne` CLI (`go install github.com/fyne-io/fyne@latest`)
 - `dpkg-deb`
 - `appimagetool`
 - `tar`
-
-Packaging process used by `build.sh`:
-1. Run Fyne official Linux packaging:
-   - `fyne package --os linux --release --name fyclip --icon icon.png`
-   - Generates `fyclip.tar.xz`
-2. Extract Fyne package payload and reuse its generated Linux assets:
-   - Binary in `usr/bin` or `usr/local/bin`
-   - Desktop entry in `usr/share/applications` or `usr/local/share/applications`
-   - Icon in `usr/share/pixmaps` or `usr/local/share/pixmaps`
-3. Build Debian package (`.deb`) from that payload via `dpkg-deb`
-4. Build AppImage (`.AppImage`) from the same payload via `appimagetool`
-5. Place final artifacts in `dist/`
 
 ### Using Makefile
 
@@ -262,24 +302,20 @@ make package
 make release
 ```
 
-### Fyne Native Packaging
-
-Package using Fyne directly:
+### Using Fyne Native Packaging
 
 ```bash
-# Linux tar package (official Fyne output)
+# Linux tar package
 fyne package --os linux --release --name fyclip --icon icon.png
 
 # Windows installer
 fyne package --os windows --release --name fyclip --icon icon.png
 
-# macOS app bundle / dmg
+# macOS app bundle
 fyne package --os darwin --release --name fyclip --icon icon.png
 ```
 
-### Cross-Platform Build
-
-Use `fyne-cross` for easy cross-compilation:
+### Cross-Platform Build with fyne-cross
 
 ```bash
 # Install fyne-cross
@@ -295,27 +331,33 @@ fyne-cross windows -arch=amd64
 fyne-cross darwin -arch=amd64
 ```
 
+---
+
 ## Usage
 
 ### Keyboard Shortcuts
 
-- **↑/↓ (Arrow Keys)**: Navigate through clipboard items
-- **Enter**: Copy selected item to clipboard
-- **Delete**: Delete selected item
-- **Space**: Pin/unpin selected item
-- **Escape**: Clear search / Close panel
-- **Home**: Go to first item
-- **End**: Go to last item
-- **F1**: Focus search bar
-- **Ctrl+F**: Focus search bar
-- **Ctrl+Shift+V**: Open quick panel
+| Shortcut | Action |
+|----------|--------|
+| `↑/↓` | Navigate through clipboard items |
+| `Enter` | Copy selected item to clipboard |
+| `Delete` | Delete selected item |
+| `Space` | Pin/unpin selected item |
+| `Escape` | Clear search / Close panel |
+| `Home` | Go to first item |
+| `End` | Go to last item |
+| `F1` | Focus search bar |
+| `Ctrl+F` | Focus search bar |
+| `Ctrl+Shift+V` | Open quick panel |
 
-#### Bulk Selection Mode
+### Bulk Operations
 
-- **Ctrl+Click**: Add/remove item from selection
-- Click toolbar **Select** button to enter selection mode
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Click` | Add/remove item from selection |
+| Toolbar **Select** button | Enter selection mode |
 
-### Features
+### Features Guide
 
 1. **Pin Items**: Click the pin button or press Space to keep items at the top
 2. **Search**: Type in the search bar to filter items (supports regex, case-sensitive, fuzzy)
@@ -335,7 +377,7 @@ fyne-cross darwin -arch=amd64
 
 ### Snippets
 
-Snippets allow you to create reusable text templates with dynamic variables. They can be accessed via the toolbar "Snippets" button.
+Snippets allow you to create reusable text templates with dynamic variables.
 
 #### Creating a Snippet
 
@@ -344,21 +386,19 @@ Snippets allow you to create reusable text templates with dynamic variables. The
 3. Fill in the details:
    - **Title**: A descriptive name (e.g., "Email Signature")
    - **Content**: The template text with optional variables
-   - **Abbreviation** (optional): A short trigger word for quick access (e.g., "sig")
+   - **Abbreviation** (optional): A short trigger word for quick access
    - **Category** (optional): Group snippets by category
 
-#### Using Variables
-
-Snippets support the following template variables that are automatically expanded when used:
+#### Available Variables
 
 | Variable | Description | Example Output |
 |----------|-------------|----------------|
-| `{{date}}` | Current date | 2026-03-20 |
+| `{{date}}` | Current date | 2026-03-25 |
 | `{{time}}` | Current time | 14:30:45 |
-| `{{datetime}}` | Full date and time | 2026-03-20 14:30:45 |
+| `{{datetime}}` | Full date and time | 2026-03-25 14:30:45 |
 | `{{year}}` | Current year | 2026 |
 | `{{month}}` | Current month (01-12) | 03 |
-| `{{day}}` | Current day (01-31) | 20 |
+| `{{day}}` | Current day (01-31) | 25 |
 | `{{clipboard}}` | Current clipboard content | (varies) |
 
 #### Example Snippet
@@ -377,44 +417,148 @@ When used, this expands to:
 ```
 Best regards,
 John Doe
-2026-03-20
+2026-03-25
 ```
 
-#### Using Snippets
-
-1. Click the "Snippets" button in the toolbar
-2. Select the snippet you want to use
-3. Click "Use" or double-click to copy the expanded content to clipboard
-4. The template variables will be replaced with current values
+---
 
 ## Configuration
 
 Settings are automatically saved to:
 
-- **Linux**: `~/.fyclip/`
-- **Windows**: `%USERPROFILE%\.fyclip\`
-- **macOS**: `~/.fyclip/`
+| Platform | Path |
+|----------|------|
+| Linux | `~/.fyclip/` |
+| Windows | `%USERPROFILE%\.fyclip\` |
+| macOS | `~/.fyclip/` |
 
-## Architecture Highlights
+---
 
-### Modular Design
+## Architecture
 
+### Project Structure
+
+```
+fyclip/
+├── main.go                      # Application entry point
+├── Makefile                     # Build automation
+├── go.mod                       # Go module dependencies
+├── icon.png                     # Application icon
+├── FyneApp.toml                 # Fyne application configuration
+├── build.sh                     # Release build script
+│
+├── internal/
+│   ├── app/
+│   │   ├── app.go              # App initialization & lifecycle
+│   │   └── single_instance.go  # Single instance enforcement
+│   │
+│   ├── clipboard/
+│   │   ├── item.go             # Clipboard item types (Text, Image, HTML, File)
+│   │   ├── manager.go          # Core manager logic & state
+│   │   ├── monitor.go          # Clipboard monitoring & change detection
+│   │   ├── native.go           # Platform-specific clipboard operations
+│   │   ├── storage.go          # Persistence layer with encryption
+│   │   ├── snippet.go          # Snippet management & expansion
+│   │   ├── exclusion.go        # Pattern exclusion rules
+│   │   ├── search.go           # Enhanced search (regex, fuzzy)
+│   │   ├── backup.go           # Encrypted backup & restore
+│   │   ├── sensitive.go        # Sensitive data detection
+│   │   ├── pool.go             # Object pooling for performance
+│   │   └── validation.go       # Input validation
+│   │
+│   ├── config/
+│   │   ├── config.go           # Configuration management
+│   │   └── validation.go       # Config validation
+│   │
+│   ├── errors/
+│   │   └── errors.go           # Custom error types
+│   │
+│   ├── logger/
+│   │   └── logger.go           # Structured logging with file rotation
+│   │
+│   ├── metrics/
+│   │   └── metrics.go          # Application metrics
+│   │
+│   ├── ui/
+│   │   ├── window.go           # Main window management
+│   │   ├── list.go             # History list widget
+│   │   ├── preview.go          # Preview pane with formatting
+│   │   ├── toolbar.go          # Action buttons & controls
+│   │   ├── search.go           # Search bar component
+│   │   ├── status.go           # Status bar
+│   │   ├── dialogs.go          # Dialogs & utilities
+│   │   ├── quickpanel.go       # Quick access panel
+│   │   └── update_dialogs.go   # Update notification dialogs
+│   │
+│   ├── platform/
+│   │   ├── autostart.go        # Autostart interface
+│   │   ├── autostart_linux.go  # Linux implementation
+│   │   ├── autostart_windows.go # Windows implementation
+│   │   ├── autostart_darwin.go # macOS implementation
+│   │   └── utils.go            # Platform utilities
+│   │
+│   ├── tray/
+│   │   └── tray.go             # System tray integration
+│   │
+│   ├── update/
+│   │   └── checker.go          # Auto-update checking
+│   │
+│   └── testutil/
+│       └── testutil.go         # Testing utilities
+│
+└── README.md
+```
+
+### Design Principles
+
+#### Modular Architecture
 - **Separation of Concerns**: Each module has a single responsibility
 - **Clean Interfaces**: Well-defined APIs between components
 - **Testability**: Easy to unit test individual modules
 
+#### Code Organization
+- Internal packages (`internal/`) for implementation details
+- Clear dependency direction: `main.go` → `app` → `clipboard`/`ui` → `config`/`logger`
+- Feature flags for optional functionality
+
 ### Performance Optimizations
 
-- **Debounced Updates**: UI updates are batched (50ms debounce)
-- **Coalesced Saves**: History persistence requests are serialized and debounced (250ms)
-- **O(1) Lookups**: Hash maps for duplicate detection and item access
-- **Efficient Filtering**: Search avoids repeated lowercasing and minimizes allocation churn
-- **Object Pool**: sync.Pool for Item reuse to reduce GC pressure
-- **Regex Cache**: Compiled regex patterns cached for faster repeated searches
-- **Fuzzy Search**: Optimized subsequence matching with reduced allocations
-- **Thread-Safe**: Proper mutex usage throughout
-- **Selection Fast Path**: Selecting list items avoids redundant full-window refreshes
-- **Duplicate Promotion**: Existing duplicates move to latest with notification
+| Optimization | Description |
+|--------------|-------------|
+| **Debounced Updates** | UI updates are batched (50ms debounce) |
+| **Coalesced Saves** | History persistence requests are serialized and debounced (250ms) |
+| **O(1) Lookups** | Hash maps for duplicate detection and item access |
+| **Efficient Filtering** | Search avoids repeated lowercasing and minimizes allocation churn |
+| **Object Pool** | `sync.Pool` for Item reuse to reduce GC pressure |
+| **Regex Cache** | Compiled regex patterns cached for faster repeated searches |
+| **Fuzzy Search** | Optimized subsequence matching with reduced allocations |
+| **Thread-Safe** | Proper mutex usage throughout |
+| **Selection Fast Path** | Selecting list items avoids redundant full-window refreshes |
+| **Duplicate Promotion** | Existing duplicates move to latest with notification |
+
+#### Benchmark Results
+
+Run the benchmarks to see performance improvements:
+
+```bash
+go test -bench 'Benchmark(UpdateFilteredSearch1000|AddItemWithDuplicateScan1000|StorageSave1000)
+ -benchmem ./internal/clipboard
+```
+
+Latest measured deltas:
+- `BenchmarkUpdateFilteredSearch1000`: `604006 ns/op` -> `37772 ns/op` (~16x faster)
+- `BenchmarkUpdateFilteredSearch1000` allocations: `1020 allocs/op` -> `0 allocs/op`
+- `BenchmarkAddItemWithDuplicateScan1000`: `966.1 ns/op` -> `1523 ns/op` (small regression, low absolute cost)
+- `BenchmarkStorageSave1000`: raw `Storage.Save` micro-benchmark unchanged/slower, but save requests are now coalesced in runtime manager flow
+
+### Security
+
+| Feature | Description |
+|---------|-------------|
+| **AES-256-GCM Encryption** | All data encrypted at rest |
+| **Sensitive Data Detection** | Auto-detect credit cards, SSN, API keys |
+| **Secure Wipe** | Clear sensitive data from memory |
+| **Password-Protected Backups** | Optional encryption for backups |
 
 ### Thread Safety
 
@@ -422,27 +566,16 @@ Settings are automatically saved to:
 - Proper locking hierarchy to prevent deadlocks
 - Channel-based communication for cross-goroutine updates
 
-### Security
-
-- **AES-256-GCM Encryption**: All data encrypted at rest
-- **Sensitive Data Detection**: Auto-detect credit cards, SSN, API keys
-- **Secure Wipe**: Clear sensitive data from memory
-- **Password-Protected Backups**: Optional encryption for backups
+---
 
 ## Development
 
-### Adding New Features
+### Prerequisites
 
-1. **New clipboard item types**: Extend `clipboard/item.go`
-2. **UI components**: Add to `internal/ui/`
-3. **Platform features**: Implement in `internal/platform/`
-
-### Code Style
-
-- Follow Go conventions
-- Use meaningful variable names
-- Add comments for exported functions
-- Keep functions small and focused
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Go | 1.21+ | Programming language |
+| Fyne | 2.5+ | UI framework |
 
 ### Makefile Targets
 
@@ -453,6 +586,21 @@ make test    # Run tests
 make lint    # Run linter
 make clean   # Clean build artifacts
 ```
+
+### Adding New Features
+
+1. **New clipboard item types**: Extend `internal/clipboard/item.go`
+2. **UI components**: Add to `internal/ui/`
+3. **Platform features**: Implement in `internal/platform/`
+
+### Code Style
+
+- Follow Go conventions
+- Use meaningful variable names
+- Add comments for exported functions
+- Keep functions small and focused
+
+---
 
 ## Troubleshooting
 
@@ -477,6 +625,8 @@ go get -u fyne.io/fyne/v2@latest
 go mod tidy
 ```
 
+---
+
 ## Contributing
 
 Contributions are welcome! Please:
@@ -486,22 +636,28 @@ Contributions are welcome! Please:
 3. Make your changes
 4. Submit a pull request
 
+---
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a history of changes.
 
+---
+
 ## License
 
-MIT License - See LICENSE file for details
+MIT License - See [LICENSE](Licence) file for details
 
-## Author
-
-**Sarwar Hossain**
-
-- Email: sarwarhridoy4@gmail.com
-- GitHub: [@Sarwarhridoy4](https://github.com/Sarwarhridoy4)
+---
 
 ## Acknowledgments
 
-- Built with [Fyne](https://fyne.io/) - Cross-platform GUI toolkit
-- Uses [golang.design/x/clipboard](https://github.com/golang-design/clipboard) for clipboard access
+- [Fyne](https://fyne.io/) - Cross-platform GUI library
+- [Go](https://golang.org/) - Programming language
+- All contributors and testers
+
+---
+
+<p align="center">
+  <strong>Made with ❤️ by <a href="https://github.com/Sarwarhridoy4">Sarwar Hossain</a></strong>
+</p>
