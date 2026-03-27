@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"syscall"
 )
 
 // singleInstanceLock implements a cross-platform single instance lock
@@ -137,18 +136,8 @@ func isPreviousInstanceRunning(lockPath string) bool {
 		return false
 	}
 
-	// Check if the process is still running
-	// On Unix, we can use syscall.Kill to check if process exists
-	// On Windows, we need a different approach
-	err = syscall.Kill(pid, 0)
-	if err != nil {
-		// ESRCH means no such process - stale lock file
-		// EPERM means process exists but we don't have permission to signal it
-		return err != syscall.EPERM
-	}
-
-	// Process is running
-	return true
+	// Check if the process is still running using platform-specific implementation
+	return isProcessRunning(pid)
 }
 
 // Release releases the single instance lock

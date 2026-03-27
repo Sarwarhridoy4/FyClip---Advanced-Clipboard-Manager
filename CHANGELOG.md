@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Lock file location: `~/.local/share/FyClip/.fyclip.lock` (Linux), `%LOCALAPPDATA%/FyClip/` (Windows), `~/Library/Application Support/FyClip/` (macOS)
   - Automatically handles stale lock files from crashed instances
   - Shows system notification when another instance is already running
-    - Linux: Critical urgency notification via `notify-send`
+    - Linux: Critical urgency notification via `shownotification`
     - Windows: PowerShell toast notification
     - macOS: `osascript` notification
 

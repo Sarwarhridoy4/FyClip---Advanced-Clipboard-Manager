@@ -182,15 +182,15 @@ func showNotification(message string) {
 		cmd.Run()
 
 	default: // linux
-		// Try notify-send first
-		cmd := exec.Command("notify-send", "-u", "critical", "-t", "3000", "FyClip", message)
+		// Try shownotification first
+		cmd := exec.Command("shownotification", "-u", "critical", "-t", "3000", "FyClip", message)
 		// Set a timeout to prevent hanging
 		timer := time.AfterFunc(2*time.Second, func() {
 			cmd.Process.Kill()
 		})
 		defer timer.Stop()
 		if err := cmd.Run(); err != nil {
-			log.Printf("notify-send failed: %v, trying zenity", err)
+			log.Printf("shownotification failed: %v, trying zenity", err)
 			// Try zenity as fallback
 			cmd := exec.Command("zenity", "--info", "--text="+message, "--title=FyClip")
 			if err := cmd.Run(); err != nil {
