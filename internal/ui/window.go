@@ -2,10 +2,12 @@
 package ui
 
 import (
+	"fmt"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
@@ -181,7 +183,7 @@ func (mw *MainWindow) setupKeyHandler() {
 	}()
 }
 
-// setupShortcuts sets up the menu
+// setupShortcuts sets up the menu and keyboard shortcuts
 func (mw *MainWindow) setupShortcuts() {
 	// Edit menu items
 	copyItem := fyne.NewMenuItem("Copy", func() {
@@ -241,6 +243,65 @@ func (mw *MainWindow) setupShortcuts() {
 
 	mainMenu := fyne.NewMainMenu(editMenu, viewMenu, helpMenu)
 	mw.window.SetMainMenu(mainMenu)
+
+	// Register keyboard shortcuts
+	// Copy: Ctrl+C
+	copyShortcut := &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierShortcutDefault}
+	mw.window.Canvas().AddShortcut(copyShortcut, func(shortcut fyne.Shortcut) {
+		if mw.toolbar != nil {
+			mw.toolbar.onCopy()
+		}
+	})
+
+	// Delete: Delete key
+	deleteShortcut := &desktop.CustomShortcut{KeyName: fyne.KeyDelete}
+	mw.window.Canvas().AddShortcut(deleteShortcut, func(shortcut fyne.Shortcut) {
+		if mw.toolbar != nil {
+			mw.toolbar.onDelete()
+		}
+	})
+
+	// Search: Ctrl+F
+	searchShortcut := &desktop.CustomShortcut{KeyName: fyne.KeyF, Modifier: fyne.KeyModifierShortcutDefault}
+	mw.window.Canvas().AddShortcut(searchShortcut, func(shortcut fyne.Shortcut) {
+		if mw.search != nil {
+			mw.search.Focus(mw.window)
+		}
+	})
+
+	// Backup: Ctrl+B
+	backupShortcut := &desktop.CustomShortcut{KeyName: fyne.KeyB, Modifier: fyne.KeyModifierShortcutDefault}
+	mw.window.Canvas().AddShortcut(backupShortcut, func(shortcut fyne.Shortcut) {
+		if mw.toolbar != nil {
+			mw.toolbar.onBackup()
+		}
+	})
+
+	// Restore: Ctrl+R
+	restoreShortcut := &desktop.CustomShortcut{KeyName: fyne.KeyR, Modifier: fyne.KeyModifierShortcutDefault}
+	mw.window.Canvas().AddShortcut(restoreShortcut, func(shortcut fyne.Shortcut) {
+		if mw.toolbar != nil {
+			mw.toolbar.onRestore()
+		}
+	})
+
+	// Quick Paste: F1
+	quickPasteShortcut := &desktop.CustomShortcut{KeyName: fyne.KeyF1}
+	mw.window.Canvas().AddShortcut(quickPasteShortcut, func(shortcut fyne.Shortcut) {
+		if mw.quickPanel != nil {
+			mw.quickPanel.Show()
+		}
+	})
+
+	// Select All: Ctrl+A
+	selectAllShortcut := &desktop.CustomShortcut{KeyName: fyne.KeyA, Modifier: fyne.KeyModifierShortcutDefault}
+	mw.window.Canvas().AddShortcut(selectAllShortcut, func(shortcut fyne.Shortcut) {
+		if mw.list != nil {
+			mw.list.SelectAll()
+			count := mw.list.GetSelectedCount()
+			ShowNotification(mw.app, fmt.Sprintf("%d items selected", count))
+		}
+	})
 }
 
 // moveSelection moves the selection up or down
