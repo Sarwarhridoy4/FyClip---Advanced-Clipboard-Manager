@@ -112,7 +112,7 @@ The auto-update feature allows you to check for and install updates directly fro
 
 #### How It Works
 
-1. **Version Detection**: Reads the current version from `FyneApp.toml`
+1. **Version Detection**: Reads the current version from embedded `internal/version/version.go` file (generated during build)
 2. **GitHub Check**: Fetches the latest release from GitHub API
 3. **Version Comparison**: Compares current version with GitHub tag using exact string matching
 4. **Update Available**: Shows "Update Available!" if versions don't match

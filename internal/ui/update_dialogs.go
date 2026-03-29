@@ -14,8 +14,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/BurntSushi/toml"
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/update"
+	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/version"
 )
 
 // GitHub repository info
@@ -24,30 +24,10 @@ const (
 	githubRepo  = "FyClip---Advanced-Clipboard-Manager"
 )
 
-// getVersionFromFyneApp reads the version from FyneApp.toml
-func getVersionFromFyneApp() string {
-	type FyneApp struct {
-		Details struct {
-			Version string `toml:"Version"`
-		} `toml:"Details"`
-	}
-
-	var app FyneApp
-	if _, err := toml.DecodeFile("FyneApp.toml", &app); err != nil {
-		log.Printf("Warning: Could not read FyneApp.toml: %v", err)
-		return "dev"
-	}
-
-	if app.Details.Version != "" {
-		return app.Details.Version
-	}
-	return "dev"
-}
-
 // ShowUpdateDialog checks for updates and shows a dialog with the result
 func ShowUpdateDialog(window fyne.Window, app fyne.App, currentVersion string) {
-	// Get version from FyneApp.toml
-	currentVersion = getVersionFromFyneApp()
+	// Get version from internal/version package
+	currentVersion = version.Version
 
 	updateWindow := app.NewWindow("Check for Updates")
 	updateWindow.Resize(fyne.NewSize(450, 300))

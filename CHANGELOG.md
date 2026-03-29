@@ -8,14 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.0] - 2026-03-25
 
 ### Fixed
-- **Update Checker**: Fixed update checker to read version from FyneApp.toml and compare exactly with GitHub tag
-  - Added `getVersionFromFyneApp()` function to read version from FyneApp.toml
-  - Updated `handleCheckUpdate()` to use version from FyneApp.toml
-  - Updated `handleUpdate()` to use version from FyneApp.toml
-  - Updated `ShowUpdateDialog()` to use version from FyneApp.toml
+- **Update Checker**: Fixed update checker to read version from embedded version.go file instead of FyneApp.toml
+  - Created `internal/version/version.go` file that gets generated during build with version embedded
+  - Updated `main.go` to use version from `internal/version` package
+  - Updated `internal/ui/update_dialogs.go` to use version from `internal/version` package
+  - Updated `build.sh` to generate `version.go` file with version embedded during build process
   - Version comparison now uses exact string matching instead of semantic version parsing
   - Shows "You are using the latest version!" when current version matches GitHub tag
   - Shows "Update Available!" when versions don't match
+  - Fixed issue where installed Debian package showed version as "dev" instead of actual version
 - **Update Installation**: Fixed update installation not showing logs or completing
   - Installation commands now capture output instead of sending to stdout/stderr
   - Added installation progress dialog with real-time log display

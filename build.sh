@@ -290,6 +290,26 @@ get_version() {
     fi
 }
 
+# Generate version.go file with version embedded
+generate_version_file() {
+    local version="$1"
+    local build_time="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+    
+    cat > "internal/version/version.go" <<EOF
+// File: internal/version/version.go
+// This file is auto-generated during build. Do not edit manually.
+package version
+
+// Version is the application version, set during build
+var Version = "${version}"
+
+// BuildTime is the build timestamp, set during build
+var BuildTime = "${build_time}"
+EOF
+    
+    log_info "Generated version.go with version: ${version}"
+}
+
 # Main build function
 main() {
     echo -e "${BLUE}========================================${NC}"
@@ -318,6 +338,9 @@ main() {
     esac
     
     log_info "Building ${APP_NAME} ${VERSION} (${ARCH})"
+    
+    # Generate version.go file with version embedded
+    generate_version_file "${VERSION}"
     
     # Ensure all tools are available
     ensure_tools
