@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.0] - 2026-03-25
 
+### Fixed
+- **Update Installation**: Fixed update installation not showing logs or completing
+  - Installation commands now capture output instead of sending to stdout/stderr
+  - Added installation progress dialog with real-time log display
+  - Fixed window reference issue causing popup to disappear
+  - Added `GetOutput()` method to retrieve captured installation logs
+  - Updated `installDeb()` to use `pkexec` (graphical sudo) for password prompt in UI
+  - Updated `installExe()`, `installMsi()`, `installDmg()`, `installZip()` to capture output
+  - Added logging to track download and installation progress
+
 ### Added
 - **Single Instance Protection**: Prevents multiple FyClip instances from running simultaneously
   - Uses lock file mechanism to detect existing instances

@@ -121,6 +121,7 @@ func ShowUpdateDialog(window fyne.Window, app fyne.App, currentVersion string) {
 
 // ShowDownloadProgressDialog shows progress of downloading update
 func ShowDownloadProgressDialog(window fyne.Window, app fyne.App, checker *update.Checker, updateInfo *update.UpdateInfo, currentVersion string) {
+	log.Printf("Opening download progress window for %s", updateInfo.AssetName)
 	progressWindow := app.NewWindow("Downloading Update")
 	progressWindow.Resize(fyne.NewSize(450, 200))
 	progressWindow.SetFixedSize(true)
@@ -168,7 +169,9 @@ func ShowDownloadProgressDialog(window fyne.Window, app fyne.App, checker *updat
 
 	// Start download
 	go func() {
+		log.Printf("Starting download goroutine...")
 		downloader := update.NewDownloader(checker, updateInfo)
+		log.Printf("Downloader created, starting download...")
 		
 		err := downloader.Download(context.Background(), func(downloaded, total int64) {
 			fyne.Do(func() {
@@ -187,6 +190,7 @@ func ShowDownloadProgressDialog(window fyne.Window, app fyne.App, checker *updat
 				return
 			}
 
+			log.Printf("Download completed successfully")
 			// Download complete - show install options
 			statusLabel.SetText("Download complete!")
 			sizeLabel.SetText(fmt.Sprintf("Downloaded to: %s", downloader.GetDownloadPath()))
@@ -202,7 +206,7 @@ func ShowDownloadProgressDialog(window fyne.Window, app fyne.App, checker *updat
 			installBtn.Show()
 			installBtn.OnTapped = func() {
 				progressWindow.Close()
-				ShowInstallConfirmation(progressWindow, app, downloader.GetDownloadPath())
+				ShowInstallConfirmation(window, app, downloader.GetDownloadPath())
 			}
 		})
 	}()
@@ -210,22 +214,102 @@ func ShowDownloadProgressDialog(window fyne.Window, app fyne.App, checker *updat
 
 // ShowInstallConfirmation shows confirmation before installing
 func ShowInstallConfirmation(window fyne.Window, app fyne.App, downloadPath string) {
-	dialog.ShowConfirm("Install Update", 
+	var confirmDialog *dialog.ConfirmDialog
+	confirmDialog = dialog.NewConfirm("Install Update", 
 		fmt.Sprintf("The update has been downloaded to:\n%s\n\nDo you want to install it now? You may need to restart the application after installation.", downloadPath),
 		func(confirmed bool) {
 			if !confirmed {
 				return
 			}
 
-			installer := update.NewInstaller(downloadPath, "FyClip")
-			if err := installer.Install(); err != nil {
-				ShowNotification(app, fmt.Sprintf("Installation failed: %v", err))
-				log.Printf("Installation error: %v", err)
-				return
-			}
-
-			ShowNotification(app, "Update installed! Please restart the application.")
+			// Close the confirmation dialog before showing progress
+			confirmDialog.Hide()
+			ShowInstallProgressDialog(window, app, downloadPath)
 		}, window)
+	confirmDialog.Show()
+}
+
+// ShowInstallProgressDialog shows installation progress and logs
+func ShowInstallProgressDialog(window fyne.Window, app fyne.App, downloadPath string) {
+	installWindow := app.NewWindow("Installing Update")
+	installWindow.Resize(fyne.NewSize(500, 400))
+	installWindow.SetFixedSize(true)
+
+	// Status label
+	statusLabel := widget.NewLabel("Installing update...")
+	statusLabel.Alignment = fyne.TextAlignCenter
+
+	// Log output area
+	logOutput := widget.NewMultiLineEntry()
+	logOutput.SetText("Starting installation...\n")
+	logOutput.Wrapping = fyne.TextWrapWord
+	logOutput.Disable() // Make it read-only
+
+	// Scroll container for logs
+	logScroll := container.NewScroll(logOutput)
+	logScroll.SetMinSize(fyne.NewSize(480, 250))
+
+	// Close button (initially hidden)
+	closeBtn := widget.NewButton("Close", func() {
+		installWindow.Close()
+	})
+	closeBtn.Hide()
+
+	// Content
+	content := container.NewVBox(
+		container.NewHBox(layout.NewSpacer(), widget.NewIcon(theme.DownloadIcon()), layout.NewSpacer()),
+		container.NewPadded(statusLabel),
+		widget.NewLabel("Installation Log:"),
+		logScroll,
+		container.NewHBox(layout.NewSpacer(), closeBtn, layout.NewSpacer()),
+	)
+
+	installWindow.SetContent(content)
+	installWindow.CenterOnScreen()
+	installWindow.Show()
+
+	// Run installation in background
+	go func() {
+		installer := update.NewInstaller(downloadPath, "FyClip")
+		
+		// Update log periodically
+		logChan := make(chan string, 100)
+		go func() {
+			for msg := range logChan {
+				fyne.Do(func() {
+					currentText := logOutput.Text
+					logOutput.SetText(currentText + msg + "\n")
+					logScroll.ScrollToBottom()
+				})
+			}
+		}()
+
+		logChan <- "Running installer..."
+		logChan <- fmt.Sprintf("Download path: %s", downloadPath)
+		
+		err := installer.Install()
+		
+		// Get installation output
+		output := installer.GetOutput()
+		if output != "" {
+			logChan <- "\n--- Installation Output ---"
+			logChan <- output
+		}
+		
+		close(logChan)
+
+		fyne.Do(func() {
+			if err != nil {
+				statusLabel.SetText("Installation failed!")
+				logOutput.SetText(logOutput.Text + fmt.Sprintf("\nError: %v", err))
+				log.Printf("Installation error: %v", err)
+			} else {
+				statusLabel.SetText("Installation completed successfully!")
+				logOutput.SetText(logOutput.Text + "\nUpdate installed! Please restart the application.")
+			}
+			closeBtn.Show()
+		})
+	}()
 }
 
 // formatBytes formats bytes into human readable string

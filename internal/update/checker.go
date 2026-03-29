@@ -392,6 +392,7 @@ type Installer struct {
 	downloadPath  string
 	appName       string
 	log           *logger.Logger
+	output        strings.Builder
 }
 
 // NewInstaller creates a new installer
@@ -401,6 +402,11 @@ func NewInstaller(downloadPath, appName string) *Installer {
 		appName:      appName,
 		log:          logger.Get(),
 	}
+}
+
+// GetOutput returns the captured installation output
+func (i *Installer) GetOutput() string {
+	return i.output.String()
 }
 
 // Install installs the update based on the platform and file type
@@ -436,13 +442,23 @@ func (i *Installer) installLinux(ext string) error {
 
 // installDeb installs a .deb package
 func (i *Installer) installDeb() error {
-	cmd := exec.Command("sudo", "dpkg", "-i", i.downloadPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	// Try pkexec first (graphical sudo), fall back to sudo
+	var cmd *exec.Cmd
+	if _, err := exec.LookPath("pkexec"); err == nil {
+		cmd = exec.Command("pkexec", "dpkg", "-i", i.downloadPath)
+	} else {
+		cmd = exec.Command("sudo", "dpkg", "-i", i.downloadPath)
+	}
+	cmd.Stdout = &i.output
+	cmd.Stderr = &i.output
 
 	i.log.Info("Installing .deb package with dpkg...")
-	return cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		i.log.Error(fmt.Sprintf("dpkg installation failed: %v", err))
+		i.log.Error(fmt.Sprintf("Installation output: %s", i.output.String()))
+	}
+	return err
 }
 
 // installAppImage makes an AppImage executable
@@ -474,23 +490,31 @@ func (i *Installer) installWindows(ext string) error {
 // installExe runs the installer executable
 func (i *Installer) installExe() error {
 	cmd := exec.Command(i.downloadPath, "/S") // Silent install
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	cmd.Stdout = &i.output
+	cmd.Stderr = &i.output
 
 	i.log.Info("Running installer...")
-	return cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		i.log.Error(fmt.Sprintf("Installer execution failed: %v", err))
+		i.log.Error(fmt.Sprintf("Installation output: %s", i.output.String()))
+	}
+	return err
 }
 
 // installMsi installs an MSI package
 func (i *Installer) installMsi() error {
 	cmd := exec.Command("msiexec", "/i", i.downloadPath, "/quiet")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	cmd.Stdout = &i.output
+	cmd.Stderr = &i.output
 
 	i.log.Info("Installing MSI package...")
-	return cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		i.log.Error(fmt.Sprintf("MSI installation failed: %v", err))
+		i.log.Error(fmt.Sprintf("Installation output: %s", i.output.String()))
+	}
+	return err
 }
 
 // installDarwin handles macOS installation
@@ -511,12 +535,14 @@ func (i *Installer) installDmg() error {
 	mountCmd := exec.Command("hdiutil", "attach", i.downloadPath, "-nobrowse")
 	mountOut, err := mountCmd.Output()
 	if err != nil {
+		i.output.WriteString(fmt.Sprintf("Failed to mount DMG: %v\n", err))
 		return fmt.Errorf("failed to mount DMG: %w", err)
 	}
 
 	// Parse mount point from output
 	mountPoint := strings.TrimSpace(string(mountOut))
 	i.log.Info(fmt.Sprintf("DMG mounted at: %s", mountPoint))
+	i.output.WriteString(fmt.Sprintf("DMG mounted at: %s\n", mountPoint))
 
 	// Find .app in mounted volume
 	appPath := filepath.Join(mountPoint, i.appName+".app")
@@ -531,14 +557,20 @@ func (i *Installer) installDmg() error {
 	// Copy to Applications
 	if _, err := os.Stat(appPath); err == nil {
 		copyCmd := exec.Command("cp", "-R", appPath, "/Applications/")
+		copyCmd.Stdout = &i.output
+		copyCmd.Stderr = &i.output
 		if err := copyCmd.Run(); err != nil {
+			i.output.WriteString(fmt.Sprintf("Failed to copy to Applications: %v\n", err))
 			return fmt.Errorf("failed to copy to Applications: %w", err)
 		}
 		i.log.Info("Application installed to /Applications/")
+		i.output.WriteString("Application installed to /Applications/\n")
 	}
 
 	// Unmount DMG
 	detachCmd := exec.Command("hdiutil", "detach", mountPoint)
+	detachCmd.Stdout = &i.output
+	detachCmd.Stderr = &i.output
 	detachCmd.Run()
 
 	return nil
@@ -551,7 +583,10 @@ func (i *Installer) installZip() error {
 	os.MkdirAll(tmpDir, 0755)
 
 	cmd := exec.Command("unzip", "-o", i.downloadPath, "-d", tmpDir)
+	cmd.Stdout = &i.output
+	cmd.Stderr = &i.output
 	if err := cmd.Run(); err != nil {
+		i.output.WriteString(fmt.Sprintf("Failed to extract: %v\n", err))
 		return fmt.Errorf("failed to extract: %w", err)
 	}
 
@@ -567,10 +602,14 @@ func (i *Installer) installZip() error {
 	// Copy to Applications
 	if _, err := os.Stat(appPath); err == nil {
 		copyCmd := exec.Command("cp", "-R", appPath, "/Applications/")
+		copyCmd.Stdout = &i.output
+		copyCmd.Stderr = &i.output
 		if err := copyCmd.Run(); err != nil {
+			i.output.WriteString(fmt.Sprintf("Failed to copy to Applications: %v\n", err))
 			return fmt.Errorf("failed to copy to Applications: %w", err)
 		}
 		i.log.Info("Application installed to /Applications/")
+		i.output.WriteString("Application installed to /Applications/\n")
 	}
 
 	// Cleanup

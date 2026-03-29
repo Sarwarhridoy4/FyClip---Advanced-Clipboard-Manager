@@ -151,10 +151,18 @@ func handleUpdate() {
 	installer := update.NewInstaller(downloader.GetDownloadPath(), "FyClip")
 	if err := installer.Install(); err != nil {
 		log.Printf("Installation error: %v", err)
+		output := installer.GetOutput()
+		if output != "" {
+			log.Printf("Installation output:\n%s", output)
+		}
 		log.Println("You may need to install manually.")
 		os.Exit(1)
 	}
 
+	output := installer.GetOutput()
+	if output != "" {
+		log.Printf("Installation output:\n%s", output)
+	}
 	log.Println("Update installed successfully!")
 	log.Println("Please restart FyClip to use the new version.")
 }
