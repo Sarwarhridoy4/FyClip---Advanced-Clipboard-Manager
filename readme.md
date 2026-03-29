@@ -106,6 +106,40 @@ FyClip is a feature-rich clipboard manager designed for power users. Here's a co
 | 🖥️ **System Tray** | Recent items submenu, Clear History action |
 | ⬆️ **Auto Update** | Check for and install updates from GitHub releases |
 
+### Auto Update Feature
+
+The auto-update feature allows you to check for and install updates directly from GitHub releases.
+
+#### How It Works
+
+1. **Version Detection**: Reads the current version from `FyneApp.toml`
+2. **GitHub Check**: Fetches the latest release from GitHub API
+3. **Version Comparison**: Compares current version with GitHub tag using exact string matching
+4. **Update Available**: Shows "Update Available!" if versions don't match
+5. **Up to Date**: Shows "You are using the latest version!" if versions match
+
+#### Usage
+
+**From UI:**
+- Click "Help" → "Check for Updates" in the menu
+
+**From Terminal:**
+```bash
+# Check for updates
+fyclip --check-update
+
+# Download and install updates
+fyclip --update
+```
+
+#### Supported Platforms
+
+| Platform | Package Formats |
+|----------|----------------|
+| Linux | .deb, .AppImage |
+| Windows | .exe, .msi |
+| macOS | .dmg |
+
 ### User Interface
 
 | Feature | Description |

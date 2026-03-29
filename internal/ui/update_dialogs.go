@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/BurntSushi/toml"
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/update"
 )
 
@@ -23,8 +24,31 @@ const (
 	githubRepo  = "FyClip---Advanced-Clipboard-Manager"
 )
 
+// getVersionFromFyneApp reads the version from FyneApp.toml
+func getVersionFromFyneApp() string {
+	type FyneApp struct {
+		Details struct {
+			Version string `toml:"Version"`
+		} `toml:"Details"`
+	}
+
+	var app FyneApp
+	if _, err := toml.DecodeFile("FyneApp.toml", &app); err != nil {
+		log.Printf("Warning: Could not read FyneApp.toml: %v", err)
+		return "dev"
+	}
+
+	if app.Details.Version != "" {
+		return app.Details.Version
+	}
+	return "dev"
+}
+
 // ShowUpdateDialog checks for updates and shows a dialog with the result
 func ShowUpdateDialog(window fyne.Window, app fyne.App, currentVersion string) {
+	// Get version from FyneApp.toml
+	currentVersion = getVersionFromFyneApp()
+
 	updateWindow := app.NewWindow("Check for Updates")
 	updateWindow.Resize(fyne.NewSize(450, 300))
 	updateWindow.SetFixedSize(true)
@@ -79,8 +103,11 @@ func ShowUpdateDialog(window fyne.Window, app fyne.App, currentVersion string) {
 				return
 			}
 
-			comparison := update.CompareVersions(updateInfo.LatestVersion, currentVersion)
-			if comparison > 0 {
+			// Compare versions exactly
+			if updateInfo.LatestVersion == currentVersion {
+				// No update available
+				resultLabel.SetText(fmt.Sprintf("✅ You are using the latest version!\n\nVersion: %s", currentVersion))
+			} else {
 				// Update available
 				resultLabel.SetText(fmt.Sprintf("🎉 Update Available!\n\nLatest version: %s\nYour version: %s\n\n%s", 
 					updateInfo.LatestVersion, currentVersion, updateInfo.ReleaseNotes))
@@ -92,9 +119,6 @@ func ShowUpdateDialog(window fyne.Window, app fyne.App, currentVersion string) {
 				}
 
 				updateWindow.Resize(fyne.NewSize(450, 400))
-			} else {
-				// No update available
-				resultLabel.SetText(fmt.Sprintf("✅ You are using the latest version!\n\nVersion: %s", currentVersion))
 			}
 		})
 	}()

@@ -248,6 +248,12 @@ func CompareVersions(v1, v2 string) int {
 	v1 = strings.TrimPrefix(v1, "v")
 	v2 = strings.TrimPrefix(v2, "v")
 
+	// Handle "dev" version - treat it as equal to any version
+	// This prevents showing "update available" when running development builds
+	if v1 == "dev" || v2 == "dev" {
+		return 0
+	}
+
 	// Handle pre-release versions: 1.0.0-beta < 1.0.0
 	v1IsPrerelease := strings.Contains(v1, "-")
 	v2IsPrerelease := strings.Contains(v2, "-")

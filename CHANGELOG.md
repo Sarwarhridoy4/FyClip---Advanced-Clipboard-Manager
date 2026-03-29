@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.0] - 2026-03-25
 
 ### Fixed
+- **Update Checker**: Fixed update checker to read version from FyneApp.toml and compare exactly with GitHub tag
+  - Added `getVersionFromFyneApp()` function to read version from FyneApp.toml
+  - Updated `handleCheckUpdate()` to use version from FyneApp.toml
+  - Updated `handleUpdate()` to use version from FyneApp.toml
+  - Updated `ShowUpdateDialog()` to use version from FyneApp.toml
+  - Version comparison now uses exact string matching instead of semantic version parsing
+  - Shows "You are using the latest version!" when current version matches GitHub tag
+  - Shows "Update Available!" when versions don't match
 - **Update Installation**: Fixed update installation not showing logs or completing
   - Installation commands now capture output instead of sending to stdout/stderr
   - Added installation progress dialog with real-time log display

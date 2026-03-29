@@ -10,12 +10,33 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/app"
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/update"
 )
 
 // Version is set at build time - exported for UI access
 var Version = "dev"
+
+// getVersionFromFyneApp reads the version from FyneApp.toml
+func getVersionFromFyneApp() string {
+	type FyneApp struct {
+		Details struct {
+			Version string `toml:"Version"`
+		} `toml:"Details"`
+	}
+
+	var app FyneApp
+	if _, err := toml.DecodeFile("FyneApp.toml", &app); err != nil {
+		log.Printf("Warning: Could not read FyneApp.toml: %v", err)
+		return Version
+	}
+
+	if app.Details.Version != "" {
+		return app.Details.Version
+	}
+	return Version
+}
 
 // BuildTime is set at build time - exported for UI access
 var BuildTime = "unknown"
@@ -94,10 +115,11 @@ func main() {
 
 // handleCheckUpdate checks for updates and prints information
 func handleCheckUpdate() {
-	log.Printf("FyClip version %s (built: %s)", Version, BuildTime)
+	currentVersion := getVersionFromFyneApp()
+	log.Printf("FyClip version %s (built: %s)", currentVersion, BuildTime)
 	log.Println("Checking for updates...")
 
-	checker := update.NewChecker(githubOwner, githubRepo, Version)
+	checker := update.NewChecker(githubOwner, githubRepo, currentVersion)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -108,26 +130,27 @@ func handleCheckUpdate() {
 		os.Exit(1)
 	}
 
-	comparison := update.CompareVersions(updateInfo.LatestVersion, Version)
-	if comparison > 0 {
-		log.Printf("Update available: %s -> %s", Version, updateInfo.LatestVersion)
+	// Compare versions exactly
+	if updateInfo.LatestVersion == currentVersion {
+		log.Printf("You are using the latest version: %s", currentVersion)
+	} else {
+		log.Printf("Update available: %s -> %s", currentVersion, updateInfo.LatestVersion)
 		log.Printf("Release notes: %s", updateInfo.ReleaseURL)
 		log.Printf("Download: %s", updateInfo.DownloadURL)
 		if updateInfo.IsPrerelease {
 			log.Println("Note: This is a pre-release version")
 		}
 		log.Println("\nTo update, run: fyclip --update")
-	} else {
-		log.Printf("You are using the latest version: %s", Version)
 	}
 }
 
 // handleUpdate downloads and installs the latest update
 func handleUpdate() {
-	log.Printf("FyClip version %s (built: %s)", Version, BuildTime)
+	currentVersion := getVersionFromFyneApp()
+	log.Printf("FyClip version %s (built: %s)", currentVersion, BuildTime)
 	log.Println("Starting update process...")
 
-	updater := update.NewAutoUpdater(githubOwner, githubRepo, Version)
+	updater := update.NewAutoUpdater(githubOwner, githubRepo, currentVersion)
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second) // 5 min timeout
 	defer cancel()
 
@@ -140,7 +163,7 @@ func handleUpdate() {
 	}
 
 	if downloader == nil {
-		log.Printf("You are already using the latest version: %s", Version)
+		log.Printf("You are already using the latest version: %s", currentVersion)
 		os.Exit(0)
 	}
 

@@ -46,6 +46,12 @@ func TestCompareVersions(t *testing.T) {
 		{"1.0.0", "1.0.0-beta", 1},
 		{"1.0.0-beta", "1.0.0-beta", 0},
 		{"1.0.0-beta", "1.0.1-beta", -1},
+		
+		// Dev version handling: dev should be treated as equal to any version
+		{"dev", "1.0.0", 0},
+		{"1.0.0", "dev", 0},
+		{"dev", "2.5.3", 0},
+		{"dev", "dev", 0},
 	}
 
 	for _, tt := range tests {
