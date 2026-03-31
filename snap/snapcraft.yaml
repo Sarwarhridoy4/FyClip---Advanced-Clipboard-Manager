@@ -1,0 +1,114 @@
+name: fyclip
+base: core22
+version: '2.2.0'
+title: FyClip - Advanced Clipboard Manager
+summary: Advanced Clipboard Manager for Linux
+icon: snap/local/icon.png
+description: |
+  FyClip is an advanced clipboard manager that enhances your productivity
+  by providing quick access to your clipboard history. Features include:
+  
+  - Clipboard history with search functionality
+  - Quick panel for fast access
+  - Sensitive content detection
+  - Backup and restore capabilities
+  - Customizable exclusions
+  - System tray integration
+
+contact: sarwarhridoy4@gmail.com
+issues: https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/issues
+source-code: https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager
+website: https://fyclip.vercel.app
+donation: https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager
+license: MIT
+
+grade: stable
+confinement: strict
+
+architectures:
+  - build-on: amd64
+  - build-on: arm64
+
+apps:
+  fyclip:
+    command: bin/fyclip
+    desktop: share/applications/fyclip.desktop
+    extensions: [gnome]
+    plugs:
+      - desktop
+      - desktop-legacy
+      - gsettings
+      - home
+      - network
+      - network-bind
+      - opengl
+      - wayland
+      - x11
+      - unity7
+      - browser-support
+      - audio-playback
+      - pulseaudio
+
+parts:
+  fyclip:
+    plugin: go
+    source: .
+    build-snaps:
+      - go/latest/stable
+    build-packages:
+      - libgl1-mesa-dev
+      - libxcursor-dev
+      - libxrandr-dev
+      - libxinerama-dev
+      - libxi-dev
+      - libgl-dev
+      - libxxf86vm-dev
+      - libxkbcommon-dev
+      - libwayland-dev
+      - libxkbcommon-x11-dev
+      - libx11-dev
+      - libxext-dev
+      - libxrender-dev
+      - libxfixes-dev
+      - libxss-dev
+      - libxtst-dev
+      - libasound2-dev
+      - libpulse-dev
+    stage-packages:
+      - libgl1
+      - libxcursor1
+      - libxrandr2
+      - libxinerama1
+      - libxi6
+      - libxxf86vm1
+      - libxkbcommon0
+      - libwayland-client0
+      - libxkbcommon-x11-0
+      - libx11-6
+      - libxext6
+      - libxrender1
+      - libxfixes3
+      - libxss1
+      - libxtst6
+      - libasound2
+      - libpulse0
+    override-build: |
+      craftctl default
+      # Build the application
+      go build -o $CRAFT_PART_INSTALL/bin/fyclip .
+    organize:
+      fyclip: bin/fyclip
+    prime:
+      - bin/fyclip
+      - share/applications/fyclip.desktop
+      - share/icons/hicolor/*/apps/fyclip.png
+
+  desktop:
+    plugin: dump
+    source: snap/local
+    organize:
+      fyclip.desktop: share/applications/fyclip.desktop
+      icon.png: share/icons/hicolor/256x256/apps/fyclip.png
+    prime:
+      - share/applications/fyclip.desktop
+      - share/icons/hicolor/256x256/apps/fyclip.png

@@ -13,6 +13,7 @@ FyClip.AppDir*
 *.test
 fyclip
 coverage.out
+*.snap
 
 # Go build
 vendor/

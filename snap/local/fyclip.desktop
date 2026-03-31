@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=FyClip
+GenericName=Clipboard Manager
+Comment=Advanced Clipboard Manager
+Exec=fyclip
+Icon=${SNAP}/share/icons/hicolor/256x256/apps/fyclip.png
+Terminal=false
+Categories=Utility;
+Keywords=clipboard;manager;history;copy;paste;
+StartupNotify=true
