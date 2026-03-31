@@ -109,6 +109,12 @@ parts:
     organize:
       fyclip.desktop: share/applications/fyclip.desktop
       icon.png: share/icons/hicolor/256x256/apps/fyclip.png
+      screenshot1.png: share/fyclip/screenshots/screenshot1.png
+      screenshot2.png: share/fyclip/screenshots/screenshot2.png
+      screenshot3.png: share/fyclip/screenshots/screenshot3.png
+      screenshot4.png: share/fyclip/screenshots/screenshot4.png
+      screenshot5.png: share/fyclip/screenshots/screenshot5.png
     prime:
       - share/applications/fyclip.desktop
       - share/icons/hicolor/256x256/apps/fyclip.png
+      - share/fyclip/screenshots/*.png

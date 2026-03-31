@@ -158,6 +158,40 @@ If the links section shows "No links have been added for this snap":
    snapcraft promote fyclip --from-channel=edge --to-channel=stable
    ```
 
+### Screenshots not showing on Snap Store
+If screenshots are not displaying on the Snap Store listing:
+
+1. **Verify screenshots are included in snapcraft.yaml**:
+   The screenshots must be organized and primed in the `desktop` part:
+   ```yaml
+   desktop:
+     plugin: dump
+     source: snap/local
+     organize:
+       screenshot1.png: share/fyclip/screenshots/screenshot1.png
+       screenshot2.png: share/fyclip/screenshots/screenshot2.png
+       screenshot3.png: share/fyclip/screenshots/screenshot3.png
+       screenshot4.png: share/fyclip/screenshots/screenshot4.png
+       screenshot5.png: share/fyclip/screenshots/screenshot5.png
+     prime:
+       - share/fyclip/screenshots/*.png
+   ```
+
+2. **Verify screenshots exist in snap/local directory**:
+   ```bash
+   ls -la snap/local/screenshot*.png
+   ```
+
+3. **Rebuild and re-upload**:
+   ```bash
+   snapcraft clean
+   snapcraft
+   snapcraft upload ./fyclip_2.2.0_amd64.snap --release=edge
+   ```
+
+4. **Wait for processing**:
+   Screenshots may take a few minutes to appear after uploading. Refresh the page if needed.
+
 ### General troubleshooting steps
 If you encounter issues after uploading:
 
@@ -186,6 +220,11 @@ If you encounter issues after uploading:
 - `snap/snapcraft.yaml`: Main snap configuration with metadata
 - `snap/local/fyclip.desktop`: Desktop entry file
 - `snap/local/icon.png`: Application icon
+- `snap/local/screenshot1.png`: Application screenshot 1
+- `snap/local/screenshot2.png`: Application screenshot 2
+- `snap/local/screenshot3.png`: Application screenshot 3
+- `snap/local/screenshot4.png`: Application screenshot 4
+- `snap/local/screenshot5.png`: Application screenshot 5
 
 ## Additional Resources
 
