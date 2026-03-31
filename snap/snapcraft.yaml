@@ -1,5 +1,5 @@
 name: fyclip
-base: core22
+base: core24
 version: '2.2.0'
 title: FyClip - Advanced Clipboard Manager
 summary: Advanced Clipboard Manager for Linux
@@ -25,9 +25,9 @@ license: MIT
 grade: stable
 confinement: strict
 
-architectures:
-  - build-on: amd64
-  - build-on: arm64
+platforms:
+  amd64:
+  arm64:
 
 apps:
   fyclip:
