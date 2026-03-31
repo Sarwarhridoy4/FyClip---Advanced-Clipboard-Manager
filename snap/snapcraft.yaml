@@ -4,6 +4,12 @@ version: '2.2.0'
 title: FyClip - Advanced Clipboard Manager
 summary: Advanced Clipboard Manager for Linux
 icon: snap/local/icon.png
+screenshots:
+  - snap/local/screenshot1.png
+  - snap/local/screenshot2.png
+  - snap/local/screenshot3.png
+  - snap/local/screenshot4.png
+  - snap/local/screenshot5.png
 description: |
   FyClip is an advanced clipboard manager that enhances your productivity
   by providing quick access to your clipboard history. Features include:
