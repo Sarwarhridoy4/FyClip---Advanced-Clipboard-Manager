@@ -136,7 +136,7 @@ fyclip --update
 
 | Platform | Package Formats |
 |----------|----------------|
-| Linux | .deb, .AppImage |
+| Linux | Snap, .deb, .AppImage |
 | Windows | .exe, .msi |
 | macOS | .dmg |
 
@@ -222,6 +222,7 @@ fyclip.exe
 
 | Format | Command |
 |--------|---------|
+| **Snap** | `sudo snap install fyclip` |
 | **.deb** | `sudo dpkg -i fyclip_<version>_<arch>.deb` |
 | **.AppImage** | `chmod +x fyclip_<version>_<arch>.AppImage && ./fyclip_<version>_<arch>.AppImage` |
 
