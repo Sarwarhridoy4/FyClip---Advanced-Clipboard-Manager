@@ -18,3 +18,4 @@ coverage.out
 # Go build
 vendor/
 *.test
+*.key

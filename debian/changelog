@@ -1,4 +1,4 @@
-fyclip (2.2.0-1) unstable; urgency=medium
+fyclip (2.2.0-1) jammy; urgency=medium
 
   * Initial Debian release
   * Clipboard history with search functionality
