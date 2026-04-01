@@ -124,6 +124,30 @@ package: build
 	@echo "Packaging application..."
 	./build.sh
 
+# Build Debian package
+.PHONY: deb
+deb: build
+	@echo "Building Debian package..."
+	./build-deb.sh
+
+# Build Debian package with specific version
+.PHONY: deb-version
+deb-version: build
+	@echo "Building Debian package version $(VERSION)..."
+	./build-deb.sh $(VERSION)
+
+# Build PPA source package
+.PHONY: ppa
+ppa: build
+	@echo "Building PPA source package..."
+	./build-ppa.sh
+
+# Build PPA source package with specific version
+.PHONY: ppa-version
+ppa-version: build
+	@echo "Building PPA source package version $(VERSION)..."
+	./build-ppa.sh $(VERSION)
+
 # Create release
 .PHONY: release
 release: clean test lint build-all package
@@ -297,7 +321,11 @@ help:
 	@echo "  watch          - Run tests in watch mode"
 	@echo ""
 	@echo "=== Release ==="
-	@echo "  package        - Package the application"
+	@echo "  package        - Package the application (Fyne/AppImage/Tarball)"
+	@echo "  deb            - Build Debian package"
+	@echo "  deb-version    - Build Debian package with specific version (VERSION=...)"
+	@echo "  ppa            - Build PPA source package"
+	@echo "  ppa-version    - Build PPA source package with specific version (VERSION=...)"
 	@echo "  release        - Create release"
 	@echo ""
 	@echo "=== Utilities ==="

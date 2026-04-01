@@ -1,0 +1,44 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Build the Go binary
+	go build -o fyclip -ldflags "-s -w -X main.version=$(shell dpkg-parsechangelog -S Version | sed 's/-.*//')" .
+
+override_dh_auto_install:
+	# Create directory structure
+	install -d $(CURDIR)/debian/fyclip/usr/bin
+	install -d $(CURDIR)/debian/fyclip/usr/share/applications
+	install -d $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/256x256/apps
+	install -d $(CURDIR)/debian/fyclip/usr/share/fyclip/screenshots
+	install -d $(CURDIR)/debian/fyclip/usr/share/man/man1
+	
+	# Install binary
+	install -m 0755 fyclip $(CURDIR)/debian/fyclip/usr/bin/
+	
+	# Install desktop file
+	install -m 0644 debian/fyclip.desktop $(CURDIR)/debian/fyclip/usr/share/applications/com.sarwar.fyclip.desktop
+	
+	# Install icon
+	install -m 0644 icon.png $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/256x256/apps/com.sarwar.fyclip.png
+	
+	# Install screenshots
+	install -m 0644 internal/app/assets/screenshots/screenshot1.png $(CURDIR)/debian/fyclip/usr/share/fyclip/screenshots/
+	install -m 0644 internal/app/assets/screenshots/screenshot2.png $(CURDIR)/debian/fyclip/usr/share/fyclip/screenshots/
+	install -m 0644 internal/app/assets/screenshots/screenshot3.png $(CURDIR)/debian/fyclip/usr/share/fyclip/screenshots/
+	install -m 0644 internal/app/assets/screenshots/screenshot4.png $(CURDIR)/debian/fyclip/usr/share/fyclip/screenshots/
+	install -m 0644 internal/app/assets/screenshots/screenshot5.png $(CURDIR)/debian/fyclip/usr/share/fyclip/screenshots/
+	
+	# Install manpage
+	install -m 0644 debian/fyclip.1 $(CURDIR)/debian/fyclip/usr/share/man/man1/
+
+override_dh_auto_test:
+	# Run tests
+	go test -v -race ./...
+
+override_dh_auto_clean:
+	# Clean build artifacts
+	rm -f fyclip
+	dh_auto_clean

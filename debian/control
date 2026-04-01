@@ -1,0 +1,30 @@
+Source: fyclip
+Section: utils
+Priority: optional
+Maintainer: Sarwar Hossain <sarwarhridoy4@gmail.com>
+Build-Depends: debhelper-compat (= 13), libgl1-mesa-dev, libxcursor-dev, libxrandr-dev, libxinerama-dev, libxi-dev, libgl-dev, libxxf86vm-dev, libxkbcommon-dev, libwayland-dev, libxkbcommon-x11-dev, libx11-dev, libxext-dev, libxrender-dev, libxfixes-dev, libxss-dev, libxtst-dev, libasound2-dev, libpulse-dev, golang-go (>= 1.21)
+Standards-Version: 4.6.2
+Homepage: https://fyclip.vercel.app
+Vcs-Git: https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager.git
+Vcs-Browser: https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager
+
+Package: fyclip
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libgl1, libx11-6, libxcursor1, libxrandr2, libxinerama1, libxi6, libgtk-3-0, xclip | xsel | wl-clipboard
+Description: Advanced Clipboard Manager for Linux
+ FyClip is a powerful, feature-rich clipboard manager built with Go and Fyne.
+ .
+ Key features:
+  * Clipboard History: Automatically saves text, images, HTML, and files
+  * Pin Items: Keep important items at the top
+  * Enhanced Search: Regex, case-sensitive, and fuzzy matching
+  * Image Support: Preview and save clipboard images
+  * Encrypted Storage: AES-256-GCM encryption at rest
+  * Snippets: Save and expand text templates
+  * AutoStart: Launch on system startup
+  * Theme Support: Light, Dark, and System theme modes
+  * Auto Update: Check for and install updates from GitHub
+  * Quick Panel: Fast access to clipboard history
+  * Sensitive Content Detection: Automatically detect and hide sensitive data
+  * Backup and Restore: Export and import clipboard data
+  * Customizable Exclusions: Exclude specific applications from monitoring

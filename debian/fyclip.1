@@ -1,0 +1,70 @@
+.TH FYCLIP 1 "April 2026" "FyClip 2.2.0" "User Commands"
+.SH NAME
+fyclip \- Advanced Clipboard Manager for Linux
+.SH SYNOPSIS
+.B fyclip
+.RI [ options ]
+.SH DESCRIPTION
+FyClip is a powerful, feature-rich clipboard manager built with Go and Fyne.
+.PP
+Key features:
+.IP \(bu 2
+Clipboard History: Automatically saves text, images, HTML, and files
+.IP \(bu 2
+Pin Items: Keep important items at the top
+.IP \(bu 2
+Enhanced Search: Regex, case-sensitive, and fuzzy matching
+.IP \(bu 2
+Image Support: Preview and save clipboard images
+.IP \(bu 2
+Encrypted Storage: AES-256-GCM encryption at rest
+.IP \(bu 2
+Snippets: Save and expand text templates
+.IP \(bu 2
+AutoStart: Launch on system startup
+.IP \(bu 2
+Theme Support: Light, Dark, and System theme modes
+.IP \(bu 2
+Auto Update: Check for and install updates from GitHub
+.IP \(bu 2
+Quick Panel: Fast access to clipboard history
+.IP \(bu 2
+Sensitive Content Detection: Automatically detect and hide sensitive data
+.IP \(bu 2
+Backup and Restore: Export and import clipboard data
+.IP \(bu 2
+Customizable Exclusions: Exclude specific applications from monitoring
+.SH OPTIONS
+.TP
+.B \-\-version
+Display version information
+.TP
+.B \-\-help
+Display help information
+.SH FILES
+.TP
+.I ~/.config/fyclip/
+User configuration directory
+.TP
+.I ~/.local/share/fyclip/
+User data directory
+.SH EXAMPLES
+.TP
+Start FyClip:
+.B fyclip
+.TP
+Start FyClip with system tray:
+.B fyclip &
+.SH AUTHORS
+Sarwar Hossain <sarwarhridoy4@gmail.com>
+.SH SEE ALSO
+.BR xclip (1),
+.BR xsel (1),
+.BR wl-clipboard (1)
+.SH BUGS
+Report bugs at: https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/issues
+.SH COPYRIGHT
+Copyright \(co 2024 Sarwar Hossain
+.PP
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

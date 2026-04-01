@@ -1,0 +1,17 @@
+fyclip (2.2.0-1) unstable; urgency=medium
+
+  * Initial Debian release
+  * Clipboard history with search functionality
+  * Quick panel for fast access
+  * Sensitive content detection
+  * Backup and restore capabilities
+  * Customizable exclusions
+  * System tray integration
+  * Image support with preview
+  * Encrypted storage with AES-256-GCM
+  * Snippets for text templates
+  * AutoStart on system startup
+  * Theme support (Light, Dark, System)
+  * Auto update from GitHub
+
+ -- Sarwar Hossain <sarwarhridoy4@gmail.com>  Tue, 01 Apr 2026 05:30:00 +0000

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=FyClip
+GenericName=Clipboard Manager
+Comment=Advanced Clipboard Manager
+Exec=fyclip
+Icon=com.sarwar.fyclip
+Terminal=false
+Categories=Utility;
+Keywords=clipboard;copy;paste;history;
+StartupWMClass=FyClip - Clipboard Manager
+NoDisplay=false
