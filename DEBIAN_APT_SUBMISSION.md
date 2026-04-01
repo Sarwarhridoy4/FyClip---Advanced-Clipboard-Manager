@@ -14,6 +14,21 @@ To submit to the official Debian APT repository, you need to:
 6. **Automatic migration to testing**
 7. **Included in next stable release**
 
+## Ubuntu PPA (Available Now)
+
+While working on official Debian submission, you can use the Ubuntu PPA:
+
+**PPA URL**: https://launchpad.net/~sarwar-hossain/+archive/ubuntu/fyclip
+
+**Installation**:
+```bash
+sudo add-apt-repository ppa:sarwar-hossain/fyclip
+sudo apt-get update
+sudo apt-get install fyclip
+```
+
+This provides immediate access to FyClip for Ubuntu users while the official Debian package is being reviewed.
+
 ## Step 1: Create Salsa Account
 
 1. Go to https://salsa.debian.org

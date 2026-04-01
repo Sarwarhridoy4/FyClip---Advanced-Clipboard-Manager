@@ -223,8 +223,11 @@ fyclip.exe
 | Format | Command |
 |--------|---------|
 | **Snap** | `sudo snap install fyclip` |
+| **PPA** | `sudo add-apt-repository ppa:sarwar-hossain/fyclip && sudo apt update && sudo apt install fyclip` |
 | **.deb** | `sudo dpkg -i fyclip_<version>_<arch>.deb` |
 | **.AppImage** | `chmod +x fyclip_<version>_<arch>.AppImage && ./fyclip_<version>_<arch>.AppImage` |
+
+**PPA Repository**: https://launchpad.net/~sarwar-hossain/+archive/ubuntu/fyclip
 
 Download from [Releases](https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases)
 

@@ -191,6 +191,17 @@ cat dist/fyclip_2.2.0-1_source.changes | grep -A 5 "-----BEGIN PGP"
 debsign -k YOUR_KEY_ID dist/fyclip_2.2.0-1_source.changes
 ```
 
+## Your PPA
+
+**PPA URL**: https://launchpad.net/~sarwar-hossain/+archive/ubuntu/fyclip
+
+**Installation Instructions**:
+```bash
+sudo add-apt-repository ppa:sarwar-hossain/fyclip
+sudo apt-get update
+sudo apt-get install fyclip
+```
+
 ## Resources
 
 - [GPG Guide](https://www.gnupg.org/gph/en/manual.html)

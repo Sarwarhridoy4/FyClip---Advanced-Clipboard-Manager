@@ -192,6 +192,17 @@ dput ppa:YOUR_USERNAME/fyclip dist/fyclip_2.2.0-1_source.changes
 # sudo apt-get install fyclip
 ```
 
+## Your PPA
+
+**PPA URL**: https://launchpad.net/~sarwar-hossain/+archive/ubuntu/fyclip
+
+**Installation Instructions**:
+```bash
+sudo add-apt-repository ppa:sarwar-hossain/fyclip
+sudo apt-get update
+sudo apt-get install fyclip
+```
+
 ## Distribution Channels
 
 | Channel | Status | Installation |

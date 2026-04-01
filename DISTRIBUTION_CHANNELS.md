@@ -54,21 +54,15 @@ make deb
 
 ---
 
-### 3. Ubuntu PPA 🔄 Ready to Submit
+### 3. Ubuntu PPA ✅ Available
 
-**Status**: Source package ready for upload
+**Status**: PPA created and ready
 
-**Setup**:
-1. Create PPA on Launchpad: https://launchpad.net/~YOUR_USERNAME
-2. Upload source package:
-   ```bash
-   ./build-ppa.sh
-   dput ppa:YOUR_USERNAME/fyclip dist/fyclip_2.2.0-1_source.changes
-   ```
+**PPA URL**: https://launchpad.net/~sarwar-hossain/+archive/ubuntu/fyclip
 
-**Installation** (after PPA is set up):
+**Installation**:
 ```bash
-sudo add-apt-repository ppa:YOUR_USERNAME/fyclip
+sudo add-apt-repository ppa:sarwar-hossain/fyclip
 sudo apt-get update
 sudo apt-get install fyclip
 ```
@@ -84,7 +78,7 @@ make ppa
 - Package: `fyclip`
 - Version: 2.2.0-1
 - Architecture: amd64
-- PPA: ppa:YOUR_USERNAME/fyclip
+- PPA: ppa:sarwar-hossain/fyclip
 
 ---
 
