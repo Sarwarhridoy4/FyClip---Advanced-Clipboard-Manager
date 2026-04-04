@@ -1,3 +1,11 @@
+fyclip (2.2.1-1) jammy; urgency=medium
+
+  * Fixed notification crash when command exits quickly
+  * Fixed false duplicate detection with stale lock files
+  * Improved stale lock detection via /proc/PID/exe validation
+
+ -- Sarwar Hossain <sarwarhridoy4@gmail.com>  Sat, 04 Apr 2026 15:00:00 +0000
+
 fyclip (2.2.0-1) jammy; urgency=medium
 
   * Initial Debian release
