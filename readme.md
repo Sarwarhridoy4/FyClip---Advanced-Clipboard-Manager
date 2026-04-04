@@ -19,7 +19,7 @@
 
 > A modular, high-performance clipboard manager built with Go and Fyne v2.7+
 
-**Current Version**: 2.2.0
+**Current Version**: 2.2.1
 
 ---
 
