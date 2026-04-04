@@ -6,4 +6,4 @@ package version
 var Version = "2.2.1"
 
 // BuildTime is the build timestamp, set during build
-var BuildTime = "2026-03-29 04:18:11 UTC"
+var BuildTime = "2026-04-04 10:13:08 UTC"
