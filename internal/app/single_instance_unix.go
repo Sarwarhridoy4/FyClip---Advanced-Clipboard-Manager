@@ -4,6 +4,8 @@
 package app
 
 import (
+	"fmt"
+	"os"
 	"syscall"
 )
 
@@ -12,10 +14,13 @@ import (
 func isProcessRunning(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	if err != nil {
-		// ESRCH means no such process - stale lock file
-		// EPERM means process exists but we don't have permission to signal it
 		return err != syscall.ESRCH
 	}
-	// Process is running
-	return true
+
+	exePath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+	if err != nil {
+		return true
+	}
+
+	return len(exePath) > 0
 }

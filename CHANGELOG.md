@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-04-04
+
+### Fixed
+- **Notification Crash**: Fixed crash when showing notification if command exits quickly (nil pointer dereference)
+- **False Duplicate Detection**: Fixed false "already running" detection when lock file contains PID of different system process
+- **Stale Lock Detection**: Improved stale lock file detection on Linux by validating /proc/PID/exe symlink exists
+
 ## [2.2.0] - 2026-03-31
 
 ### Added

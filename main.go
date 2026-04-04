@@ -193,7 +193,9 @@ func showNotification(message string) {
 		cmd := exec.Command("shownotification", "-u", "critical", "-t", "3000", "FyClip", message)
 		// Set a timeout to prevent hanging
 		timer := time.AfterFunc(2*time.Second, func() {
-			cmd.Process.Kill()
+			if cmd.Process != nil {
+				cmd.Process.Kill()
+			}
 		})
 		defer timer.Stop()
 		if err := cmd.Run(); err != nil {
