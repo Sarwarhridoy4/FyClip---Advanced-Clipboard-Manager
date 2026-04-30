@@ -70,6 +70,7 @@ func main() {
 	// Check for single instance - prevents multiple instances from running
 	lock, err := app.NewSingleInstanceLock()
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "FyClip could not start:", err)
 		log.Printf("Another instance is already running: %v", err)
 		log.Println("If you believe this is an error, you may need to manually remove the lock file.")
 
@@ -83,11 +84,13 @@ func main() {
 
 	application := app.New()
 	if application == nil {
+		fmt.Fprintln(os.Stderr, "FyClip could not create the application window.")
 		log.Fatal("Failed to create application")
 		os.Exit(1)
 	}
 
 	if err := application.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "FyClip exited with an application error:", err)
 		log.Fatalf("Application error: %v", err)
 		os.Exit(1)
 	}
@@ -185,7 +188,7 @@ func validateCommandArgs(args []string) error {
 		}
 		// Check for shell injection attempts
 		if strings.Contains(arg, ";") || strings.Contains(arg, "|") || strings.Contains(arg, "&") ||
-		   strings.Contains(arg, "`") || strings.Contains(arg, "$(") {
+			strings.Contains(arg, "`") || strings.Contains(arg, "$(") {
 			return fmt.Errorf("potentially dangerous command argument: %s", arg)
 		}
 	}
