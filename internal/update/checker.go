@@ -3,6 +3,7 @@ package update
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/logger"
@@ -20,12 +22,12 @@ import (
 
 // GitHubRelease represents a GitHub release
 type GitHubRelease struct {
-	TagName    string       `json:"tag_name"`
-	Name       string       `json:"name"`
-	Body       string       `json:"body"`
-	Prerelease bool         `json:"prerelease"`
-	PublishedAt string     `json:"published_at"`
-	Assets     []GitHubAsset `json:"assets"`
+	TagName     string        `json:"tag_name"`
+	Name        string        `json:"name"`
+	Body        string        `json:"body"`
+	Prerelease  bool          `json:"prerelease"`
+	PublishedAt string        `json:"published_at"`
+	Assets      []GitHubAsset `json:"assets"`
 }
 
 // GitHubAsset represents a release asset
@@ -34,6 +36,12 @@ type GitHubAsset struct {
 	Size        int64  `json:"size"`
 	DownloadURL string `json:"browser_download_url"`
 	ContentType string `json:"content_type"`
+}
+
+type assetCandidate struct {
+	asset GitHubAsset
+	score int
+	index int
 }
 
 // UpdateInfo contains information about available updates
@@ -48,6 +56,35 @@ type UpdateInfo struct {
 	IsPrerelease   bool
 }
 
+// Cache entry for update check responses
+type cacheEntry struct {
+	updateInfo *UpdateInfo
+	cachedAt   time.Time
+	expiresAt  time.Time
+}
+
+// Rate limit tracker for API requests
+type rateLimitTracker struct {
+	requests    []time.Time
+	lastCleanup time.Time
+	mu          sync.Mutex
+}
+
+// Update check caching constants
+const (
+	updateCacheDuration        = 1 * time.Hour   // Cache successful responses for 1 hour
+	updateCacheMaxEntries      = 10              // Maximum cache entries
+	updateRateLimitWindow      = 5 * time.Minute // Rate limit window
+	updateMaxRequestsPerWindow = 5               // Max requests per window
+)
+
+// Global cache and rate limiter (shared across all checkers)
+var (
+	updateCache   = make(map[string]*cacheEntry)
+	updateCacheMu sync.RWMutex
+	rateLimiter   = &rateLimitTracker{}
+)
+
 // Checker handles update checking functionality
 type Checker struct {
 	owner           string
@@ -56,6 +93,7 @@ type Checker struct {
 	httpClient      *http.Client
 	downloadTimeout time.Duration
 	log             *logger.Logger
+	cacheEnabled    bool // Enable/disable caching for this checker
 }
 
 // Option is a functional option for Checker
@@ -82,6 +120,13 @@ func WithLogger(log *logger.Logger) Option {
 	}
 }
 
+// WithCache enables or disables caching for update checks
+func WithCache(enabled bool) Option {
+	return func(c *Checker) {
+		c.cacheEnabled = enabled
+	}
+}
+
 // NewChecker creates a new update checker
 func NewChecker(owner, repo, currentVersion string, opts ...Option) *Checker {
 	c := &Checker{
@@ -91,6 +136,7 @@ func NewChecker(owner, repo, currentVersion string, opts ...Option) *Checker {
 		httpClient:      &http.Client{Timeout: 30 * time.Second},
 		downloadTimeout: 5 * time.Minute,
 		log:             logger.Get(),
+		cacheEnabled:    true, // Enable caching by default
 	}
 
 	for _, opt := range opts {
@@ -100,9 +146,120 @@ func NewChecker(owner, repo, currentVersion string, opts ...Option) *Checker {
 	return c
 }
 
+// getCacheKey generates a cache key for the current checker configuration
+func (c *Checker) getCacheKey() string {
+	key := fmt.Sprintf("%s/%s", c.owner, c.repo)
+	return fmt.Sprintf("%x", md5.Sum([]byte(key)))
+}
+
+// checkCache looks up a cached update check result
+func (c *Checker) checkCache() (*UpdateInfo, bool) {
+	if !c.cacheEnabled {
+		return nil, false
+	}
+
+	updateCacheMu.RLock()
+	defer updateCacheMu.RUnlock()
+
+	cacheKey := c.getCacheKey()
+	entry, exists := updateCache[cacheKey]
+	if !exists {
+		return nil, false
+	}
+
+	// Check if cache entry is still valid
+	if time.Now().After(entry.expiresAt) {
+		return nil, false
+	}
+
+	c.log.Debug("Using cached update check result")
+	return entry.updateInfo, true
+}
+
+// storeCache saves an update check result to cache
+func (c *Checker) storeCache(updateInfo *UpdateInfo) {
+	if !c.cacheEnabled {
+		return
+	}
+
+	updateCacheMu.Lock()
+	defer updateCacheMu.Unlock()
+
+	cacheKey := c.getCacheKey()
+	now := time.Now()
+
+	// Clean up expired entries if cache is getting full
+	if len(updateCache) >= updateCacheMaxEntries {
+		c.cleanupExpiredCache(now)
+	}
+
+	entry := &cacheEntry{
+		updateInfo: updateInfo,
+		cachedAt:   now,
+		expiresAt:  now.Add(updateCacheDuration),
+	}
+
+	updateCache[cacheKey] = entry
+	c.log.Debug("Cached update check result")
+}
+
+// cleanupExpiredCache removes expired cache entries
+func (c *Checker) cleanupExpiredCache(now time.Time) {
+	for key, entry := range updateCache {
+		if now.After(entry.expiresAt) {
+			delete(updateCache, key)
+		}
+	}
+}
+
+// checkRateLimit checks if the request should be rate limited
+func (c *Checker) checkRateLimit() error {
+	rateLimiter.mu.Lock()
+	defer rateLimiter.mu.Unlock()
+
+	now := time.Now()
+
+	// Clean up old requests outside the window
+	windowStart := now.Add(-updateRateLimitWindow)
+	validRequests := make([]time.Time, 0, len(rateLimiter.requests))
+	for _, reqTime := range rateLimiter.requests {
+		if reqTime.After(windowStart) {
+			validRequests = append(validRequests, reqTime)
+		}
+	}
+	rateLimiter.requests = validRequests
+
+	// Check if we're over the limit
+	if len(rateLimiter.requests) >= updateMaxRequestsPerWindow {
+		// Calculate when the next request will be allowed
+		oldestRequest := rateLimiter.requests[0]
+		nextAllowed := oldestRequest.Add(updateRateLimitWindow)
+		waitTime := nextAllowed.Sub(now)
+
+		if waitTime > 0 {
+			return fmt.Errorf("rate limit exceeded, try again in %v", waitTime.Round(time.Second))
+		}
+	}
+
+	// Add this request to the tracker
+	rateLimiter.requests = append(rateLimiter.requests, now)
+	return nil
+}
+
 // CheckForUpdate checks if a new version is available
 func (c *Checker) CheckForUpdate(ctx context.Context) (*UpdateInfo, error) {
 	c.log.Info("Checking for updates...")
+
+	// Check cache first
+	if cachedResult, found := c.checkCache(); found {
+		return cachedResult, nil
+	}
+
+	// Apply rate limiting
+	if err := c.checkRateLimit(); err != nil {
+		c.log.Warn(fmt.Sprintf("Update check rate limited: %v", err))
+		return nil, err
+	}
 
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", c.owner, c.repo)
 
@@ -156,6 +313,9 @@ func (c *Checker) CheckForUpdate(ctx context.Context) (*UpdateInfo, error) {
 
 	c.log.Info(fmt.Sprintf("Current version: %s, Latest version: %s", c.currentVersion, updateInfo.LatestVersion))
 
+	// Cache successful result
+	c.storeCache(updateInfo)
+
 	return updateInfo, nil
 }
 
@@ -166,7 +326,7 @@ func (c *Checker) findAsset(assets []GitHubAsset) *GitHubAsset {
 
 	// Map runtime GOOS to asset naming conventions
 	osMap := map[string][]string{
-		"linux":  {"linux", "Linux", "deb", "AppImage"},
+		"linux":   {"linux", "Linux", "deb", "AppImage"},
 		"windows": {"windows", "Windows", "exe", "msi"},
 		"darwin":  {"darwin", "Darwin", "macos", "macOS", "dmg"},
 	}
@@ -177,59 +337,114 @@ func (c *Checker) findAsset(assets []GitHubAsset) *GitHubAsset {
 		"386":   {"386", "i386", "i686"},
 	}
 
-	var candidates []GitHubAsset
-
-	for _, asset := range assets {
-		name := strings.ToLower(asset.Name)
-
-		// Check OS match
-		osMatch := false
-		for _, os := range osMap[goos] {
-			if strings.Contains(name, strings.ToLower(os)) {
-				osMatch = true
-				break
-			}
-		}
-		if !osMatch {
-			continue
-		}
-
-		// Check arch match
-		archMatch := false
-		for _, arch := range archMap[goarch] {
-			if strings.Contains(name, strings.ToLower(arch)) {
-				archMatch = true
-				break
-			}
-		}
-		if !archMatch {
-			continue
-		}
-
-		candidates = append(candidates, asset)
-	}
-
+	candidates := c.collectAssetCandidates(assets, osMap[goos], archMap[goarch], goos)
 	if len(candidates) == 0 {
 		return nil
 	}
 
-	// Prefer .deb on Linux, .exe on Windows, .dmg on macOS
+	best := candidates[0]
+	for _, candidate := range candidates[1:] {
+		if candidate.score > best.score {
+			best = candidate
+			continue
+		}
+		if candidate.score == best.score && candidate.index < best.index {
+			best = candidate
+		}
+	}
+
+	asset := best.asset
+	return &asset
+}
+
+func (c *Checker) collectAssetCandidates(assets []GitHubAsset, osAliases, archAliases []string, goos string) []assetCandidate {
+	if len(assets) == 0 {
+		return nil
+	}
+
+	results := make(chan assetCandidate, len(assets))
+	var waitGroup sync.WaitGroup
+
+	for index, asset := range assets {
+		waitGroup.Add(1)
+		go func(idx int, current GitHubAsset) {
+			defer waitGroup.Done()
+			score := scoreAssetForPlatform(current, osAliases, archAliases, goos)
+			if score < 0 {
+				return
+			}
+			results <- assetCandidate{
+				asset: current,
+				score: score,
+				index: idx,
+			}
+		}(index, asset)
+	}
+
+	go func() {
+		waitGroup.Wait()
+		close(results)
+	}()
+
+	candidates := make([]assetCandidate, 0, len(assets))
+	for candidate := range results {
+		candidates = append(candidates, candidate)
+	}
+
+	return candidates
+}
+
+func scoreAssetForPlatform(asset GitHubAsset, osAliases, archAliases []string, goos string) int {
+	name := strings.ToLower(asset.Name)
+	if name == "" || asset.DownloadURL == "" {
+		return -1
+	}
+
+	if !containsAnyAlias(name, osAliases) || !containsAnyAlias(name, archAliases) {
+		return -1
+	}
+
+	score := 100
+
 	preferredExt := map[string]string{
 		"linux":   ".deb",
 		"windows": ".exe",
 		"darwin":  ".dmg",
 	}
+	if ext := preferredExt[goos]; ext != "" && strings.HasSuffix(name, ext) {
+		score += 50
+	}
 
-	if ext := preferredExt[goos]; ext != "" {
-		for _, asset := range candidates {
-			if strings.HasSuffix(asset.Name, ext) {
-				return &asset
-			}
+	secondaryExts := map[string][]string{
+		"linux":   {".appimage", ".rpm", ".tar.gz", ".zip"},
+		"windows": {".msi", ".zip"},
+		"darwin":  {".pkg", ".zip"},
+	}
+	for _, ext := range secondaryExts[goos] {
+		if strings.HasSuffix(name, ext) {
+			score += 25
+			break
 		}
 	}
 
-	// Return first candidate
-	return &candidates[0]
+	if asset.Size > 0 {
+		score += 5
+	}
+
+	if asset.ContentType != "" {
+		score += 5
+	}
+
+	return score
+}
+
+func containsAnyAlias(name string, aliases []string) bool {
+	for _, alias := range aliases {
+		if strings.Contains(name, strings.ToLower(alias)) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsUpdateAvailable checks if an update is available
@@ -240,6 +455,33 @@ func (c *Checker) IsUpdateAvailable(ctx context.Context) (bool, error) {
 	}
 
 	return CompareVersions(updateInfo.LatestVersion, c.currentVersion) > 0, nil
+}
+
+// ClearCache clears the update check cache for this checker
+func (c *Checker) ClearCache() {
+	if !c.cacheEnabled {
+		return
+	}
+
+	updateCacheMu.Lock()
+	defer updateCacheMu.Unlock()
+
+	cacheKey := c.getCacheKey()
+	delete(updateCache, cacheKey)
+	c.log.Debug("Cleared update check cache")
+}
+
+// GetCacheStats returns cache statistics for debugging
+func GetCacheStats() (entries int, rateLimitRequests int) {
+	updateCacheMu.RLock()
+	entries = len(updateCache)
+	updateCacheMu.RUnlock()
+
+	rateLimiter.mu.Lock()
+	rateLimitRequests = len(rateLimiter.requests)
+	rateLimiter.mu.Unlock()
+
+	return entries, rateLimitRequests
 }
 
 // CompareVersions compares two semantic versions
@@ -305,10 +547,10 @@ func CompareVersions(v1, v2 string) int {
 
 // Downloader handles downloading and installing updates
 type Downloader struct {
-	checker       *Checker
-	updateInfo    *UpdateInfo
-	downloadPath  string
-	log           *logger.Logger
+	checker      *Checker
+	updateInfo   *UpdateInfo
+	downloadPath string
+	log          *logger.Logger
 }
 
 // NewDownloader creates a new downloader
@@ -395,10 +637,10 @@ func (d *Downloader) GetDownloadPath() string {
 
 // Installer handles installing the update
 type Installer struct {
-	downloadPath  string
-	appName       string
-	log           *logger.Logger
-	output        strings.Builder
+	downloadPath string
+	appName      string
+	log          *logger.Logger
+	output       strings.Builder
 }
 
 // NewInstaller creates a new installer

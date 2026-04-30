@@ -43,7 +43,7 @@ This document summarizes all files created for Debian packaging.
 ## Package Details
 
 - **Package Name**: fyclip
-- **Version**: 2.2.0-1
+- **Version**: 2.2.2-1
 - **Architecture**: amd64
 - **Section**: utils
 - **Priority**: optional
@@ -111,7 +111,7 @@ This document summarizes all files created for Debian packaging.
 ### Using Make
 ```bash
 make deb
-make deb-version VERSION=2.2.0
+make deb-version VERSION=2.2.2
 ```
 
 ### Manual Build
@@ -122,7 +122,7 @@ dpkg-buildpackage -us -uc -b
 ## Installation
 
 ```bash
-sudo dpkg -i dist/fyclip_2.2.0-1_amd64.deb
+sudo dpkg -i dist/fyclip_2.2.2-1_amd64.deb
 sudo apt-get install -f
 ```
 
@@ -136,13 +136,13 @@ sudo dpkg -r fyclip
 
 ```bash
 # Check package info
-dpkg-deb --info dist/fyclip_2.2.0-1_amd64.deb
+dpkg-deb --info dist/fyclip_2.2.2-1_amd64.deb
 
 # Check package contents
-dpkg-deb --contents dist/fyclip_2.2.0-1_amd64.deb
+dpkg-deb --contents dist/fyclip_2.2.2-1_amd64.deb
 
 # Run lintian checks
-lintian -i -I --show-overrides dist/fyclip_2.2.0-1_amd64.changes
+lintian -i -I --show-overrides dist/fyclip_2.2.2-1_amd64.changes
 ```
 
 ## Submission to Debian

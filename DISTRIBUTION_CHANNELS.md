@@ -15,7 +15,7 @@ sudo snap install fyclip
 
 **Details**:
 - Package: `fyclip`
-- Version: 2.2.0
+- Version: 2.2.2
 - Confinement: strict
 - Architecture: amd64, arm64
 
@@ -32,10 +32,10 @@ sudo snap install fyclip
 **Installation**:
 ```bash
 # Download from GitHub Releases
-wget https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases/download/v2.2.0/fyclip_2.2.0-1_amd64.deb
+wget https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases/download/v2.2.2/fyclip_2.2.2-1_amd64.deb
 
 # Install
-sudo dpkg -i fyclip_2.2.0-1_amd64.deb
+sudo dpkg -i fyclip_2.2.2-1_amd64.deb
 sudo apt-get install -f
 ```
 
@@ -48,7 +48,7 @@ make deb
 
 **Details**:
 - Package: `fyclip`
-- Version: 2.2.0-1
+- Version: 2.2.2-1
 - Architecture: amd64
 - Section: utils
 
@@ -76,7 +76,7 @@ make ppa
 
 **Details**:
 - Package: `fyclip`
-- Version: 2.2.0-1
+- Version: 2.2.2-1
 - Architecture: amd64
 - PPA: ppa:sarwar-hossain/fyclip
 
@@ -149,7 +149,7 @@ flatpak-builder --user --install build-dir com.sarwar.fyclip.yml
 | Channel | Status | Install Command | Build Command |
 |---------|--------|-----------------|---------------|
 | Snap Store | ✅ Available | `sudo snap install fyclip` | N/A |
-| Debian Package | ✅ Available | `sudo dpkg -i fyclip_2.2.0-1_amd64.deb` | `./build-deb.sh` |
+| Debian Package | ✅ Available | `sudo dpkg -i fyclip_2.2.2-1_amd64.deb` | `./build-deb.sh` |
 | Ubuntu PPA | 🔄 Ready | `sudo add-apt-repository ppa:USER/fyclip` | `./build-ppa.sh` |
 | Debian Official | 🔄 To Submit | `sudo apt-get install fyclip` | N/A |
 | Ubuntu Official | 🔄 Pending | `sudo apt-get install fyclip` | N/A |
@@ -183,10 +183,10 @@ make deb
 make ppa
 
 # Build with specific version
-./build-deb.sh 2.2.0
-./build-ppa.sh 2.2.0
-make deb-version VERSION=2.2.0
-make ppa-version VERSION=2.2.0
+./build-deb.sh 2.2.2
+./build-ppa.sh 2.2.2
+make deb-version VERSION=2.2.2
+make ppa-version VERSION=2.2.2
 ```
 
 ## Documentation

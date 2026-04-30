@@ -38,7 +38,7 @@ You can also use the Makefile targets:
 make deb
 
 # Build with specific version
-make deb-version VERSION=2.2.0
+make deb-version VERSION=2.2.2
 ```
 
 ### Manual Build
@@ -58,7 +58,7 @@ dpkg-buildpackage -us -uc -b
 After building, install the package:
 
 ```bash
-sudo dpkg -i dist/fyclip_2.2.0-1_amd64.deb
+sudo dpkg -i dist/fyclip_2.2.2-1_amd64.deb
 sudo apt-get install -f  # Fix any dependency issues
 ```
 
@@ -104,7 +104,7 @@ To submit this package to Debian:
 
 5. **Lintian checks**: Run lintian to check for issues:
    ```bash
-   lintian -i -I --show-overrides dist/fyclip_2.2.0-1_amd64.changes
+   lintian -i -I --show-overrides dist/fyclip_2.2.2-1_amd64.changes
    ```
 
 ## Troubleshooting
@@ -132,10 +132,10 @@ If the package fails to install:
 
 ```bash
 # Check dependencies
-dpkg -I dist/fyclip_2.2.0-1_amd64.deb
+dpkg -I dist/fyclip_2.2.2-1_amd64.deb
 
 # Force installation (not recommended)
-sudo dpkg --force-depends -i dist/fyclip_2.2.0-1_amd64.deb
+sudo dpkg --force-depends -i dist/fyclip_2.2.2-1_amd64.deb
 ```
 
 ## Resources

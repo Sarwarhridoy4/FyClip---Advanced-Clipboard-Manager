@@ -67,6 +67,7 @@ type Item struct {
 	HTMLContent  string    `json:"html_content,omitempty"`
 	FileInfo     *FileInfo `json:"file_info,omitempty"`
 	Timestamp    time.Time `json:"timestamp"`
+	LastAccessed time.Time `json:"last_accessed,omitempty"` // Tracks when item was last accessed for LRU
 	Pinned       bool      `json:"pinned"`
 	CopyCount    int       `json:"copy_count,omitempty"`
 	Hash         string    `json:"hash,omitempty"`
@@ -84,6 +85,11 @@ func (i *Item) PrepareForSearch() {
 // SearchContent returns cached normalized text used for filtering.
 func (i *Item) SearchContent() string {
 	return i.searchContent
+}
+
+// UpdateLastAccessed updates the last accessed timestamp for LRU tracking
+func (i *Item) UpdateLastAccessed() {
+	i.LastAccessed = time.Now()
 }
 
 // DisplayText returns a truncated version of the content for display

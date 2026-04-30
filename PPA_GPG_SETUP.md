@@ -107,17 +107,17 @@ gpg --fingerprint sarwarhridoy4@gmail.com
 
 ```bash
 # Sign the .changes file
-debsign -k YOUR_KEY_ID dist/fyclip_2.2.0-1_source.changes
+debsign -k YOUR_KEY_ID dist/fyclip_2.2.2-1_source.changes
 
 # Or sign with your email
-debsign -k sarwarhridoy4@gmail.com dist/fyclip_2.2.0-1_source.changes
+debsign -k sarwarhridoy4@gmail.com dist/fyclip_2.2.2-1_source.changes
 ```
 
 ## Step 6: Upload to PPA
 
 ```bash
 # Upload signed package
-dput ppa:sarwar-hossain/fyclip dist/fyclip_2.2.0-1_source.changes
+dput ppa:sarwar-hossain/fyclip dist/fyclip_2.2.2-1_source.changes
 ```
 
 ## Alternative: Build with Signing
@@ -155,8 +155,8 @@ echo ""
 echo "Next steps:"
 echo "1. Upload public.key to https://keyserver.ubuntu.com"
 echo "2. Add key fingerprint to Launchpad"
-echo "3. Sign .changes file: debsign -k $KEY_ID dist/fyclip_2.2.0-1_source.changes"
-echo "4. Upload to PPA: dput ppa:sarwar-hossain/fyclip dist/fyclip_2.2.0-1_source.changes"
+echo "3. Sign .changes file: debsign -k $KEY_ID dist/fyclip_2.2.2-1_source.changes"
+echo "4. Upload to PPA: dput ppa:sarwar-hossain/fyclip dist/fyclip_2.2.2-1_source.changes"
 ```
 
 ## Troubleshooting
@@ -178,17 +178,17 @@ gpg --full-generate-key
 gpg --list-keys sarwarhridoy4@gmail.com
 
 # Try signing with key ID
-debsign -k YOUR_KEY_ID dist/fyclip_2.2.0-1_source.changes
+debsign -k YOUR_KEY_ID dist/fyclip_2.2.2-1_source.changes
 ```
 
 ### Upload Failed
 
 ```bash
 # Check if .changes file is signed
-cat dist/fyclip_2.2.0-1_source.changes | grep -A 5 "-----BEGIN PGP"
+cat dist/fyclip_2.2.2-1_source.changes | grep -A 5 "-----BEGIN PGP"
 
 # If not signed, sign it first
-debsign -k YOUR_KEY_ID dist/fyclip_2.2.0-1_source.changes
+debsign -k YOUR_KEY_ID dist/fyclip_2.2.2-1_source.changes
 ```
 
 ## Your PPA

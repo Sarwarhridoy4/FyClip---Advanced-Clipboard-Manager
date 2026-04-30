@@ -1,10 +1,9 @@
-fyclip (2.2.1-1) jammy; urgency=medium
+fyclip (2.2.2-1) jammy; urgency=medium
 
-  * Fixed notification crash when command exits quickly
-  * Fixed false duplicate detection with stale lock files
-  * Improved stale lock detection via /proc/PID/exe validation
+  * Bump project version to 2.2.2 across app metadata, packaging, and docs
+  * Refresh embedded application version for generated builds
 
- -- Sarwar Hossain <sarwarhridoy4@gmail.com>  Sat, 04 Apr 2026 15:00:00 +0000
+ -- Sarwar Hossain <sarwarhridoy4@gmail.com>  Thu, 30 Apr 2026 00:00:00 +0000
 
 fyclip (2.2.0-1) jammy; urgency=medium
 

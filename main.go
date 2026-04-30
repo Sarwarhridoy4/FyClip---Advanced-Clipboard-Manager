@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/app"
@@ -166,31 +168,79 @@ func handleUpdate() {
 	log.Println("Please restart FyClip to use the new version.")
 }
 
+// sanitizeShellInput removes potentially dangerous characters from shell input
+func sanitizeShellInput(input string) string {
+	// Remove or escape shell metacharacters
+	// Keep only alphanumeric, spaces, and basic punctuation
+	reg := regexp.MustCompile(`[^\w\s\.,!?\-:]`)
+	return reg.ReplaceAllString(input, "")
+}
+
+// validateCommandArgs validates command arguments for security
+func validateCommandArgs(args []string) error {
+	for _, arg := range args {
+		// Check for directory traversal attempts
+		if strings.Contains(arg, "..") || strings.Contains(arg, "/") && strings.Contains(arg, "..") {
+			return fmt.Errorf("invalid command argument: %s", arg)
+		}
+		// Check for shell injection attempts
+		if strings.Contains(arg, ";") || strings.Contains(arg, "|") || strings.Contains(arg, "&") ||
+		   strings.Contains(arg, "`") || strings.Contains(arg, "$(") {
+			return fmt.Errorf("potentially dangerous command argument: %s", arg)
+		}
+	}
+	return nil
+}
+
 // showNotification shows a notification to the user
 // This is used when another instance is already running
 func showNotification(message string) {
+	// Sanitize the message to prevent command injection
+	safeMessage := sanitizeShellInput(message)
+	if safeMessage == "" {
+		safeMessage = "FyClip is already running"
+	}
+
 	switch runtime.GOOS {
 	case "windows":
 		// Use PowerShell to show a toast notification on Windows
-		cmd := exec.Command("powershell", "-Command",
-			fmt.Sprintf(`[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; `+
-				`[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null; `+
-				`$template = '<visual><binding template="ToastText02"><text id="1">FyClip</text><text id="2">%s</text></binding></visual>'; `+
-				`$xml = New-Object Windows.Data.Xml.Dom.XmlDocument; `+
-				`$xml.LoadXml($template); `+
-				`$toast = [Windows.UI.Notifications.ToastNotification]::new($xml); `+
-				`[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("FyClip").Show($toast)`, message))
+		// Escape single quotes in PowerShell
+		escapedMessage := strings.ReplaceAll(safeMessage, "'", "''")
+		psCommand := fmt.Sprintf(`[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; `+
+			`[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null; `+
+			`$template = '<visual><binding template="ToastText02"><text id="1">FyClip</text><text id="2">%s</text></binding></visual>'; `+
+			`$xml = New-Object Windows.Data.Xml.Dom.XmlDocument; `+
+			`$xml.LoadXml($template); `+
+			`$toast = [Windows.UI.Notifications.ToastNotification]::new($xml); `+
+			`[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("FyClip").Show($toast)`, escapedMessage)
+
+		cmd := exec.Command("powershell", "-Command", psCommand)
+		if err := validateCommandArgs(cmd.Args); err != nil {
+			log.Printf("Command validation failed: %v", err)
+			return
+		}
 		cmd.Run() // Ignore errors - this is a best-effort notification
 
 	case "darwin":
 		// Use osascript to show a notification on macOS
+		// Escape double quotes for AppleScript
+		escapedMessage := strings.ReplaceAll(safeMessage, `"`, `\"`)
 		cmd := exec.Command("osascript", "-e",
-			fmt.Sprintf(`display notification "%s" with title "FyClip"`, message))
+			fmt.Sprintf(`display notification "%s" with title "FyClip"`, escapedMessage))
+		if err := validateCommandArgs(cmd.Args); err != nil {
+			log.Printf("Command validation failed: %v", err)
+			return
+		}
 		cmd.Run()
 
 	default: // linux
 		// Try shownotification first
-		cmd := exec.Command("shownotification", "-u", "critical", "-t", "3000", "FyClip", message)
+		cmd := exec.Command("shownotification", "-u", "critical", "-t", "3000", "FyClip", safeMessage)
+		if err := validateCommandArgs(cmd.Args); err != nil {
+			log.Printf("Command validation failed: %v", err)
+			return
+		}
+
 		// Set a timeout to prevent hanging
 		timer := time.AfterFunc(2*time.Second, func() {
 			if cmd.Process != nil {
@@ -201,7 +251,11 @@ func showNotification(message string) {
 		if err := cmd.Run(); err != nil {
 			log.Printf("shownotification failed: %v, trying zenity", err)
 			// Try zenity as fallback
-			cmd := exec.Command("zenity", "--info", "--text="+message, "--title=FyClip")
+			cmd := exec.Command("zenity", "--info", "--text="+safeMessage, "--title=FyClip")
+			if err := validateCommandArgs(cmd.Args); err != nil {
+				log.Printf("Command validation failed: %v", err)
+				return
+			}
 			if err := cmd.Run(); err != nil {
 				log.Printf("zenity failed: %v", err)
 			}

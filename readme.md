@@ -17,9 +17,9 @@
   </a>
 </p>
 
-> A modular, high-performance clipboard manager built with Go and Fyne v2.7+
+> A secure, fast clipboard manager for text, images, HTML, and files, built with Go and Fyne v2.7+
 
-**Current Version**: 2.2.1
+**Current Version**: 2.2.2
 
 ---
 
@@ -58,53 +58,26 @@
 
 ## Features
 
-FyClip is a feature-rich clipboard manager designed for power users. Here's a comprehensive breakdown of what it offers:
+FyClip is built for people who copy a lot and want fast recall, reliable history, and safer local storage.
 
-### Core Functionality
+### Highlights
 
-| Feature | Description |
-|---------|-------------|
-| 📋 **Clipboard History** | Automatically saves text, images, HTML, and files |
-| 🔍 **Enhanced Search** | Regex, case-sensitive, and fuzzy matching |
-| 📌 **Pin Items** | Keep important items at the top |
-| ⭐ **Favorites View** | Toggle pinned-only view instantly |
-| ❌ **Clear Search** | One-click reset for the search box |
+- **Rich clipboard history** for text, images, HTML, and files
+- **Fast search** with regex, fuzzy matching, and case-sensitive modes
+- **Pinned items, tags, categories, and snippets** for organization
+- **Encrypted local storage and backups** with safer clipboard write paths
+- **Cross-platform desktop integration** with tray controls, pause capture, and auto-update support
 
-### Content Support
+### Feature Overview
 
-| Feature | Description |
-|---------|-------------|
-| 🖼️ **Image Support** | Preview and save clipboard images |
-| 📝 **HTML Support** | Capture and preserve HTML formatting |
-| 📁 **File History** | Track files copied from file manager |
-| 📝 **Markdown Preview** | Markdown content renders correctly in preview pane |
-| 📤 **Unified Export** | Export selected text or images from one action |
-
-### Organization & Management
-
-| Feature | Description |
-|---------|-------------|
-| 🏷️ **Smart Categories** | Auto-categorize content (Links, Code, Contacts, etc.) |
-| 🏷️ **Custom Tags** | Add custom tags to organize clipboard items |
-| 📝 **Snippets** | Save and expand text templates with variables |
-| 📦 **Bulk Operations** | Multi-select items for batch delete/pin/unpin |
-
-### Security
-
-| Feature | Description |
-|---------|-------------|
-| 🔒 **Encrypted Storage** | AES-256-GCM encryption at rest |
-| ☁️ **Encrypted Backup** | Password-protected backup and restore |
-| 🛡️ **Sensitive Data Detection** | Auto-detect credit cards, SSN, API keys |
-
-### System Integration
-
-| Feature | Description |
-|---------|-------------|
-| 🚀 **AutoStart** | Launch on system startup |
-| ⏸️ **Pause Capture** | Pause monitoring for 5 minutes from toolbar/tray |
-| 🖥️ **System Tray** | Recent items submenu, Clear History action |
-| ⬆️ **Auto Update** | Check for and install updates from GitHub releases |
+| Area | Included |
+|------|----------|
+| **Capture** | Text, images, HTML, and file history |
+| **Search** | Regex, fuzzy matching, case-sensitive filtering, clear search |
+| **Organize** | Pinning, pinned-only view, smart categories, custom tags, snippets |
+| **Actions** | Copy, export, bulk select, bulk delete, pin/unpin |
+| **Security** | AES-256-GCM storage, PBKDF2 key derivation, encrypted backups, sensitive-pattern detection, clipboard/path validation |
+| **System** | Autostart, pause capture, system tray actions, GitHub-based auto updates |
 
 ### Auto Update Feature
 
@@ -114,9 +87,18 @@ The auto-update feature allows you to check for and install updates directly fro
 
 1. **Version Detection**: Reads the current version from embedded `internal/version/version.go` file (generated during build)
 2. **GitHub Check**: Fetches the latest release from GitHub API
-3. **Version Comparison**: Compares current version with GitHub tag using exact string matching
-4. **Update Available**: Shows "Update Available!" if versions don't match
-5. **Up to Date**: Shows "You are using the latest version!" if versions match
+3. **Version Comparison**: Compares semantic versions, including `v` prefixes and pre-release handling
+4. **Request Optimization**: Uses in-memory caching and rate limiting to reduce repeated GitHub API traffic
+5. **Asset Selection**: Scores release assets for the active OS and architecture, preferring native installer formats like `.deb`, `.exe`, and `.dmg`
+6. **Update Available**: Prompts when a newer compatible release is found
+7. **Up to Date**: Reports when the current version is already the latest supported release
+
+#### Why it is efficient
+
+- Caches successful update checks in memory
+- Applies rate limiting to repeated GitHub API calls
+- Scores release assets concurrently for the active OS and architecture
+- Prefers native installer formats when multiple assets are available
 
 #### Usage
 
@@ -157,10 +139,22 @@ fyclip --update
 | ⚡ **Debounced Updates** | Batched UI updates for smooth performance |
 | ⚡ **Async Operations** | Non-blocking clipboard monitoring |
 | ⚡ **O(1) Lookups** | Hash map-based duplicate detection |
+| 🧠 **Adaptive Memory Pressure Handling** | Multi-level cleanup responds to sustained memory growth |
+| 🕒 **LRU History Retention** | Frequently used items are preserved longer than stale history |
 | 🔒 **Thread-Safe** | Proper concurrency handling |
 | 🖼️ **Image Thumbnails** | 150x150px thumbnails for efficient list display |
 | 📦 **Compression** | Gzip compression before encryption for smaller storage |
-| 💾 **Memory Optimized** | Lazy loading and efficient data structures |
+| 💾 **Memory Optimized** | Differential indexing, object reuse, and reduced clipboard write copies |
+
+### Security At A Glance
+
+| Feature | Description |
+|---------|-------------|
+| 🔒 **Encrypted Storage** | Clipboard history is encrypted at rest |
+| 🔐 **PBKDF2 Key Derivation** | Derived keys with migration support for legacy installs |
+| ☁️ **Encrypted Backup** | Password-protected backup and restore |
+| 🧼 **Memory-Safer Writes** | Programmatic copy hashing and temporary buffer wiping where practical |
+| 🚫 **Validation Guards** | Clipboard size limits plus file-path and command validation |
 
 ---
 
@@ -249,7 +243,7 @@ brew install fyclip
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Go | 1.21+ | Programming language |
-| Fyne | 2.5+ | UI framework |
+| Fyne | 2.7+ | UI framework |
 
 #### Linux Dependencies
 
@@ -310,7 +304,7 @@ The build script follows Fyne's official Linux packaging flow:
 ./build.sh
 
 # Build with explicit version
-./build.sh 2.2.0
+./build.sh 2.2.2
 ```
 
 This produces:
@@ -569,10 +563,15 @@ fyclip/
 | **Debounced Updates** | UI updates are batched (50ms debounce) |
 | **Coalesced Saves** | History persistence requests are serialized and debounced (250ms) |
 | **O(1) Lookups** | Hash maps for duplicate detection and item access |
+| **Differential Index Rebuilds** | Modified indices are refreshed selectively instead of full rebuilds on every change |
 | **Efficient Filtering** | Search avoids repeated lowercasing and minimizes allocation churn |
 | **Object Pool** | `sync.Pool` for Item reuse to reduce GC pressure |
 | **Regex Cache** | Compiled regex patterns cached for faster repeated searches |
 | **Fuzzy Search** | Optimized subsequence matching with reduced allocations |
+| **Adaptive Memory Pressure Handling** | Cleanup becomes more aggressive as allocation pressure rises |
+| **LRU Trimming** | History eviction preserves frequently accessed items over merely recent ones |
+| **Update Check Caching** | Repeated GitHub release checks are cached and rate-limited |
+| **Concurrent Asset Scoring** | Release assets are processed concurrently during platform-specific update selection |
 | **Thread-Safe** | Proper mutex usage throughout |
 | **Selection Fast Path** | Selecting list items avoids redundant full-window refreshes |
 | **Duplicate Promotion** | Existing duplicates move to latest with notification |
@@ -596,9 +595,14 @@ Latest measured deltas:
 
 | Feature | Description |
 |---------|-------------|
-| **AES-256-GCM Encryption** | All data encrypted at rest |
+| **AES-256-GCM Encryption** | Clipboard history is encrypted at rest |
+| **PBKDF2 Key Derivation** | Storage keys are derived with migration support for legacy key files |
 | **Sensitive Data Detection** | Auto-detect credit cards, SSN, API keys |
-| **Secure Wipe** | Clear sensitive data from memory |
+| **Secure Wipe** | Temporary sensitive buffers are cleared after use where practical |
+| **Clipboard Size Validation** | Large text, image, and path payloads are rejected before clipboard writes |
+| **Programmatic Copy Hashing** | Monitor state tracks programmatic writes without storing raw clipboard content |
+| **Path Validation** | File-oriented clipboard and open-location operations validate paths defensively |
+| **Command Validation** | Platform-specific command arguments are sanitized and checked before execution |
 | **Password-Protected Backups** | Optional encryption for backups |
 
 ### Thread Safety
@@ -616,7 +620,7 @@ Latest measured deltas:
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Go | 1.21+ | Programming language |
-| Fyne | 2.5+ | UI framework |
+| Fyne | 2.7+ | UI framework |
 
 ### Makefile Targets
 

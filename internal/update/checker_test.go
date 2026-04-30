@@ -2,6 +2,7 @@
 package update
 
 import (
+	"runtime"
 	"testing"
 )
 
@@ -15,7 +16,7 @@ func TestCompareVersions(t *testing.T) {
 		{"1.0.0", "1.0.0", 0},
 		{"1.0", "1.0", 0},
 		{"1", "1", 0},
-		
+
 		// v1 > v2
 		{"2.0.0", "1.0.0", 1},
 		{"1.1.0", "1.0.0", 1},
@@ -23,19 +24,19 @@ func TestCompareVersions(t *testing.T) {
 		{"1.2.0", "1.1.9", 1},
 		{"2.0", "1.9.9", 1},
 		{"1.0.0", "0.9.9", 1},
-		
+
 		// v1 < v2
 		{"1.0.0", "2.0.0", -1},
 		{"1.0.0", "1.1.0", -1},
 		{"1.0.0", "1.0.1", -1},
 		{"1.1.9", "1.2.0", -1},
 		{"1.9.9", "2.0", -1},
-		
+
 		// With v prefix
 		{"v1.0.0", "v1.0.0", 0},
 		{"v2.0.0", "v1.0.0", 1},
 		{"v1.0.0", "v2.0.0", -1},
-		
+
 		// Different length
 		{"1.0.0.1", "1.0.0", 1},
 		{"1.0", "1.0.0", 0},
@@ -46,7 +47,7 @@ func TestCompareVersions(t *testing.T) {
 		{"1.0.0", "1.0.0-beta", 1},
 		{"1.0.0-beta", "1.0.0-beta", 0},
 		{"1.0.0-beta", "1.0.1-beta", -1},
-		
+
 		// Dev version handling: dev should be treated as equal to any version
 		{"dev", "1.0.0", 0},
 		{"1.0.0", "dev", 0},
@@ -66,7 +67,7 @@ func TestCompareVersions(t *testing.T) {
 
 func TestParseRepoFromURL(t *testing.T) {
 	tests := []struct {
-		url      string
+		url       string
 		wantOwner string
 		wantRepo  string
 	}{
@@ -85,7 +86,7 @@ func TestParseRepoFromURL(t *testing.T) {
 				return
 			}
 			if owner != tt.wantOwner || repo != tt.wantRepo {
-				t.Errorf("ParseRepoFromURL(%q) = (%q, %q), want (%q, %q)", 
+				t.Errorf("ParseRepoFromURL(%q) = (%q, %q), want (%q, %q)",
 					tt.url, owner, repo, tt.wantOwner, tt.wantRepo)
 			}
 		})
@@ -94,7 +95,7 @@ func TestParseRepoFromURL(t *testing.T) {
 
 func TestParseRepoFromModule(t *testing.T) {
 	tests := []struct {
-		module   string
+		module    string
 		wantOwner string
 		wantRepo  string
 	}{
@@ -110,9 +111,117 @@ func TestParseRepoFromModule(t *testing.T) {
 				return
 			}
 			if owner != tt.wantOwner || repo != tt.wantRepo {
-				t.Errorf("ParseRepoFromModule(%q) = (%q, %q), want (%q, %q)", 
+				t.Errorf("ParseRepoFromModule(%q) = (%q, %q), want (%q, %q)",
 					tt.module, owner, repo, tt.wantOwner, tt.wantRepo)
 			}
 		})
 	}
+}
+
+func TestFindAssetPrefersPlatformSpecificPackage(t *testing.T) {
+	checker := NewChecker("owner", "repo", "1.0.0")
+
+	assets := []GitHubAsset{
+		{
+			Name:        platformAssetName("portable.zip"),
+			DownloadURL: "https://example.com/portable.zip",
+			Size:        123,
+			ContentType: "application/zip",
+		},
+		{
+			Name:        platformAssetName(preferredAssetExtension()),
+			DownloadURL: "https://example.com/preferred" + preferredAssetExtension(),
+			Size:        456,
+			ContentType: "application/octet-stream",
+		},
+	}
+
+	asset := checker.findAsset(assets)
+	if asset == nil {
+		t.Fatal("expected matching asset")
+	}
+
+	if got, want := asset.Name, platformAssetName(preferredAssetExtension()); got != want {
+		t.Fatalf("findAsset selected %q, want %q", got, want)
+	}
+}
+
+func TestFindAssetSkipsAssetsMissingDownloadURL(t *testing.T) {
+	checker := NewChecker("owner", "repo", "1.0.0")
+
+	assets := []GitHubAsset{
+		{
+			Name:        platformAssetName(preferredAssetExtension()),
+			DownloadURL: "",
+		},
+		{
+			Name:        platformAssetName("fallback.zip"),
+			DownloadURL: "https://example.com/fallback.zip",
+		},
+	}
+
+	asset := checker.findAsset(assets)
+	if asset == nil {
+		t.Fatal("expected fallback asset")
+	}
+
+	if asset.DownloadURL == "" {
+		t.Fatal("findAsset should not return asset without download URL")
+	}
+}
+
+func TestFindAssetReturnsNilWithoutPlatformMatch(t *testing.T) {
+	checker := NewChecker("owner", "repo", "1.0.0")
+
+	assets := []GitHubAsset{
+		{
+			Name:        "fyclip-solaris-sparc.pkg",
+			DownloadURL: "https://example.com/fyclip-solaris-sparc.pkg",
+		},
+	}
+
+	if asset := checker.findAsset(assets); asset != nil {
+		t.Fatalf("expected no asset match, got %q", asset.Name)
+	}
+}
+
+func preferredAssetExtension() string {
+	switch runtime.GOOS {
+	case "linux":
+		return ".deb"
+	case "windows":
+		return ".exe"
+	case "darwin":
+		return ".dmg"
+	default:
+		return ".zip"
+	}
+}
+
+func platformAssetName(ext string) string {
+	var osPart string
+	switch runtime.GOOS {
+	case "linux":
+		osPart = "linux"
+	case "windows":
+		osPart = "windows"
+	case "darwin":
+		osPart = "darwin"
+	default:
+		osPart = runtime.GOOS
+	}
+
+	var archPart string
+	switch runtime.GOARCH {
+	case "amd64":
+		archPart = "amd64"
+	case "arm64":
+		archPart = "arm64"
+	case "386":
+		archPart = "386"
+	default:
+		archPart = runtime.GOARCH
+	}
+
+	return "fyclip-" + osPart + "-" + archPart + ext
 }
