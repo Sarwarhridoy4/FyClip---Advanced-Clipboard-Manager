@@ -28,7 +28,7 @@ This guide will help you build and submit FyClip to the Ubuntu Snap Store.
 
 1. **Build the snap package**:
    ```bash
-   snapcraft
+   snapcraft pack
    ```
 
    This will create a `.snap` file in the current directory (e.g., `fyclip_2.2.2_amd64.snap`).
