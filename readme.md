@@ -383,7 +383,7 @@ fyne-cross darwin -arch=amd64
 | `End` | Go to last item |
 | `F1` | Focus search bar |
 | `Ctrl+F` | Focus search bar |
-| `Ctrl+Shift+V` | Open quick panel |
+| `F1` | Open quick panel |
 
 ### Bulk Operations
 
@@ -585,11 +585,10 @@ go test -bench 'Benchmark(UpdateFilteredSearch1000|AddItemWithDuplicateScan1000|
  -benchmem ./internal/clipboard
 ```
 
-Latest measured deltas:
-- `BenchmarkUpdateFilteredSearch1000`: `604006 ns/op` -> `37772 ns/op` (~16x faster)
-- `BenchmarkUpdateFilteredSearch1000` allocations: `1020 allocs/op` -> `0 allocs/op`
-- `BenchmarkAddItemWithDuplicateScan1000`: `966.1 ns/op` -> `1523 ns/op` (small regression, low absolute cost)
-- `BenchmarkStorageSave1000`: raw `Storage.Save` micro-benchmark unchanged/slower, but save requests are now coalesced in runtime manager flow
+Current benchmark results:
+- `BenchmarkUpdateFilteredSearch1000`: `88899 ns/op`, `5 B/op`, `0 allocs/op`
+- `BenchmarkAddItemWithDuplicateScan1000`: `2150222 ns/op`, `158241 B/op`, `1396 allocs/op`
+- `BenchmarkStorageSave1000`: `3673446 ns/op`, `1292749 B/op`, `2047 allocs/op`
 
 ### Security
 

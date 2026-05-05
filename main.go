@@ -70,13 +70,15 @@ func main() {
 	// Check for single instance - prevents multiple instances from running
 	lock, err := app.NewSingleInstanceLock()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "FyClip could not start:", err)
-		log.Printf("Another instance is already running: %v", err)
-		log.Println("If you believe this is an error, you may need to manually remove the lock file.")
+		fmt.Fprintln(os.Stderr, "FyClip could not start due to single instance lock:", err)
+		log.Printf("Single instance lock error: %v", err)
+		if strings.Contains(err.Error(), "stale") || strings.Contains(err.Error(), "lock") {
+			log.Println("This appears to be a stale lockfile issue. Try manually removing the lock file.")
+		}
 
 		// Try to show a notification using platform-specific methods
 		time.Sleep(500 * time.Millisecond) // Small delay to ensure environment is ready
-		showNotification("FyClip is already running")
+		showNotification("FyClip could not start: " + err.Error())
 
 		os.Exit(1)
 	}

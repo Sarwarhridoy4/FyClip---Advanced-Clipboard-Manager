@@ -94,14 +94,13 @@ func loadOrCreateKey(keyPath string) ([]byte, error) {
 
 		// Derive key using PBKDF2
 		key := deriveKeyFromPassword(systemEntropy, salt)
-
 		// Save salt first (needed for key derivation)
 		if err := os.WriteFile(saltPath, salt, 0600); err != nil {
 			return nil, fmt.Errorf("failed to save salt: %w", err)
 		}
 
-		// Save derived key (we save the derived key, not the password)
-		if err := os.WriteFile(keyPath, key, 0600); err != nil {
+		// Save system entropy (pseudo-password) for key derivation
+		if err := os.WriteFile(keyPath, systemEntropy, 0600); err != nil {
 			return nil, fmt.Errorf("failed to save encryption key: %w", err)
 		}
 

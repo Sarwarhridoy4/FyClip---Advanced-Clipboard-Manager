@@ -30,6 +30,7 @@ func BenchmarkUpdateFilteredSearch1000(b *testing.B) {
 		history:      makeBenchmarkItems(1000),
 		hashIndexMap: make(map[string]int, 1000),
 		idIndexMap:   make(map[string]int, 1000),
+		searchOptions: DefaultSearchOptions(),
 	}
 	// Build index maps
 	for i, item := range m.history {
@@ -45,9 +46,10 @@ func BenchmarkUpdateFilteredSearch1000(b *testing.B) {
 
 func BenchmarkAddItemWithDuplicateScan1000(b *testing.B) {
 	m := &Manager{
-		history:      makeBenchmarkItems(1000),
-		hashIndexMap: make(map[string]int, 1000),
-		idIndexMap:   make(map[string]int, 1000),
+		history:        makeBenchmarkItems(1000),
+		hashIndexMap:   make(map[string]int, 1000),
+		idIndexMap:     make(map[string]int, 1000),
+		modifiedIndices: make(map[int]bool),
 		maxHistoryItems: 1000,
 	}
 	// Build index maps
