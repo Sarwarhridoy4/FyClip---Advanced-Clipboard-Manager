@@ -4,12 +4,14 @@ go 1.26.1
 
 require (
 	fyne.io/fyne/v2 v2.7.4
-	golang.design/x/clipboard v0.7.1
+	golang.design/x/clipboard v0.8.0
 )
 
 require (
+	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/mattn/go-runewidth v0.0.17 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	golang.design/x/x11 v0.2.0 // indirect
 )
 
 require (
