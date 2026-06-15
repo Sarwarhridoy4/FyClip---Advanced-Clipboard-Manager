@@ -2,11 +2,13 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 )
 
 // singleInstanceLock implements a cross-platform single instance lock
@@ -22,29 +24,54 @@ const lockFileName = ".fyclip.lock"
 func NewSingleInstanceLock() (*singleInstanceLock, error) {
 	lock := &singleInstanceLock{}
 
-	// Get the appropriate lock file path based on OS
-	lockPath, err := getLockFilePath()
+	lockPaths, err := getLockFilePaths()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lock file path: %w", err)
 	}
 
-	log.Printf("Single instance: checking lock file at %s", lockPath)
+	var lastErr error
+	for _, lockPath := range lockPaths {
+		log.Printf("Single instance: checking lock file at %s", lockPath)
 
+		lockFile, err := tryAcquireLock(lockPath)
+		if err == nil {
+			lock.lockFile = lockFile
+			return lock, nil
+		}
+
+		if err.Error() == "another instance is already running" {
+			return nil, err
+		}
+
+		lastErr = err
+		if !isPermissionError(err) {
+			return nil, err
+		}
+	}
+
+	if lastErr != nil {
+		return nil, lastErr
+	}
+
+	return nil, fmt.Errorf("failed to create lock file")
+}
+
+func tryAcquireLock(lockPath string) (*os.File, error) {
 	// Create the lock file with exclusive access
 	// O_EXCL ensures atomic creation - fails if file already exists
 	// O_RDWR allows us to write our PID and read to check
 	lockFile, err := os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		if os.IsExist(err) {
-			// Check if the existing process is still running
 			if isPreviousInstanceRunning(lockPath) {
 				return nil, fmt.Errorf("another instance is already running")
 			}
-			// Stale lock file - remove it and try again
 			if err := os.Remove(lockPath); err != nil {
+				if isPermissionError(err) {
+					return nil, err
+				}
 				return nil, fmt.Errorf("failed to remove stale lock file: %w", err)
 			}
-			// Try again
 			lockFile, err = os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create lock file: %w", err)
@@ -56,7 +83,12 @@ func NewSingleInstanceLock() (*singleInstanceLock, error) {
 
 	// Write our PID to the lock file
 	pid := os.Getpid()
-	_, err = lockFile.WriteString(fmt.Sprintf("%d\n", pid))
+	execPath, execErr := os.Executable()
+	if execErr != nil {
+		execPath = ""
+	}
+
+	_, err = lockFile.WriteString(fmt.Sprintf("%d\n%s\n", pid, execPath))
 	if err != nil {
 		lockFile.Close()
 		os.Remove(lockPath)
@@ -70,12 +102,11 @@ func NewSingleInstanceLock() (*singleInstanceLock, error) {
 		return nil, fmt.Errorf("failed to sync lock file: %w", err)
 	}
 
-	lock.lockFile = lockFile
-	return lock, nil
+	return lockFile, nil
 }
 
-// getLockFilePath returns the path to the lock file
-func getLockFilePath() (string, error) {
+// getLockFilePaths returns candidate lock file paths in priority order.
+func getLockFilePaths() ([]string, error) {
 	var baseDir string
 
 	switch runtime.GOOS {
@@ -105,13 +136,32 @@ func getLockFilePath() (string, error) {
 		baseDir = "."
 	}
 
-	// Create the directory if it doesn't exist
-	appDir := filepath.Join(baseDir, "FyClip")
-	if err := os.MkdirAll(appDir, 0700); err != nil {
-		return "", fmt.Errorf("failed to create app directory: %w", err)
+	candidateDirs := []string{filepath.Join(baseDir, "FyClip")}
+	tempDir := filepath.Join(os.TempDir(), "FyClip")
+	if tempDir != candidateDirs[0] {
+		candidateDirs = append(candidateDirs, tempDir)
 	}
 
-	return filepath.Join(appDir, lockFileName), nil
+	paths := make([]string, 0, len(candidateDirs))
+	for _, appDir := range candidateDirs {
+		if err := os.MkdirAll(appDir, 0700); err != nil {
+			if isPermissionError(err) {
+				continue
+			}
+			return nil, fmt.Errorf("failed to create app directory: %w", err)
+		}
+		paths = append(paths, filepath.Join(appDir, lockFileName))
+	}
+
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no writable lock directory available")
+	}
+
+	return paths, nil
+}
+
+func isPermissionError(err error) bool {
+	return os.IsPermission(err) || errors.Is(err, syscall.EROFS)
 }
 
 // isPreviousInstanceRunning checks if a previous instance is still running
@@ -136,8 +186,12 @@ func isPreviousInstanceRunning(lockPath string) bool {
 		return false
 	}
 
+	// Try to read the executable path if present in the lock file.
+	var expectedExecPath string
+	_, _ = fmt.Fscan(file, &expectedExecPath)
+
 	// Check if the process is still running using platform-specific implementation
-	return isProcessRunning(pid)
+	return isProcessRunning(pid, expectedExecPath)
 }
 
 // Release releases the single instance lock

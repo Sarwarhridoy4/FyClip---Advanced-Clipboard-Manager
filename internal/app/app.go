@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"os"
 	"runtime"
 
 	"fyne.io/fyne/v2"
@@ -65,6 +66,8 @@ func New() *App {
 	// Create Fyne app
 	a.fyneApp = app.NewWithID("com.sarwar.fyclip")
 	if a.fyneApp == nil {
+		fmt.Fprintf(os.Stderr, "Failed to create Fyne app - this may be due to display issues or missing display server\n")
+		log.Printf("Failed to create Fyne app - this may be due to display issues or stale lockfile")
 		return nil
 	}
 
@@ -131,7 +134,8 @@ func New() *App {
 		},
 	})
 	if err != nil {
-		log.Printf("Failed to create manager: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to create clipboard manager: %v\n", err)
+		log.Printf("Failed to create clipboard manager: %v", err)
 		return nil
 	}
 

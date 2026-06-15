@@ -7,6 +7,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
+	"golang.org/x/crypto/pbkdf2"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -18,6 +20,13 @@ import (
 
 const historyFileName = "clipboard_history.json"
 const encryptionKeyFileName = "encryption.key" // New constant
+
+// PBKDF2 parameters for secure key derivation
+const (
+	pbkdf2Iterations = 100000 // High iteration count for security
+	pbkdf2KeyLen     = 32     // AES-256 key length
+	saltLen          = 16     // Salt length in bytes
+)
 
 // Storage handles persistence of clipboard history
 type Storage struct {
@@ -58,35 +67,119 @@ func NewStorage(basePath string) (*Storage, error) {
 	return s, nil
 }
 
+// deriveKeyFromPassword derives a secure encryption key using PBKDF2
+func deriveKeyFromPassword(password []byte, salt []byte) []byte {
+	return pbkdf2.Key(password, salt, pbkdf2Iterations, pbkdf2KeyLen, sha256.New)
+}
+
 // loadOrCreateKey loads the encryption key from path or creates a new one
+// Uses secure key derivation with PBKDF2 for new installations
+// Maintains backward compatibility with existing hex-encoded keys
 func loadOrCreateKey(keyPath string) ([]byte, error) {
+	saltPath := keyPath + ".salt"
+
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-		// Key file does not exist, create a new one
-		key := make([]byte, 32) // AES-256 key
-		if _, err := io.ReadFull(rand.Reader, key); err != nil {
-			return nil, fmt.Errorf("failed to generate encryption key: %w", err)
+		// Key file does not exist, create a new one with secure derivation
+		// Use system entropy as a pseudo-password for automatic key generation
+		systemEntropy := make([]byte, 32)
+		if _, err := io.ReadFull(rand.Reader, systemEntropy); err != nil {
+			return nil, fmt.Errorf("failed to generate system entropy: %w", err)
 		}
-		if err := os.WriteFile(keyPath, []byte(hex.EncodeToString(key)), 0600); err != nil { // Permissions 0600 for owner only
+
+		// Generate a random salt
+		salt := make([]byte, saltLen)
+		if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+			return nil, fmt.Errorf("failed to generate salt: %w", err)
+		}
+
+		// Derive key using PBKDF2
+		key := deriveKeyFromPassword(systemEntropy, salt)
+		// Save salt first (needed for key derivation)
+		if err := os.WriteFile(saltPath, salt, 0600); err != nil {
+			return nil, fmt.Errorf("failed to save salt: %w", err)
+		}
+
+		// Save system entropy (pseudo-password) for key derivation
+		if err := os.WriteFile(keyPath, systemEntropy, 0600); err != nil {
 			return nil, fmt.Errorf("failed to save encryption key: %w", err)
 		}
+
 		return key, nil
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to stat encryption key file: %w", err)
 	}
 
-	// Key file exists, load it
-	encodedKey, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read encryption key file: %w", err)
+	// Key file exists, check if it's the new format (with salt) or old format
+	if _, err := os.Stat(saltPath); err == nil {
+		// New format with salt - load and derive
+		salt, err := os.ReadFile(saltPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read salt file: %w", err)
+		}
+
+		systemEntropy, err := os.ReadFile(keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read key file: %w", err)
+		}
+
+		// Derive the key using PBKDF2
+		key := deriveKeyFromPassword(systemEntropy, salt)
+		return key, nil
+	} else {
+		// Old format - load directly (backward compatibility)
+		encodedKey, err := os.ReadFile(keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read encryption key file: %w", err)
+		}
+		key, err := hex.DecodeString(string(encodedKey))
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode encryption key: %w", err)
+		}
+		if len(key) != 32 {
+			return nil, fmt.Errorf("invalid encryption key length: %d bytes, expected 32", len(key))
+		}
+
+		// Migrate to new format in background (don't block startup)
+		go func() {
+			if migrateErr := migrateToSecureKey(keyPath, key); migrateErr != nil {
+				// Log error but don't fail - old format still works
+				fmt.Fprintf(os.Stderr, "Warning: failed to migrate encryption key: %v\n", migrateErr)
+			}
+		}()
+
+		return key, nil
 	}
-	key, err := hex.DecodeString(string(encodedKey))
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode encryption key: %w", err)
+}
+
+// migrateToSecureKey migrates an old hex-encoded key to the new PBKDF2 format
+func migrateToSecureKey(keyPath string, oldKey []byte) error {
+	saltPath := keyPath + ".salt"
+
+	// Generate new salt
+	salt := make([]byte, saltLen)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return fmt.Errorf("failed to generate migration salt: %w", err)
 	}
-	if len(key) != 32 {
-		return nil, fmt.Errorf("invalid encryption key length: %d bytes, expected 32", len(key))
+
+	// Generate new system entropy (pseudo-password)
+	systemEntropy := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, systemEntropy); err != nil {
+		return fmt.Errorf("failed to generate migration entropy: %w", err)
 	}
-	return key, nil
+
+	// Derive new key using PBKDF2
+		newKey := deriveKeyFromPassword(systemEntropy, salt)
+
+	// Save salt and new key
+	if err := os.WriteFile(saltPath, salt, 0600); err != nil {
+		return fmt.Errorf("failed to save migration salt: %w", err)
+	}
+
+	if err := os.WriteFile(keyPath, newKey, 0600); err != nil {
+		return fmt.Errorf("failed to save migrated key: %w", err)
+	}
+
+	return nil
 }
 
 // Load reads clipboard history from disk
@@ -184,6 +277,21 @@ func (s *Storage) Clear() error {
 	}
 
 	return nil
+}
+
+// wipeSensitiveData securely wipes sensitive data from memory
+func wipeSensitiveData(data []byte) {
+	if data == nil {
+		return
+	}
+	// Overwrite with random data multiple times
+	for i := 0; i < 3; i++ {
+		rand.Read(data)
+	}
+	// Final overwrite with zeros
+	for i := range data {
+		data[i] = 0
+	}
 }
 
 // encrypt encrypts data using AES-256 GCM.

@@ -46,7 +46,7 @@ A PPA allows you to distribute your Debian packages directly to Ubuntu users.
 
 # Create source package for PPA
 cd dist
-dpkg-source -b ../fyclip-2.2.0
+dpkg-source -b ../fyclip-2.2.2
 ```
 
 ### Step 4: Upload to PPA
@@ -56,7 +56,7 @@ dpkg-source -b ../fyclip-2.2.0
 sudo apt-get install dput
 
 # Upload to PPA
-dput ppa:YOUR_USERNAME/fyclip fyclip_2.2.0-1_source.changes
+dput ppa:YOUR_USERNAME/fyclip fyclip_2.2.2-1_source.changes
 ```
 
 ### Step 5: Add PPA to Ubuntu App Center
@@ -119,7 +119,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager.git
-        tag: v2.2.0
+        tag: v2.2.2
 ```
 
 ### Step 3: Build Flatpak
@@ -183,7 +183,7 @@ For long-term official support:
 # Go to https://launchpad.net/~YOUR_USERNAME
 
 # 3. Upload to PPA
-dput ppa:YOUR_USERNAME/fyclip dist/fyclip_2.2.0-1_source.changes
+dput ppa:YOUR_USERNAME/fyclip dist/fyclip_2.2.2-1_source.changes
 
 # 4. Share with users
 # Users can install with:

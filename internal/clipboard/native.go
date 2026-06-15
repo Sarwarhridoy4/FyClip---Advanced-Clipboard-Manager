@@ -364,7 +364,7 @@ func (nc *NativeClipboard) writeTextWayland(data []byte) error {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "wl-copy")
-	cmd.Stdin = strings.NewReader(string(data))
+	cmd.Stdin = bytes.NewReader(data)
 	return cmd.Run()
 }
 
@@ -417,7 +417,7 @@ func (nc *NativeClipboard) writeTextX11(data []byte) error {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "xclip", "-i", "-selection", "clipboard")
-	cmd.Stdin = strings.NewReader(string(data))
+	cmd.Stdin = bytes.NewReader(data)
 	return cmd.Run()
 }
 

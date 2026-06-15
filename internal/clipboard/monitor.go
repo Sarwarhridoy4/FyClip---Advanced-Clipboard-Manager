@@ -33,7 +33,7 @@ type Monitor struct {
 	pausedUntil      time.Time
 
 	stopChan     chan struct{}
-	running     bool
+	running      bool
 	restartCount int
 }
 
@@ -116,22 +116,31 @@ func (m *Monitor) IsPaused() bool {
 	return !m.pausedUntil.IsZero() && time.Now().Before(m.pausedUntil)
 }
 
-// SetProgrammaticCopy marks the next clipboard change as programmatic
-func (m *Monitor) SetProgrammaticCopy(data []byte) {
-	hash := sha256.Sum256(data)
+// SetProgrammaticHash marks the next clipboard change using its content hash.
+func (m *Monitor) SetProgrammaticHash(hash string) {
+	if hash == "" {
+		return
+	}
 
 	m.mu.Lock()
 	m.programmaticCopy = true
-	m.programmaticHash = hex.EncodeToString(hash[:])
+	m.programmaticHash = hash
 	m.mu.Unlock()
 
-	// Clear after a short delay
 	time.AfterFunc(200*time.Millisecond, func() {
 		m.mu.Lock()
 		m.programmaticCopy = false
 		m.programmaticHash = ""
 		m.mu.Unlock()
 	})
+}
+
+// SetProgrammaticCopy marks the next clipboard change as programmatic
+func (m *Monitor) SetProgrammaticCopy(data []byte) {
+	defer wipeSensitiveData(data)
+
+	hash := sha256.Sum256(data)
+	m.SetProgrammaticHash(hex.EncodeToString(hash[:]))
 }
 
 // monitorLoop continuously checks the clipboard
@@ -304,9 +313,9 @@ func (m *Monitor) handleImage(data []byte, imageType, programmaticHash string) {
 
 	m.mu.Lock()
 	m.lastImageHash = hashStr
-	m.lastTextHash = ""   // Clear text hash when image is copied
-	m.lastHTMLHash = ""   // Clear HTML hash when image is copied
-	m.lastFileHash = ""   // Clear file hash when image is copied
+	m.lastTextHash = "" // Clear text hash when image is copied
+	m.lastHTMLHash = "" // Clear HTML hash when image is copied
+	m.lastFileHash = "" // Clear file hash when image is copied
 	m.mu.Unlock()
 
 	// Encode image data to base64
@@ -356,9 +365,9 @@ func (m *Monitor) handleHTML(data []byte, programmaticHash string) {
 
 	m.mu.Lock()
 	m.lastHTMLHash = hashStr
-	m.lastTextHash = ""   // Clear text hash when HTML is copied
-	m.lastImageHash = ""  // Clear image hash when HTML is copied
-	m.lastFileHash = ""   // Clear file hash when HTML is copied
+	m.lastTextHash = ""  // Clear text hash when HTML is copied
+	m.lastImageHash = "" // Clear image hash when HTML is copied
+	m.lastFileHash = ""  // Clear file hash when HTML is copied
 	m.mu.Unlock()
 
 	// Extract plain text from HTML for searchability
@@ -366,7 +375,7 @@ func (m *Monitor) handleHTML(data []byte, programmaticHash string) {
 
 	item := Item{
 		Type:        TypeHTML,
-		Content:    plainText,
+		Content:     plainText,
 		HTMLContent: htmlContent,
 		Hash:        hashStr,
 	}
@@ -403,9 +412,9 @@ func (m *Monitor) handleFiles(filePaths []string, programmaticHash string) {
 
 	m.mu.Lock()
 	m.lastFileHash = hashStr
-	m.lastTextHash = ""   // Clear text hash when files are copied
-	m.lastImageHash = ""  // Clear image hash when files are copied
-	m.lastHTMLHash = ""   // Clear HTML hash when files are copied
+	m.lastTextHash = ""  // Clear text hash when files are copied
+	m.lastImageHash = "" // Clear image hash when files are copied
+	m.lastHTMLHash = ""  // Clear HTML hash when files are copied
 	m.mu.Unlock()
 
 	// Get info for the first file
@@ -422,10 +431,10 @@ func (m *Monitor) handleFiles(filePaths []string, programmaticHash string) {
 	}
 
 	item := Item{
-		Type:    TypeFile,
-		Content: content,
+		Type:     TypeFile,
+		Content:  content,
 		FileInfo: fileInfo,
-		Hash:    hashStr,
+		Hash:     hashStr,
 	}
 
 	result := m.manager.AddItem(item)

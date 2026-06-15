@@ -32,9 +32,9 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 get_version() {
     if git rev-parse --git-dir >/dev/null 2>&1; then
         git fetch --tags 2>/dev/null || true
-        git tag --sort=-v:refname | head -1 | sed 's/^v//' || echo "2.2.1"
+        git tag --sort=-v:refname | head -1 | sed 's/^v//' || echo "2.2.2"
     else
-        echo "2.2.1"
+        echo "2.2.2"
     fi
 }
 

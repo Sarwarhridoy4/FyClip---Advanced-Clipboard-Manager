@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "FyClip"
-#define MyAppVersion "2.2.1"
+#define MyAppVersion "2.2.2"
 #define MyAppPublisher "Sarwar Hossain"
 #define MyAppURL "https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases"
 #define MyAppExeName "FyClip---Advanced-Clipboard-Manager.exe"
@@ -68,4 +68,3 @@ Type: filesandordirs; Name: "{userappdata}\.fyclip"
 Type: filesandordirs; Name: "{localappdata}\com.sarwar.fyclip"
 Type: filesandordirs; Name: "{userappdata}\FyClip"
 Type: filesandordirs; Name: "{localappdata}\FyClip"
-

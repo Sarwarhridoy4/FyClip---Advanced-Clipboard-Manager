@@ -45,16 +45,16 @@ git push origin main
 
 ```bash
 # Download source tarball
-wget https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/archive/refs/tags/v2.2.0.tar.gz
+wget https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/archive/refs/tags/v2.2.2.tar.gz
 
 # Extract
-tar -xzf v2.2.0.tar.gz
-cd FyClip---Advanced-Clipboard-Manager-2.2.0
+tar -xzf v2.2.2.tar.gz
+cd FyClip---Advanced-Clipboard-Manager-2.2.2
 
 # Initialize git
 git init
 git add .
-git commit -m "Initial import of FyClip 2.2.0"
+git commit -m "Initial import of FyClip 2.2.2"
 
 # Add Salsa remote
 git remote add origin git@salsa.debian.org:YOUR_USERNAME/fyclip.git
@@ -75,7 +75,7 @@ sudo apt-get install lintian
 ./build-deb.sh
 
 # Run lintian checks
-lintian -i -I --show-overrides dist/fyclip_2.2.0-1_amd64.changes
+lintian -i -I --show-overrides dist/fyclip_2.2.2-1_amd64.changes
 
 # Review any warnings or errors
 ```
@@ -100,7 +100,7 @@ Create `debian/fyclip.1`:
 
 ```bash
 cat > debian/fyclip.1 << 'EOF'
-.TH FYCLIP 1 "April 2026" "FyClip 2.2.0" "User Commands"
+.TH FYCLIP 1 "April 2026" "FyClip 2.2.2" "User Commands"
 .SH NAME
 fyclip \- Advanced Clipboard Manager for Linux
 .SH SYNOPSIS
@@ -195,7 +195,7 @@ Description: Advanced Clipboard Manager for Linux
 git add .
 
 # Commit
-git commit -m "Initial Debian packaging for FyClip 2.2.0"
+git commit -m "Initial Debian packaging for FyClip 2.2.2"
 
 # Push to Salsa
 git push origin main
@@ -269,7 +269,7 @@ dpkg-checkbuilddeps
 
 ```bash
 # Get detailed explanation
-lintian -i -I --show-overrides dist/fyclip_2.2.0-1_amd64.changes
+lintian -i -I --show-overrides dist/fyclip_2.2.2-1_amd64.changes
 
 # Fix issues and rebuild
 ```

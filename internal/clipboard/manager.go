@@ -4,10 +4,11 @@ package clipboard
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -22,6 +23,11 @@ const (
 
 	// Shutdown timeout for graceful shutdown
 	ShutdownTimeout = 10 * time.Second
+
+	// Security limits for clipboard content
+	MaxClipboardTextSize  = 10 * 1024 * 1024 // 10MB max text content
+	MaxClipboardImageSize = 50 * 1024 * 1024 // 50MB max image content
+	MaxClipboardPathSize  = 4096             // 4KB max file path length
 )
 
 // AddItemResult describes the result of adding a clipboard item.
@@ -35,24 +41,28 @@ type ShutdownHook func(ctx context.Context) error
 
 // Manager handles clipboard history and operations
 type Manager struct {
-	mu       sync.RWMutex
-	ctx      context.Context
-	cancel   context.CancelFunc
-	history  []Item
-	filtered []*Item  // Changed to pointers to reduce memory copies
-	storage  *Storage
-	snippets  *SnippetManager
+	mu         sync.RWMutex
+	ctx        context.Context
+	cancel     context.CancelFunc
+	history    []Item
+	filtered   []*Item // Changed to pointers to reduce memory copies
+	storage    *Storage
+	snippets   *SnippetManager
 	exclusions *ExclusionManager
-	native   *NativeClipboard
-	monitor  *Monitor
-	backup   *BackupManager
+	native     *NativeClipboard
+	monitor    *Monitor
+	backup     *BackupManager
 
 	// Shutdown hooks
 	shutdownHooks []ShutdownHook
 
 	// Index maps for O(1) lookups
-	hashIndexMap map[string]int  // hash+type -> index in history
-	idIndexMap   map[string]int  // id -> index in history
+	hashIndexMap map[string]int // hash+type -> index in history
+	idIndexMap   map[string]int // id -> index in history
+
+	// Differential tracking for optimized index updates
+	indexNeedsFullRebuild bool         // Flag to track if full rebuild is needed
+	modifiedIndices       map[int]bool // Track which indices have been modified
 
 	selectedIndex   int
 	searchQuery     string
@@ -67,12 +77,20 @@ type Manager struct {
 	running      bool
 
 	// Memory tracking
-	lastMemoryCheck time.Time
+	lastMemoryCheck     time.Time
+	memoryPressureLevel int            // 0=none, 1=moderate, 2=high, 3=critical
+	memorySamples       []memorySample // Track memory usage over time
 
 	// Callbacks
 	onUpdate func()
 	onError  func(error)
 	onInfo   func(string)
+}
+
+type memorySample struct {
+	timestamp time.Time
+	alloc     uint64
+	gcCycles  uint32
 }
 
 // Config holds manager configuration
@@ -100,25 +118,28 @@ func NewManager(cfg Config) (*Manager, error) {
 	}
 
 	m := &Manager{
-		ctx:             ctx,
-		cancel:          cancel,
-		storage:         storage,
-		snippets:       NewSnippetManager(storage),
-		exclusions:    NewExclusionManager(),
-		native:        native,
-		backup:        NewBackupManager(storage),
-		hashIndexMap:  make(map[string]int),
-		idIndexMap:    make(map[string]int),
-		selectedIndex: -1,
-		updateChan:     make(chan struct{}, 10), // Reduced from 100 - updates are debounced
-		saveChan:       make(chan struct{}, 1),
-		shutdownChan:  make(chan struct{}),
-		running:       true,
-		maxHistoryItems: MaxHistoryItems,
-		searchOptions:  DefaultSearchOptions(),
-		onUpdate:       cfg.OnUpdate,
-		onError:        cfg.OnError,
-		onInfo:         cfg.OnInfo,
+		ctx:                   ctx,
+		cancel:                cancel,
+		storage:               storage,
+		snippets:              NewSnippetManager(storage),
+		exclusions:            NewExclusionManager(),
+		native:                native,
+		backup:                NewBackupManager(storage),
+		hashIndexMap:          make(map[string]int),
+		idIndexMap:            make(map[string]int),
+		indexNeedsFullRebuild: false,
+		modifiedIndices:       make(map[int]bool),
+		selectedIndex:         -1,
+		updateChan:            make(chan struct{}, 10), // Reduced from 100 - updates are debounced
+		saveChan:              make(chan struct{}, 1),
+		shutdownChan:          make(chan struct{}),
+		running:               true,
+		maxHistoryItems:       MaxHistoryItems,
+		searchOptions:         DefaultSearchOptions(),
+		memorySamples:         make([]memorySample, 0, 10), // Keep last 10 samples
+		onUpdate:              cfg.OnUpdate,
+		onError:               cfg.OnError,
+		onInfo:                cfg.OnInfo,
 	}
 
 	// Load snippets
@@ -171,6 +192,87 @@ func (m *Manager) buildIndexMaps() {
 		m.hashIndexMap[hashKey] = i
 		m.idIndexMap[item.ID] = i
 	}
+	// Reset differential tracking after full rebuild
+	m.indexNeedsFullRebuild = false
+	m.modifiedIndices = make(map[int]bool)
+}
+
+// updateIndexForItem updates the index maps for a specific item at a given index
+func (m *Manager) updateIndexForItem(index int, item *Item) {
+	if index < 0 || index >= len(m.history) {
+		return
+	}
+
+	// Remove old index entries if they exist
+	oldItem := m.history[index]
+	oldHashKey := oldItem.Hash + ":" + strconv.Itoa(int(oldItem.Type))
+	delete(m.hashIndexMap, oldHashKey)
+	delete(m.idIndexMap, oldItem.ID)
+
+	// Add new index entries
+	newHashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
+	m.hashIndexMap[newHashKey] = index
+	m.idIndexMap[item.ID] = index
+
+	// Mark this index as modified for differential tracking
+	m.modifiedIndices[index] = true
+}
+
+// removeIndexForItem removes index entries for an item at a given index
+func (m *Manager) removeIndexForItem(index int) {
+	if index < 0 || index >= len(m.history)+1 { // +1 because we might be removing the last item
+		return
+	}
+
+	// Get the item before it's removed from history
+	var item Item
+	if index < len(m.history) {
+		item = m.history[index]
+	} else {
+		// This shouldn't happen, but safety check
+		return
+	}
+
+	// Remove index entries
+	hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
+	delete(m.hashIndexMap, hashKey)
+	delete(m.idIndexMap, item.ID)
+
+	// Mark indices after this one as modified (they shifted down)
+	for i := index; i < len(m.history); i++ {
+		m.modifiedIndices[i] = true
+	}
+}
+
+// rebuildModifiedIndices performs differential index rebuild for only modified indices
+func (m *Manager) rebuildModifiedIndices() {
+	if m.indexNeedsFullRebuild {
+		m.buildIndexMaps()
+		return
+	}
+
+	if len(m.modifiedIndices) == 0 {
+		return // No changes to rebuild
+	}
+
+	// Rebuild only the modified indices
+	for index := range m.modifiedIndices {
+		if index >= len(m.history) {
+			continue // Index no longer valid
+		}
+		item := m.history[index]
+		hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
+		m.hashIndexMap[hashKey] = index
+		m.idIndexMap[item.ID] = index
+	}
+
+	// Clear the modified indices tracking
+	m.modifiedIndices = make(map[int]bool)
+}
+
+// ensureIndicesUpToDate ensures that index maps are up to date before operations that depend on them
+func (m *Manager) ensureIndicesUpToDate() {
+	m.rebuildModifiedIndices()
 }
 
 // queueSaveHistory schedules a debounced save of history.
@@ -235,6 +337,9 @@ func (m *Manager) AddItem(item Item) AddItemResult {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Ensure indices are up to date before lookups
+	m.ensureIndicesUpToDate()
+
 	// Create composite key with type for hash
 	hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
 
@@ -264,11 +369,12 @@ func (m *Manager) AddItem(item Item) AddItemResult {
 	// Auto-detect category based on content
 	newItem.AutoDetectCategory()
 
-	// Add to history and update index maps
+	// Add to history
 	newIndex := len(m.history)
 	m.history = append(m.history, *newItem)
-	m.hashIndexMap[hashKey] = newIndex
-	m.idIndexMap[newItem.ID] = newIndex
+
+	// Mark differential index update needed
+	m.modifiedIndices[newIndex] = true
 
 	// Trim unpinned items
 	m.trimHistory()
@@ -288,9 +394,9 @@ func (m *Manager) removeAtIndex(idx int) {
 	}
 
 	item := m.history[idx]
-	hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
 
 	// Remove from index maps
+	hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
 	delete(m.hashIndexMap, hashKey)
 	delete(m.idIndexMap, item.ID)
 
@@ -300,9 +406,11 @@ func (m *Manager) removeAtIndex(idx int) {
 	// Return removed item to pool
 	ReturnToPool(&item)
 
-	// Rebuild index maps for indices after removed position
+	// Mark all indices from the removal point onward as modified
 	// This is necessary because all subsequent indices shift by 1
-	m.rebuildIndexMapsFrom(idx)
+	for i := idx; i < len(m.history); i++ {
+		m.modifiedIndices[i] = true
+	}
 }
 
 // rebuildIndexMapsFrom rebuilds index maps starting from the given index
@@ -316,15 +424,69 @@ func (m *Manager) rebuildIndexMapsFrom(startIdx int) {
 	}
 }
 
-// trimHistory keeps only the last MaxHistoryItems unpinned items
+// trimHistory keeps only the most recently used MaxHistoryItems unpinned items (LRU)
 func (m *Manager) trimHistory() {
-	unpinnedCount := 0
-	for i := len(m.history) - 1; i >= 0; i-- {
-		if !m.history[i].Pinned {
-			unpinnedCount++
-			if unpinnedCount > m.maxHistoryItems {
-				m.removeAtIndex(i)
+	// First, ensure all items have LastAccessed set (for backward compatibility)
+	now := time.Now()
+	for i := range m.history {
+		if m.history[i].LastAccessed.IsZero() {
+			// For existing items without LastAccessed, use creation timestamp as approximation
+			if !m.history[i].Timestamp.IsZero() {
+				m.history[i].LastAccessed = m.history[i].Timestamp
+			} else {
+				m.history[i].LastAccessed = now
 			}
+		}
+	}
+
+	// Count unpinned items
+	unpinnedCount := 0
+	for _, item := range m.history {
+		if !item.Pinned {
+			unpinnedCount++
+		}
+	}
+
+	// If we're within limits, no trimming needed
+	if unpinnedCount <= m.maxHistoryItems {
+		return
+	}
+
+	// Collect unpinned items with their indices for sorting by LRU
+	type itemWithIndex struct {
+		index int
+		item  *Item
+	}
+
+	var unpinnedItems []itemWithIndex
+	for i := range m.history {
+		if !m.history[i].Pinned {
+			unpinnedItems = append(unpinnedItems, itemWithIndex{index: i, item: &m.history[i]})
+		}
+	}
+
+	// Sort by LastAccessed (oldest first = least recently used)
+	for i := 0; i < len(unpinnedItems)-1; i++ {
+		for j := i + 1; j < len(unpinnedItems); j++ {
+			if unpinnedItems[i].item.LastAccessed.After(unpinnedItems[j].item.LastAccessed) {
+				unpinnedItems[i], unpinnedItems[j] = unpinnedItems[j], unpinnedItems[i]
+			}
+		}
+	}
+
+	// Remove excess items (least recently used first)
+	itemsToRemove := unpinnedCount - m.maxHistoryItems
+	for i := 0; i < itemsToRemove && i < len(unpinnedItems); i++ {
+		// Find the current index of this item (it may have shifted due to previous removals)
+		currentIndex := -1
+		for j := range m.history {
+			if m.history[j].ID == unpinnedItems[i].item.ID {
+				currentIndex = j
+				break
+			}
+		}
+		if currentIndex >= 0 {
+			m.removeAtIndex(currentIndex)
 		}
 	}
 }
@@ -382,8 +544,13 @@ func (m *Manager) CheckMemoryPressure() {
 	defer m.mu.Unlock()
 
 	now := time.Now()
-	// Only check every 30 seconds to avoid overhead
-	if now.Sub(m.lastMemoryCheck) < 30*time.Second {
+	// Check more frequently under pressure, less frequently when stable
+	checkInterval := 30 * time.Second
+	if m.memoryPressureLevel > 0 {
+		checkInterval = 10 * time.Second
+	}
+
+	if now.Sub(m.lastMemoryCheck) < checkInterval {
 		return
 	}
 	m.lastMemoryCheck = now
@@ -391,17 +558,114 @@ func (m *Manager) CheckMemoryPressure() {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
-	// If heap usage > 100MB, reduce history size by 20%
-	if memStats.Alloc > 100*1024*1024 {
+	// Add current sample to history
+	sample := memorySample{
+		timestamp: now,
+		alloc:     memStats.Alloc,
+		gcCycles:  memStats.NumGC,
+	}
+	m.memorySamples = append(m.memorySamples, sample)
+
+	// Keep only last 10 samples
+	if len(m.memorySamples) > 10 {
+		m.memorySamples = m.memorySamples[1:]
+	}
+
+	// Determine memory pressure level based on allocation and trends
+	newPressureLevel := m.calculateMemoryPressure(memStats)
+
+	// Act on pressure changes
+	if newPressureLevel != m.memoryPressureLevel {
+		m.handleMemoryPressureChange(newPressureLevel, memStats)
+		m.memoryPressureLevel = newPressureLevel
+	}
+}
+
+// calculateMemoryPressure determines the current memory pressure level
+func (m *Manager) calculateMemoryPressure(memStats runtime.MemStats) int {
+	allocMB := float64(memStats.Alloc) / (1024 * 1024)
+
+	// Base pressure on allocation size
+	var level int
+	switch {
+	case allocMB > 200: // Critical
+		level = 3
+	case allocMB > 150: // High
+		level = 2
+	case allocMB > 100: // Moderate
+		level = 1
+	default: // Normal
+		level = 0
+	}
+
+	// Increase pressure if GC is running frequently
+	if memStats.NumGC > 50 && len(m.memorySamples) > 1 {
+		// Check if allocations are consistently high
+		recentHigh := 0
+		for i := len(m.memorySamples) - 1; i >= 0 && i >= len(m.memorySamples)-3; i-- {
+			if float64(m.memorySamples[i].alloc)/(1024*1024) > 120 {
+				recentHigh++
+			}
+		}
+		if recentHigh >= 2 && level < 2 {
+			level++
+		}
+	}
+
+	return level
+}
+
+// handleMemoryPressureChange responds to memory pressure level changes
+func (m *Manager) handleMemoryPressureChange(newLevel int, memStats runtime.MemStats) {
+	allocMB := float64(memStats.Alloc) / (1024 * 1024)
+
+	switch newLevel {
+	case 0: // Normal - no action needed
+		if m.onInfo != nil {
+			m.onInfo(fmt.Sprintf("Memory usage normal: %.1f MB", allocMB))
+		}
+
+	case 1: // Moderate - light cleanup
 		oldMax := m.maxHistoryItems
-		m.maxHistoryItems = int(float64(m.maxHistoryItems) * 0.8)
+		m.maxHistoryItems = int(float64(m.maxHistoryItems) * 0.9)
+		if m.maxHistoryItems < 200 {
+			m.maxHistoryItems = 200
+		}
+		if m.maxHistoryItems < oldMax {
+			m.trimHistory()
+			if m.onInfo != nil {
+				m.onInfo(fmt.Sprintf("Light memory cleanup: reduced history from %d to %d (%.1f MB used)",
+					oldMax, m.maxHistoryItems, allocMB))
+			}
+		}
+
+	case 2: // High - moderate cleanup
+		oldMax := m.maxHistoryItems
+		m.maxHistoryItems = int(float64(m.maxHistoryItems) * 0.75)
+		if m.maxHistoryItems < 150 {
+			m.maxHistoryItems = 150
+		}
+		if m.maxHistoryItems < oldMax {
+			m.trimHistory()
+			runtime.GC() // Force garbage collection
+			if m.onInfo != nil {
+				m.onInfo(fmt.Sprintf("Memory pressure: reduced history from %d to %d (%.1f MB used)",
+					oldMax, m.maxHistoryItems, allocMB))
+			}
+		}
+
+	case 3: // Critical - aggressive cleanup
+		oldMax := m.maxHistoryItems
+		m.maxHistoryItems = int(float64(m.maxHistoryItems) * 0.5)
 		if m.maxHistoryItems < 100 {
 			m.maxHistoryItems = 100
 		}
 		if m.maxHistoryItems < oldMax {
 			m.trimHistory()
+			runtime.GC() // Force garbage collection
 			if m.onInfo != nil {
-				m.onInfo(fmt.Sprintf("Memory pressure: reduced history from %d to %d", oldMax, m.maxHistoryItems))
+				m.onInfo(fmt.Sprintf("Critical memory pressure: reduced history from %d to %d (%.1f MB used)",
+					oldMax, m.maxHistoryItems, allocMB))
 			}
 		}
 	}
@@ -579,7 +843,14 @@ func (m *Manager) GetItem(index int) (Item, bool) {
 	if index < 0 || index >= len(m.filtered) {
 		return Item{}, false
 	}
-	return *m.filtered[index], true
+
+	// Update last accessed time for LRU tracking
+	item := m.filtered[index]
+	if idx, exists := m.idIndexMap[item.ID]; exists {
+		m.history[idx].UpdateLastAccessed()
+	}
+
+	return *item, true
 }
 
 // GetSelected returns the currently selected item
@@ -590,7 +861,14 @@ func (m *Manager) GetSelected() (Item, bool) {
 	if m.selectedIndex < 0 || m.selectedIndex >= len(m.filtered) {
 		return Item{}, false
 	}
-	return *m.filtered[m.selectedIndex], true
+
+	// Update last accessed time for LRU tracking
+	item := m.filtered[m.selectedIndex]
+	if idx, exists := m.idIndexMap[item.ID]; exists {
+		m.history[idx].UpdateLastAccessed()
+	}
+
+	return *item, true
 }
 
 // GetSelectedIndex returns the selected index
@@ -615,6 +893,9 @@ func (m *Manager) TogglePin(index int) bool {
 		m.mu.Unlock()
 		return false
 	}
+
+	// Ensure indices are up to date before lookups
+	m.ensureIndicesUpToDate()
 
 	targetID := m.filtered[index].ID
 
@@ -642,7 +923,7 @@ func (m *Manager) FindIndexByID(id string) int {
 
 	for i, item := range m.filtered {
 		if item.ID == id {
-		return i
+			return i
 		}
 	}
 	return -1
@@ -656,6 +937,9 @@ func (m *Manager) Delete(index int) error {
 		m.mu.Unlock()
 		return fmt.Errorf("invalid index")
 	}
+
+	// Ensure indices are up to date before lookups
+	m.ensureIndicesUpToDate()
 
 	targetItem := m.filtered[index]
 	if targetItem.Pinned {
@@ -863,52 +1147,139 @@ func (m *Manager) CopyToClipboardAsPlainText(index int) error {
 	return m.copyItemToClipboard(&item, false)
 }
 
-// copyItemToClipboard is the internal method for copying items
-func (m *Manager) copyItemToClipboard(item *Item, asHTML bool) error {
-	// Notify monitor about programmatic copy
-	if m.monitor != nil {
-		if item.Type == TypeText || item.Type == TypeHTML {
-			m.monitor.SetProgrammaticCopy([]byte(item.Content))
-		} else if item.Type == TypeImage {
-			if rawImage, err := base64.StdEncoding.DecodeString(item.ImageData); err == nil {
-				m.monitor.SetProgrammaticCopy(rawImage)
-			} else {
-				m.monitor.SetProgrammaticCopy([]byte(item.ImageData))
-			}
-		} else if item.Type == TypeFile && item.FileInfo != nil {
-			m.monitor.SetProgrammaticCopy([]byte(item.FileInfo.Path))
+// validateClipboardContent validates content size limits for security
+func (m *Manager) validateClipboardContent(item *Item) error {
+	switch item.Type {
+	case TypeText:
+		if len(item.Content) > MaxClipboardTextSize {
+			return fmt.Errorf("clipboard content exceeds maximum size limit (%d bytes)", MaxClipboardTextSize)
+		}
+	case TypeHTML:
+		if len(item.Content) > MaxClipboardTextSize || len(item.HTMLContent) > MaxClipboardTextSize {
+			return fmt.Errorf("clipboard content exceeds maximum size limit (%d bytes)", MaxClipboardTextSize)
+		}
+	case TypeImage:
+		if len(item.ImageData) > MaxClipboardImageSize {
+			return fmt.Errorf("clipboard image exceeds maximum size limit (%d bytes)", MaxClipboardImageSize)
+		}
+	case TypeFile:
+		if item.FileInfo != nil && len(item.FileInfo.Path) > MaxClipboardPathSize {
+			return fmt.Errorf("file path exceeds maximum length limit (%d characters)", MaxClipboardPathSize)
 		}
 	}
+	return nil
+}
+
+func (m *Manager) clipboardWriteHash(item *Item, _ bool) string {
+	if item == nil {
+		return ""
+	}
+
+	switch item.Type {
+	case TypeText:
+		sum := sha256.Sum256([]byte(item.Content))
+		return hex.EncodeToString(sum[:])
+	case TypeHTML:
+		// Current HTML writes fall back to plain text, so track the plain-text hash.
+		sum := sha256.Sum256([]byte(item.Content))
+		return hex.EncodeToString(sum[:])
+	case TypeImage:
+		if item.Hash != "" {
+			return item.Hash
+		}
+		sum := sha256.Sum256([]byte(item.ImageData))
+		return hex.EncodeToString(sum[:])
+	case TypeFile:
+		if item.FileInfo == nil {
+			return ""
+		}
+		sum := sha256.Sum256([]byte(item.FileInfo.Path))
+		return hex.EncodeToString(sum[:])
+	default:
+		return ""
+	}
+}
+
+// secureCopyToMonitor safely notifies the monitor about a programmatic copy
+// without passing the clipboard content itself through monitor state.
+func (m *Manager) secureCopyToMonitor(item *Item, asHTML bool) {
+	if m.monitor == nil {
+		return
+	}
+
+	if hash := m.clipboardWriteHash(item, asHTML); hash != "" {
+		m.monitor.SetProgrammaticHash(hash)
+	}
+}
+
+// copyItemToClipboard is the internal method for copying items
+func (m *Manager) copyItemToClipboard(item *Item, asHTML bool) error {
+	// Validate content size limits for security
+	if err := m.validateClipboardContent(item); err != nil {
+		return fmt.Errorf("clipboard content validation failed: %w", err)
+	}
+
+	// Securely notify monitor about programmatic copy (without exposing content)
+	m.secureCopyToMonitor(item, asHTML)
 
 	m.mu.Lock()
 	m.lastCopied = time.Now()
 	m.mu.Unlock()
 
+	// Memory-safe clipboard operations
 	switch item.Type {
 	case TypeText:
-		if err := m.native.WriteText([]byte(item.Content)); err != nil {
+		// Create a copy of the content to avoid holding references to the original data
+		content := make([]byte, len(item.Content))
+		copy(content, item.Content)
+		defer wipeSensitiveData(content) // Securely wipe from memory after use
+
+		if err := m.native.WriteText(content); err != nil {
 			return err
 		}
 	case TypeHTML:
 		// If asHTML is true and we have HTML content, write as HTML
 		if asHTML && item.HasHTML() {
-			if err := m.native.WriteHTML(item.HTMLContent, item.Content); err != nil {
+			// Create secure copies of HTML content
+			htmlContent := make([]byte, len(item.HTMLContent))
+			copy(htmlContent, item.HTMLContent)
+			textContent := make([]byte, len(item.Content))
+			copy(textContent, item.Content)
+			defer func() {
+				wipeSensitiveData(htmlContent)
+				wipeSensitiveData(textContent)
+			}()
+
+			if err := m.native.WriteHTML(string(htmlContent), string(textContent)); err != nil {
 				return err
 			}
 		} else {
 			// Write plain text
-			if err := m.native.WriteText([]byte(item.Content)); err != nil {
+			content := make([]byte, len(item.Content))
+			copy(content, item.Content)
+			defer wipeSensitiveData(content)
+
+			if err := m.native.WriteText(content); err != nil {
 				return err
 			}
 		}
 	case TypeImage:
-		if err := m.native.WriteImage(item.ImageData); err != nil {
+		// Decode and copy image data securely
+		imageData := make([]byte, len(item.ImageData))
+		copy(imageData, item.ImageData)
+		defer wipeSensitiveData(imageData)
+
+		if err := m.native.WriteImage(string(imageData)); err != nil {
 			return err
 		}
 	case TypeFile:
 		if item.FileInfo != nil {
-			// Copy file path to clipboard
-			if err := m.native.WriteText([]byte(item.FileInfo.Path)); err != nil {
+			// Validate file path before copying
+			if err := validateFilePath(item.FileInfo.Path); err != nil {
+				return fmt.Errorf("file path validation failed: %w", err)
+			}
+
+			if err := m.native.WriteFilePaths([]string{item.FileInfo.Path}); err != nil {
 				return err
 			}
 		}
@@ -919,6 +1290,31 @@ func (m *Manager) copyItemToClipboard(item *Item, asHTML bool) error {
 	m.incrementCopyCount(item.ID)
 	m.saveHistory()
 	m.triggerUpdate()
+	return nil
+}
+
+// validateFilePath validates a file path for security
+func validateFilePath(path string) error {
+	// Check for directory traversal attempts
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("directory traversal detected in path: %s", path)
+	}
+
+	// Check for absolute paths only (relative paths are safer)
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("relative paths not allowed: %s", path)
+	}
+
+	// Check for suspicious characters
+	if strings.ContainsAny(path, "<>|;&$`") {
+		return fmt.Errorf("suspicious characters in path: %s", path)
+	}
+
+	// Verify the path exists and is accessible
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return fmt.Errorf("path does not exist: %s", path)
+	}
+
 	return nil
 }
 
@@ -942,6 +1338,11 @@ func (m *Manager) OpenFileLocation(index int) error {
 		if lastSlash > 0 {
 			dirPath = path[:lastSlash]
 		}
+	}
+
+	// Validate the directory path before executing command
+	if err := validateFilePath(dirPath); err != nil {
+		return fmt.Errorf("invalid file path: %w", err)
 	}
 
 	var cmd *exec.Cmd
@@ -1164,9 +1565,13 @@ func (m *Manager) incrementCopyCount(itemID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Ensure indices are up to date before lookups
+	m.ensureIndicesUpToDate()
+
 	// O(1) lookup using idIndexMap
 	if idx, exists := m.idIndexMap[itemID]; exists {
 		m.history[idx].CopyCount++
+		m.history[idx].UpdateLastAccessed() // Update LRU timestamp
 	}
 }
 
@@ -1215,7 +1620,7 @@ func (m *Manager) DeleteSnippet(id string) error {
 func (m *Manager) ExpandSnippet(content string) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// Get current clipboard content if available
 	clipContent := ""
 	if len(m.history) > 0 {
@@ -1228,7 +1633,7 @@ func (m *Manager) ExpandSnippet(content string) string {
 func (m *Manager) ExpandSnippetWithClipboard(content string, clipboardContent string) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	return m.snippets.ExpandSnippet(content, clipboardContent)
 }
 

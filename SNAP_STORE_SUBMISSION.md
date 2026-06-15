@@ -28,14 +28,14 @@ This guide will help you build and submit FyClip to the Ubuntu Snap Store.
 
 1. **Build the snap package**:
    ```bash
-   snapcraft
+   snapcraft pack
    ```
 
-   This will create a `.snap` file in the current directory (e.g., `fyclip_2.2.0_amd64.snap`).
+   This will create a `.snap` file in the current directory (e.g., `fyclip_2.2.2_amd64.snap`).
 
 2. **Test the snap locally** (optional but recommended):
    ```bash
-   sudo snap install ./fyclip_2.2.0_amd64.snap --dangerous
+   sudo snap install ./fyclip_2.2.2_amd64.snap --dangerous
    fyclip
    ```
 
@@ -56,7 +56,7 @@ snapcraft register fyclip
 
 1. **Upload and publish to the edge channel** (for testing):
    ```bash
-   snapcraft upload ./fyclip_2.2.0_amd64.snap --release=edge
+   snapcraft upload ./fyclip_2.2.2_amd64.snap --release=edge
    ```
 
 2. **Promote to stable channel** (after testing):
@@ -126,7 +126,7 @@ If the icon is not displaying on the Snap Store listing:
    ```bash
    snapcraft clean
    snapcraft
-   snapcraft upload ./fyclip_2.2.0_amd64.snap --release=edge
+   snapcraft upload ./fyclip_2.2.2_amd64.snap --release=edge
    ```
 
 3. **Wait for processing**:
@@ -150,7 +150,7 @@ If the links section shows "No links have been added for this snap":
    ```bash
    snapcraft clean
    snapcraft
-   snapcraft upload ./fyclip_2.2.0_amd64.snap --release=edge
+   snapcraft upload ./fyclip_2.2.2_amd64.snap --release=edge
    ```
 
 3. **Promote to stable** (after verifying):
@@ -186,7 +186,7 @@ If screenshots are not displaying on the Snap Store listing:
    ```bash
    snapcraft clean
    snapcraft
-   snapcraft upload ./fyclip_2.2.0_amd64.snap --release=edge
+   snapcraft upload ./fyclip_2.2.2_amd64.snap --release=edge
    ```
 
 4. **Wait for processing**:
@@ -203,7 +203,7 @@ If you encounter issues after uploading:
 
 2. **Upload new version**:
    ```bash
-   snapcraft upload ./fyclip_2.2.0_amd64.snap --release=edge
+   snapcraft upload ./fyclip_2.2.2_amd64.snap --release=edge
    ```
 
 3. **Check snap status**:
