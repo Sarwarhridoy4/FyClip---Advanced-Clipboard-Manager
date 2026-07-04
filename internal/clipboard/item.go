@@ -109,6 +109,7 @@ func (i *Item) DisplayText(maxLen int) string {
 
 	text := strings.ReplaceAll(i.Content, "\n", " ")
 	text = strings.ReplaceAll(text, "\r", "")
+	text = strings.ReplaceAll(text, "\x00", "")
 	text = strings.TrimSpace(text)
 
 	if len(text) > maxLen {

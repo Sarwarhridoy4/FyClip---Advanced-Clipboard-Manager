@@ -145,6 +145,10 @@ func (pp *PreviewPane) showText(item clipboard.Item) {
 
 	pp.setMarkdown(content)
 
+	content += fmt.Sprintf("\n---\n\n*Copied: %s*", item.Timestamp.Format("2006-01-02 15:04:05"))
+
+	pp.setMarkdown(content)
+
 	pp.scroll.Show()
 	pp.scroll.ScrollToTop()
 	pp.markRendered(item)
@@ -161,6 +165,8 @@ func (pp *PreviewPane) showCode(item clipboard.Item) {
 
 	// Show HTML as code block
 	content := "```html\n" + item.HTMLContent + "\n```"
+
+	content += fmt.Sprintf("\n---\n\n*Copied: %s*", item.Timestamp.Format("2006-01-02 15:04:05"))
 
 	pp.setMarkdown(content)
 
@@ -191,6 +197,7 @@ func (pp *PreviewPane) showFile(item clipboard.Item) {
 	content += fmt.Sprintf("Path: `%s`\n", fi.Path)
 	content += fmt.Sprintf("Size: %s\n", formatFileSize(fi.Size))
 	content += fmt.Sprintf("Modified: %s\n", fi.ModTime.Format("2006-01-02 15:04:05"))
+	content += fmt.Sprintf("Copied: %s\n", item.Timestamp.Format("2006-01-02 15:04:05"))
 	content += "\n---\n\n*Copy to clipboard: copies file path*"
 
 	pp.rawText = fi.Path
