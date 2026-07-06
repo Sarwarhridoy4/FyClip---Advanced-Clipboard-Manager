@@ -215,7 +215,7 @@ install_system_dependencies() {
     
     case "${PM}" in
         apt-get)
-            packages=(build-essential curl wget tar dpkg libgl1-mesa-glx libglib2.0-0 libxcursor1 libxrandr2 libxinerama1 libxi6 libgtk-3-0 xclip xsel wl-clipboard)
+            packages=(build-essential curl wget tar dpkg libgl1 libglib2.0-0 libxcursor1 libxrandr2 libxinerama1 libxi6 libgtk-3-0 xclip xsel wl-clipboard)
             ;;
         dnf)
             packages=( @development-tools curl wget tar dpkg glibc libXcursor libXrandr libXinerama libXi gtk3 xclip xsel wl-clipboard)
@@ -337,10 +337,21 @@ main() {
     tar -xJf "${APP_NAME}.tar.xz" -C "${WORK_DIR}"
     
     # Detect prefix
-    if [ -d "${WORK_DIR}/usr/local" ]; then 
+    if [ -d "${WORK_DIR}/usr/local" ]; then
         PREFIX_REL="usr/local"
-    else 
+    elif [ -d "${WORK_DIR}/usr" ]; then
         PREFIX_REL="usr"
+    else
+        NESTED_USR=$(find "${WORK_DIR}" -maxdepth 3 -type d -name "usr" | head -n 1)
+        if [ -z "${NESTED_USR}" ]; then
+            log_error "No usr directory found after extraction"
+            exit 1
+        fi
+        NESTED_DIR=$(dirname "${NESTED_USR}")
+        PREFIX_REL="${NESTED_DIR#${WORK_DIR}/}/usr"
+        if [ -d "${WORK_DIR}/${PREFIX_REL}/local" ]; then
+            PREFIX_REL="${PREFIX_REL}/local"
+        fi
     fi
     
     # Normalize directory structure
@@ -358,7 +369,9 @@ main() {
         log_error "Binary not found"
         exit 1
     fi
-    mv "${FOUND_BIN}" "${BIN_DIR}/${BIN_NAME}"
+    if [ "$(basename "${FOUND_BIN}")" != "${BIN_NAME}" ]; then
+        mv "${FOUND_BIN}" "${BIN_DIR}/${BIN_NAME}"
+    fi
     BIN_PATH="${BIN_DIR}/${BIN_NAME}"
     
     # Find desktop and icon files
@@ -476,10 +489,18 @@ EOF
         xargs -r -I '{}' cp '{}' "${APPDIR}/usr/lib/" 2>/dev/null || true
     
     # Build AppImage
+    APPIMAGE_TOOL="$(command -v appimagetool 2>/dev/null || true)"
+    if [ -z "${APPIMAGE_TOOL}" ] && [ -x "${LOCAL_TOOLS_DIR}/bin/appimagetool" ]; then
+        APPIMAGE_TOOL="${LOCAL_TOOLS_DIR}/bin/appimagetool"
+    fi
+    if [ -z "${APPIMAGE_TOOL}" ]; then
+        log_error "appimagetool not found"
+        exit 1
+    fi
     # Use absolute path since we cd to DIST_DIR
     APPDIR_ABS="$(pwd)/${WORK_DIR}"
     cd "${DIST_DIR}"
-    APPIMAGE_EXTRACT_AND_RUN=1 "${LOCAL_TOOLS_DIR}/bin/appimagetool" \
+    APPIMAGE_EXTRACT_AND_RUN=1 "${APPIMAGE_TOOL}" \
         "${APPDIR_ABS}/FyClip.AppDir" \
         "${PKG_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage"
     cd - >/dev/null
