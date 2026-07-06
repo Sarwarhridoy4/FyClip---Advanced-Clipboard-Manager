@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.3] - 2026-07-04
+
+### Fixed
+- **DBus Tray Menu Error**: Fixed "wire format error: input has a null char('\000') in string" in StatusNotifierItem menu
+  - Strip null bytes from `DisplayText()` output before passing to system tray menu items
+
+### Added
+- **Preview Panel Timestamp**: Show copied item date/time in preview pane for all item types
+  - Text, HTML/code, and file preview panes now display "Copied: YYYY-MM-DD HH:MM:SS"
+  - Image preview already had this; consistent display across all types
+
 ## [2.2.2] - 2026-04-30
 
 ### Changed
