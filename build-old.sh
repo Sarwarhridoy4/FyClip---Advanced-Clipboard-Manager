@@ -407,11 +407,11 @@ main() {
     sed -i -E "s|^Exec=.*|Exec=${BIN_NAME}|" "${DESKTOP_PATH}"
     sed -i -E "s|^Icon=.*|Icon=${APP_ID}|" "${DESKTOP_PATH}"
     sed -i -E "s|^Name=.*|Name=${APP_NAME}|" "${DESKTOP_PATH}"
+    sed -i -E "s|^StartupWMClass=.*|StartupWMClass=${APP_ID}|" "${DESKTOP_PATH}"
     
     grep -q '^Categories=' "${DESKTOP_PATH}" || echo "Categories=Utility;" >> "${DESKTOP_PATH}"
     grep -q '^NoDisplay=' "${DESKTOP_PATH}" || echo "NoDisplay=false" >> "${DESKTOP_PATH}"
     grep -q '^Keywords=' "${DESKTOP_PATH}" || echo "Keywords=clipboard;copy;paste;history;" >> "${DESKTOP_PATH}"
-    grep -q '^StartupWMClass=' "${DESKTOP_PATH}" || echo "StartupWMClass=FyClip - Clipboard Manager" >> "${DESKTOP_PATH}"
     
     # Install icon in hicolor
     HICOLOR_APPS_DIR="${USR_NORMALIZED}/share/icons/hicolor/256x256/apps"
