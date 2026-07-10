@@ -26,7 +26,7 @@ func (as *AutoStart) enable() error {
 Type=Application
 Exec=%s
 Icon=com.sarwar.fyclip
-StartupWMClass=com.sarwar.fyclip
+StartupWMClass=FyClip - Clipboard Manager
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true

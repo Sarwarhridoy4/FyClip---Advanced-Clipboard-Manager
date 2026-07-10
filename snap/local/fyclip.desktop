@@ -10,4 +10,4 @@ Terminal=false
 Categories=Utility;
 Keywords=clipboard;manager;history;copy;paste;
 StartupNotify=true
-StartupWMClass=com.sarwar.fyclip
+StartupWMClass=FyClip - Clipboard Manager

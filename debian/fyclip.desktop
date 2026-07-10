@@ -9,5 +9,5 @@ Icon=com.sarwar.fyclip
 Terminal=false
 Categories=Utility;
 Keywords=clipboard;copy;paste;history;
-StartupWMClass=com.sarwar.fyclip
+StartupWMClass=FyClip - Clipboard Manager
 NoDisplay=false
