@@ -65,9 +65,15 @@ func (st *SystemTray) Setup() {
 	st.menu = st.buildMenu()
 
 	// Set system tray
+	if icon := st.loadIcon(); icon != nil {
+		desk.SetSystemTrayIcon(icon)
+	}
 	desk.SetSystemTrayMenu(st.menu)
 	if icon := st.loadIcon(); icon != nil {
 		desk.SetSystemTrayIcon(icon)
+	}
+	if st.window != nil {
+		desk.SetSystemTrayWindow(st.window)
 	}
 }
 
@@ -237,6 +243,9 @@ func (st *SystemTray) refreshMenu() {
 
 	st.menu = st.buildMenu()
 	desk.SetSystemTrayMenu(st.menu)
+	if icon := st.loadIcon(); icon != nil {
+		desk.SetSystemTrayIcon(icon)
+	}
 }
 
 // loadIcon loads the application icon
