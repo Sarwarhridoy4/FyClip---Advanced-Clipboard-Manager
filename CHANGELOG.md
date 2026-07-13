@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-07-13
+
+### Added
+- **Calendar Date Sorting**: Sort clipboard history by calendar date from the toolbar or View menu
+- **Date Range Filtering**: Filter history by exact date or date range using a custom selectable calendar picker
+  - Open the date picker from the toolbar `Filter Date` button
+  - Click once to set start date, click again to set end date
+  - Apply filters to show only history from selected range
+  - Pinned items remain on top while unpinned items are filtered by date
+- **Date Filter UI State**: Toolbar button shows active state when a date filter is applied
+
+### Fixed
+- **Tray Icon Persistence**: Re-apply tray icon when the system tray menu is rebuilt to prevent icon from disappearing on some Linux desktops
+- **Storage Migration**: Fixed undeclared `newKey` variable in storage key migration path
+- **Calendar Month Navigation**: Month/year header now updates correctly when navigating between months in the date picker
+
 ## [2.2.3] - 2026-07-04
 
 ### Fixed

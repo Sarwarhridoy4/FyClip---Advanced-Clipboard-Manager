@@ -19,7 +19,7 @@
 
 > A secure, fast clipboard manager for text, images, HTML, and files, built with Go and Fyne v2.7+
 
-**Current Version**: 2.2.3
+**Current Version**: 2.3.0
 
 ---
 
@@ -76,6 +76,7 @@ FyClip is built for people who copy a lot and want fast recall, reliable history
 | **Search** | Regex, fuzzy matching, case-sensitive filtering, clear search |
 | **Organize** | Pinning, pinned-only view, smart categories, custom tags, snippets |
 | **Actions** | Copy, export, bulk select, bulk delete, pin/unpin |
+| **Date** | Calendar date sorting, date range filtering, filter by exact date |
 | **Security** | AES-256-GCM storage, PBKDF2 key derivation, encrypted backups, sensitive-pattern detection, clipboard/path validation |
 | **System** | Autostart, pause capture, system tray actions, GitHub-based auto updates |
 
@@ -304,7 +305,7 @@ The build script follows Fyne's official Linux packaging flow:
 ./build.sh
 
 # Build with explicit version
-./build.sh 2.2.3
+./build.sh 2.3.0
 ```
 
 This produces:
@@ -381,9 +382,10 @@ fyne-cross darwin -arch=amd64
 | `Escape` | Clear search / Close panel |
 | `Home` | Go to first item |
 | `End` | Go to last item |
-| `F1` | Focus search bar |
-| `Ctrl+F` | Focus search bar |
 | `F1` | Open quick panel |
+| `Ctrl+F` | Focus search bar |
+| View → **Sort by Date** | Sort history newest-first by calendar date |
+| Toolbar → **Filter Date** | Open calendar picker to filter by date range |
 
 ### Bulk Operations
 
@@ -409,6 +411,8 @@ fyne-cross darwin -arch=amd64
 13. **Tags**: Add custom tags to organize items
 14. **Theme**: Switch between Light, Dark, and System themes
 15. **Bulk Operations**: Multi-select items for batch actions
+16. **Sort by Date**: Sort history newest-first by calendar date
+17. **Filter by Date**: Use the calendar picker to show only items from a selected date or date range
 
 ### Snippets
 
