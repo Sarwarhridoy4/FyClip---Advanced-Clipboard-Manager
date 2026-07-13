@@ -351,6 +351,121 @@ func TestManagerTogglePinnedOnly(t *testing.T) {
 	}
 }
 
+// TestManagerToggleSortByDate tests calendar date sorting toggle
+func TestManagerToggleSortByDate(t *testing.T) {
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "test_storage")
+
+	cfg := Config{
+		StoragePath: storagePath,
+		OnUpdate:    func() {},
+		OnError:     func(err error) {},
+		OnInfo:      func(message string) {},
+	}
+
+	m, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	defer m.Shutdown()
+
+	// Initially sort by date should be disabled
+	if m.IsSortByDate() {
+		t.Error("Initially sort by date should be disabled")
+	}
+
+	// Add items with different timestamps
+	m.AddItem(Item{Type: TypeText, Content: "Old", Timestamp: time.Now().Add(-2 * time.Hour)})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeText, Content: "New", Timestamp: time.Now().Add(-1 * time.Hour)})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeText, Content: "Newest", Timestamp: time.Now()})
+	m.updateFiltered()
+
+	// Enable sort by date
+	enabled := m.ToggleSortByDate()
+	if !enabled {
+		t.Error("ToggleSortByDate should return true when enabling")
+	}
+
+	if !m.IsSortByDate() {
+		t.Error("IsSortByDate should return true after toggle")
+	}
+
+	items := m.GetFiltered()
+	if len(items) != 3 {
+		t.Fatalf("Expected 3 items, got %d", len(items))
+	}
+
+	if items[0].Content != "Newest" {
+		t.Errorf("Expected first item to be Newest when sorted by date, got %s", items[0].Content)
+	}
+	if items[1].Content != "New" {
+		t.Errorf("Expected second item to be New when sorted by date, got %s", items[1].Content)
+	}
+	if items[2].Content != "Old" {
+		t.Errorf("Expected third item to be Old when sorted by date, got %s", items[2].Content)
+	}
+
+	// Disable sort by date
+	enabled = m.ToggleSortByDate()
+	if enabled {
+		t.Error("ToggleSortByDate should return false when disabling")
+	}
+
+	if m.IsSortByDate() {
+		t.Error("IsSortByDate should return false after toggle")
+	}
+}
+
+// TestManagerSortByDatePreservesPinned tests that pinned items stay on top when sorting by date
+func TestManagerSortByDatePreservesPinned(t *testing.T) {
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "test_storage")
+
+	cfg := Config{
+		StoragePath: storagePath,
+		OnUpdate:    func() {},
+		OnError:     func(err error) {},
+		OnInfo:      func(message string) {},
+	}
+
+	m, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	defer m.Shutdown()
+
+	m.AddItem(Item{Type: TypeText, Content: "Unpinned Old", Timestamp: time.Now().Add(-2 * time.Hour)})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeText, Content: "Pinned New", Timestamp: time.Now().Add(-1 * time.Hour)})
+	m.updateFiltered()
+	_ = m.TogglePin(1)
+	m.AddItem(Item{Type: TypeText, Content: "Unpinned New", Timestamp: time.Now()})
+	m.updateFiltered()
+
+	m.SetSortByDate(true)
+	m.updateFiltered()
+
+	items := m.GetFiltered()
+	if len(items) != 3 {
+		t.Fatalf("Expected 3 items, got %d", len(items))
+	}
+
+	if !items[0].Pinned {
+		t.Error("First item should remain pinned when sorting by date")
+	}
+	if items[0].Content != "Pinned New" {
+		t.Errorf("Expected first item to be Pinned New, got %s", items[0].Content)
+	}
+	if items[1].Content != "Unpinned New" {
+		t.Errorf("Expected second item to be Unpinned New, got %s", items[1].Content)
+	}
+	if items[2].Content != "Unpinned Old" {
+		t.Errorf("Expected third item to be Unpinned Old, got %s", items[2].Content)
+	}
+}
+
 // TestManagerSetSearch tests search query updates
 func TestManagerSetSearch(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -801,5 +916,97 @@ func TestSecureCopyToMonitorUsesActualClipboardHash(t *testing.T) {
 
 	if monitor.programmaticHash != hex.EncodeToString(expected[:]) {
 		t.Fatalf("unexpected programmatic hash: got %q want %q", monitor.programmaticHash, hex.EncodeToString(expected[:]))
+	}
+}
+
+func TestManagerDateFilterRange(t *testing.T) {
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "test_storage")
+
+	cfg := Config{
+		StoragePath: storagePath,
+		OnUpdate:    func() {},
+		OnError:     func(err error) {},
+		OnInfo:      func(message string) {},
+	}
+
+	m, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	defer m.Shutdown()
+
+	today := time.Now().Truncate(24 * time.Hour)
+	yesterday := today.Add(-24 * time.Hour)
+	twoDaysAgo := today.Add(-48 * time.Hour)
+
+	m.AddItem(Item{Type: TypeText, Content: "Two Days Ago", Timestamp: twoDaysAgo})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeText, Content: "Yesterday", Timestamp: yesterday})
+	m.updateFiltered()
+	m.AddItem(Item{Type: TypeText, Content: "Today", Timestamp: today})
+	m.updateFiltered()
+
+	m.SetDateFilter(yesterday, today)
+	m.updateFiltered()
+
+	items := m.GetFiltered()
+	if len(items) != 2 {
+		t.Fatalf("Expected 2 items in date range, got %d", len(items))
+	}
+
+	foundYesterday := false
+	foundToday := false
+	for _, item := range items {
+		if item.Content == "Yesterday" {
+			foundYesterday = true
+		}
+		if item.Content == "Today" {
+			foundToday = true
+		}
+	}
+	if !foundYesterday || !foundToday {
+		t.Error("Expected Yesterday and Today in filtered results")
+	}
+
+	m.ClearDateFilter()
+	if m.IsDateFilterActive() {
+		t.Error("Date filter should be cleared")
+	}
+}
+
+func TestManagerDateFilterClears(t *testing.T) {
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "test_storage")
+
+	cfg := Config{
+		StoragePath: storagePath,
+		OnUpdate:    func() {},
+		OnError:     func(err error) {},
+		OnInfo:      func(message string) {},
+	}
+
+	m, err := NewManager(cfg)
+	if err != nil {
+		t.Fatalf("NewManager failed: %v", err)
+	}
+	defer m.Shutdown()
+
+	today := time.Now().Truncate(24 * time.Hour)
+	m.AddItem(Item{Type: TypeText, Content: "Today", Timestamp: today})
+	m.updateFiltered()
+
+	m.SetDateFilter(today, today)
+	if !m.IsDateFilterActive() {
+		t.Error("Date filter should be active after setting")
+	}
+
+	m.ClearDateFilter()
+	if m.IsDateFilterActive() {
+		t.Error("Date filter should be inactive after clearing")
+	}
+
+	if m.GetFilteredCount() != 1 {
+		t.Errorf("Expected 1 item after clearing filter, got %d", m.GetFilteredCount())
 	}
 }
