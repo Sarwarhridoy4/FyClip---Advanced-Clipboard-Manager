@@ -168,7 +168,7 @@ func migrateToSecureKey(keyPath string, oldKey []byte) error {
 	}
 
 	// Derive new key using PBKDF2
-		newKey := deriveKeyFromPassword(systemEntropy, salt)
+	newKey := deriveKeyFromPassword(systemEntropy, salt)
 
 	// Save salt and new key
 	if err := os.WriteFile(saltPath, salt, 0600); err != nil {

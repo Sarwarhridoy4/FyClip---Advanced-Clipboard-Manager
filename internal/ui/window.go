@@ -224,7 +224,12 @@ func (mw *MainWindow) setupShortcuts() {
 			mw.quickPanel.Toggle()
 		}
 	})
-	viewMenu := fyne.NewMenu("View", quickPanelItem)
+	sortByDateItem := fyne.NewMenuItem("Sort by Date", func() {
+		if mw.toolbar != nil {
+			mw.toolbar.onToggleSortDate()
+		}
+	})
+	viewMenu := fyne.NewMenu("View", quickPanelItem, sortByDateItem)
 
 	// Help menu items
 	featuresItem := fyne.NewMenuItem("Features", func() {

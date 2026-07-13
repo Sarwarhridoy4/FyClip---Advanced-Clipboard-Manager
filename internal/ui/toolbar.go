@@ -54,6 +54,8 @@ type Toolbar struct {
 	bulkClearSel   *widget.Button
 	themeBtn       *widget.Button
 	themeMenu      *fyne.Menu
+	sortBtn        *widget.Button
+	dateFilterBtn  *widget.Button
 }
 
 // NewToolbar creates a new toolbar.
@@ -81,6 +83,8 @@ func (t *Toolbar) Build() fyne.CanvasObject {
 	refreshBtn := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), t.onRefresh)
 	backupBtn := widget.NewButtonWithIcon("Backup", theme.DocumentSaveIcon(), t.onBackup)
 	restoreBtn := widget.NewButtonWithIcon("Restore", theme.DocumentIcon(), t.onRestore)
+	t.sortBtn = widget.NewButtonWithIcon("Sort Date", theme.CalendarIcon(), t.onToggleSortDate)
+	t.dateFilterBtn = widget.NewButtonWithIcon("Filter Date", theme.CalendarIcon(), t.onFilterByDate)
 
 	// Theme selector with icons using a button that opens a popup menu
 	t.themeBtn = widget.NewButtonWithIcon("Theme", theme.ColorPaletteIcon(), t.onThemeButtonClicked)
@@ -116,6 +120,8 @@ func (t *Toolbar) Build() fyne.CanvasObject {
 	row2 := container.NewHBox(
 		snippetsBtn,
 		t.themeBtn,
+		t.sortBtn,
+		t.dateFilterBtn,
 		settingsBtn,
 		exportBtn,
 		refreshBtn,
@@ -167,7 +173,39 @@ func (t *Toolbar) refreshToggleLabels() {
 // Refresh updates dynamic toolbar labels.
 func (t *Toolbar) Refresh() {
 	t.refreshToggleLabels()
+	t.updateSortButton()
+	t.updateDateFilterButton()
 	t.updateThemeButton()
+}
+
+// updateDateFilterButton updates the date filter button appearance based on current state
+func (t *Toolbar) updateDateFilterButton() {
+	if t.dateFilterBtn == nil {
+		return
+	}
+
+	if t.manager.IsDateFilterActive() {
+		t.dateFilterBtn.SetText("Date Filter: ON")
+		t.dateFilterBtn.Importance = widget.HighImportance
+	} else {
+		t.dateFilterBtn.SetText("Filter Date")
+		t.dateFilterBtn.Importance = widget.LowImportance
+	}
+}
+
+// updateSortButton updates the sort button appearance based on current state
+func (t *Toolbar) updateSortButton() {
+	if t.sortBtn == nil {
+		return
+	}
+
+	if t.manager.IsSortByDate() {
+		t.sortBtn.SetText("Order: Date")
+		t.sortBtn.Importance = widget.HighImportance
+	} else {
+		t.sortBtn.SetText("Sort Date")
+		t.sortBtn.Importance = widget.LowImportance
+	}
 }
 
 // updateThemeButton updates the theme button text and icon based on current theme
@@ -386,6 +424,76 @@ func (t *Toolbar) onFavorites() {
 	} else {
 		ShowNotification(t.app, "Showing all items")
 	}
+}
+
+func (t *Toolbar) onToggleSortDate() {
+	t.manager.ToggleSortByDate()
+	if t.list != nil {
+		t.list.UnselectAll()
+		t.list.Refresh()
+	}
+	t.updateSortButton()
+	if t.manager.IsSortByDate() {
+		ShowNotification(t.app, "Sorted by calendar date")
+	} else {
+		ShowNotification(t.app, "Default order restored")
+	}
+}
+
+func (t *Toolbar) onFilterByDate() {
+	if t.window == nil {
+		return
+	}
+
+	from, to, _ := t.manager.GetDateFilter()
+	picker := NewDateRangePicker(from, to, func(selectedFrom, selectedTo time.Time) {
+		from = selectedFrom
+		to = selectedTo
+	})
+
+	applyBtn := widget.NewButton("Apply", func() {
+		if from.IsZero() && to.IsZero() {
+			t.manager.ClearDateFilter()
+			ShowNotification(t.app, "Date filter cleared")
+		} else {
+			if from.IsZero() {
+				from = to
+			}
+			if to.IsZero() {
+				to = from
+			}
+			if from.After(to) {
+				from, to = to, from
+			}
+			t.manager.SetDateFilter(from, to)
+			ShowNotification(t.app, fmt.Sprintf("Filtering %s to %s", from.Format("2006-01-02"), to.Format("2006-01-02")))
+		}
+		if t.list != nil {
+			t.list.UnselectAll()
+			t.list.Refresh()
+		}
+		t.updateDateFilterButton()
+	})
+
+	clearBtn := widget.NewButton("Clear", func() {
+		t.manager.ClearDateFilter()
+		if t.list != nil {
+			t.list.UnselectAll()
+			t.list.Refresh()
+		}
+		t.updateDateFilterButton()
+		ShowNotification(t.app, "Date filter cleared")
+	})
+
+	buttons := container.NewHBox(applyBtn, clearBtn)
+	content := container.NewVBox(
+		widget.NewLabel("Select start and end dates:"),
+		picker,
+		buttons,
+	)
+
+	dialog.ShowCustom("Filter by Date Range", "Close", content, t.window)
+	t.updateDateFilterButton()
 }
 
 func (t *Toolbar) onPause() {

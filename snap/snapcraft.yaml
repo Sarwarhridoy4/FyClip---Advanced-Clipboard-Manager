@@ -1,6 +1,6 @@
 name: fyclip
 base: core24
-version: '2.2.3'
+version: '2.3.0'
 title: FyClip - Advanced Clipboard Manager
 summary: Advanced Clipboard Manager for Linux
 icon: snap/local/icon.png
@@ -10,6 +10,7 @@ description: |
   
   - Clipboard history with search functionality
   - Quick panel for fast access
+  - Calendar date sorting and date range filtering
   - Sensitive content detection
   - Backup and restore capabilities
   - Customizable exclusions

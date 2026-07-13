@@ -68,6 +68,10 @@ type Manager struct {
 	searchQuery     string
 	searchOptions   *SearchOptions
 	showPinnedOnly  bool
+	sortByDate      bool
+	dateFrom        time.Time
+	dateTo          time.Time
+	filterByDate    bool
 	lastCopied      time.Time
 	maxHistoryItems int
 
@@ -364,7 +368,9 @@ func (m *Manager) AddItem(item Item) AddItemResult {
 	newItem := GetFromPool()
 	*newItem = item
 	newItem.ID = fmt.Sprintf("%d", time.Now().UnixNano())
-	newItem.Timestamp = time.Now()
+	if newItem.Timestamp.IsZero() {
+		newItem.Timestamp = time.Now()
+	}
 
 	// Auto-detect category based on content
 	newItem.AutoDetectCategory()
@@ -504,24 +510,28 @@ func (m *Manager) updateFiltered() {
 
 	query := m.searchQuery
 	searchOpts := m.searchOptions
+	sortByDate := m.sortByDate
+	filterByDate := m.filterByDate
+	dateFrom := m.dateFrom
+	dateTo := m.dateTo
 
 	match := func(item *Item) bool {
-		if query == "" {
-			return true
+		if query != "" && !SearchItem(item, query, searchOpts) {
+			return false
 		}
-		return SearchItem(item, query, searchOpts)
+		if filterByDate {
+			itemDate := item.Timestamp
+			if !dateFrom.IsZero() && itemDate.Before(startOfDay(dateFrom)) {
+				return false
+			}
+			if !dateTo.IsZero() && itemDate.After(endOfDay(dateTo)) {
+				return false
+			}
+		}
+		return true
 	}
 
-	// Keep pinned items first while preserving stable order in each group.
-	for i := range m.history {
-		item := &m.history[i]
-		if !item.Pinned {
-			continue
-		}
-		if match(item) {
-			m.filtered = append(m.filtered, item)
-		}
-	}
+	var unpinned []*Item
 	for i := range m.history {
 		item := &m.history[i]
 		if item.Pinned {
@@ -531,11 +541,44 @@ func (m *Manager) updateFiltered() {
 			continue
 		}
 		if match(item) {
-			m.filtered = append(m.filtered, item)
+			unpinned = append(unpinned, item)
 		}
 	}
 
+	if sortByDate {
+		for i := 0; i < len(unpinned)-1; i++ {
+			for j := i + 1; j < len(unpinned); j++ {
+				if unpinned[i].Timestamp.Before(unpinned[j].Timestamp) {
+					unpinned[i], unpinned[j] = unpinned[j], unpinned[i]
+				}
+			}
+		}
+	}
+
+	m.filtered = m.filtered[:0]
+	for i := range m.history {
+		item := &m.history[i]
+		if !item.Pinned {
+			continue
+		}
+		if match(item) {
+			m.filtered = append(m.filtered, item)
+		}
+	}
+	for _, item := range unpinned {
+		m.filtered = append(m.filtered, item)
+	}
+
 	m.selectedIndex = -1
+}
+
+func startOfDay(t time.Time) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, t.Location())
+}
+
+func endOfDay(t time.Time) time.Time {
+	return startOfDay(t).Add(24 * time.Hour).Add(-time.Nanosecond)
 }
 
 // CheckMemoryPressure checks memory usage and triggers cleanup if needed
@@ -698,6 +741,73 @@ func (m *Manager) IsPinnedOnly() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.showPinnedOnly
+}
+
+// ToggleSortByDate toggles calendar date sorting and returns the new state.
+func (m *Manager) ToggleSortByDate() bool {
+	m.mu.Lock()
+	m.sortByDate = !m.sortByDate
+	enabled := m.sortByDate
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.triggerUpdate()
+	return enabled
+}
+
+// SetSortByDate sets calendar date sorting.
+func (m *Manager) SetSortByDate(enabled bool) {
+	m.mu.Lock()
+	m.sortByDate = enabled
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.triggerUpdate()
+}
+
+// IsSortByDate returns whether calendar date sorting is enabled.
+func (m *Manager) IsSortByDate() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.sortByDate
+}
+
+// SetDateFilter sets a date range filter.
+// Pass zero time values to clear the filter.
+func (m *Manager) SetDateFilter(from, to time.Time) {
+	m.mu.Lock()
+	if from.IsZero() && to.IsZero() {
+		m.filterByDate = false
+		m.dateFrom = time.Time{}
+		m.dateTo = time.Time{}
+	} else {
+		m.filterByDate = true
+		m.dateFrom = from
+		m.dateTo = to
+	}
+	m.mu.Unlock()
+
+	m.updateFiltered()
+	m.triggerUpdate()
+}
+
+// GetDateFilter returns the current date filter range and whether it is active.
+func (m *Manager) GetDateFilter() (from, to time.Time, active bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.dateFrom, m.dateTo, m.filterByDate
+}
+
+// ClearDateFilter removes any active date filter.
+func (m *Manager) ClearDateFilter() {
+	m.SetDateFilter(time.Time{}, time.Time{})
+}
+
+// IsDateFilterActive returns whether a date filter is currently applied.
+func (m *Manager) IsDateFilterActive() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.filterByDate
 }
 
 // SetMaxHistory updates the max number of unpinned items retained.
