@@ -11,6 +11,7 @@ override_dh_auto_install:
 	# Create directory structure
 	install -d $(CURDIR)/debian/fyclip/usr/bin
 	install -d $(CURDIR)/debian/fyclip/usr/share/applications
+	install -d $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/128x128/apps
 	install -d $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/256x256/apps
 	install -d $(CURDIR)/debian/fyclip/usr/share/fyclip/screenshots
 	install -d $(CURDIR)/debian/fyclip/usr/share/man/man1
@@ -21,7 +22,8 @@ override_dh_auto_install:
 	# Install desktop file
 	install -m 0644 debian/fyclip.desktop $(CURDIR)/debian/fyclip/usr/share/applications/com.sarwar.fyclip.desktop
 	
-	# Install icon
+	# Install icon in both 128x128 and 256x256
+	install -m 0644 icon.png $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/128x128/apps/com.sarwar.fyclip.png
 	install -m 0644 icon.png $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/256x256/apps/com.sarwar.fyclip.png
 	
 	# Install screenshots
