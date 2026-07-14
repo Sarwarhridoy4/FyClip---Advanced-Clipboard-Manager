@@ -152,7 +152,7 @@ func loadOrCreateKey(keyPath string) ([]byte, error) {
 }
 
 // migrateToSecureKey migrates an old hex-encoded key to the new PBKDF2 format
-func migrateToSecureKey(keyPath string, oldKey []byte) error {
+func migrateToSecureKey(keyPath string, _ []byte) error {
 	saltPath := keyPath + ".salt"
 
 	// Generate new salt

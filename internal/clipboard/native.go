@@ -309,11 +309,10 @@ func (nc *NativeClipboard) WriteFilePaths(paths []string) error {
 		return fmt.Errorf("clipboard not available")
 	}
 
-	// Write as URI list
 	var uriList strings.Builder
 	for _, path := range paths {
-		// Convert to file:// URL
-		uriList.WriteString("file://" + path + "\n")
+		escaped := strings.ReplaceAll(path, " ", "%20")
+		fmt.Fprint(&uriList, "file://", escaped, "\n")
 	}
 
 	if err := nc.WriteText([]byte(uriList.String())); err != nil {
