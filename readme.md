@@ -224,6 +224,8 @@ fyclip.exe
 
 **PPA Repository**: https://launchpad.net/~sarwar-hossain/+archive/ubuntu/fyclip
 
+> **Note for GNOME users**: The `.deb` package now installs icons to both `128x128` and `256x256` hicolor directories, ensuring the dock and application menu display the correct FyClip icon instead of a generic fallback.
+
 Download from [Releases](https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases)
 
 #### Windows
