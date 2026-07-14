@@ -201,53 +201,6 @@ func (m *Manager) buildIndexMaps() {
 	m.modifiedIndices = make(map[int]bool)
 }
 
-// updateIndexForItem updates the index maps for a specific item at a given index
-func (m *Manager) updateIndexForItem(index int, item *Item) {
-	if index < 0 || index >= len(m.history) {
-		return
-	}
-
-	// Remove old index entries if they exist
-	oldItem := m.history[index]
-	oldHashKey := oldItem.Hash + ":" + strconv.Itoa(int(oldItem.Type))
-	delete(m.hashIndexMap, oldHashKey)
-	delete(m.idIndexMap, oldItem.ID)
-
-	// Add new index entries
-	newHashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
-	m.hashIndexMap[newHashKey] = index
-	m.idIndexMap[item.ID] = index
-
-	// Mark this index as modified for differential tracking
-	m.modifiedIndices[index] = true
-}
-
-// removeIndexForItem removes index entries for an item at a given index
-func (m *Manager) removeIndexForItem(index int) {
-	if index < 0 || index >= len(m.history)+1 { // +1 because we might be removing the last item
-		return
-	}
-
-	// Get the item before it's removed from history
-	var item Item
-	if index < len(m.history) {
-		item = m.history[index]
-	} else {
-		// This shouldn't happen, but safety check
-		return
-	}
-
-	// Remove index entries
-	hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
-	delete(m.hashIndexMap, hashKey)
-	delete(m.idIndexMap, item.ID)
-
-	// Mark indices after this one as modified (they shifted down)
-	for i := index; i < len(m.history); i++ {
-		m.modifiedIndices[i] = true
-	}
-}
-
 // rebuildModifiedIndices performs differential index rebuild for only modified indices
 func (m *Manager) rebuildModifiedIndices() {
 	if m.indexNeedsFullRebuild {
@@ -416,17 +369,6 @@ func (m *Manager) removeAtIndex(idx int) {
 	// This is necessary because all subsequent indices shift by 1
 	for i := idx; i < len(m.history); i++ {
 		m.modifiedIndices[i] = true
-	}
-}
-
-// rebuildIndexMapsFrom rebuilds index maps starting from the given index
-// Caller must hold the lock
-func (m *Manager) rebuildIndexMapsFrom(startIdx int) {
-	for i := startIdx; i < len(m.history); i++ {
-		item := m.history[i]
-		hashKey := item.Hash + ":" + strconv.Itoa(int(item.Type))
-		m.hashIndexMap[hashKey] = i
-		m.idIndexMap[item.ID] = i
 	}
 }
 
