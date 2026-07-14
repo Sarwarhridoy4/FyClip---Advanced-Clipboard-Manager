@@ -413,10 +413,29 @@ main() {
     grep -q '^NoDisplay=' "${DESKTOP_PATH}" || echo "NoDisplay=false" >> "${DESKTOP_PATH}"
     grep -q '^Keywords=' "${DESKTOP_PATH}" || echo "Keywords=clipboard;copy;paste;history;" >> "${DESKTOP_PATH}"
     
-    # Install icon in hicolor
-    HICOLOR_APPS_DIR="${USR_NORMALIZED}/share/icons/hicolor/256x256/apps"
-    mkdir -p "${HICOLOR_APPS_DIR}"
-    cp -f "${ICON_PATH}" "${HICOLOR_APPS_DIR}/${APP_ID}.${ICON_EXT}"
+    # Install icon in hicolor (both 128x128 and 256x256 for GNOME Shell/dock)
+    HICOLOR_DIR="${USR_NORMALIZED}/share/icons/hicolor"
+    mkdir -p "${HICOLOR_DIR}/128x128/apps" "${HICOLOR_DIR}/256x256/apps"
+    cp -f "${ICON_PATH}" "${HICOLOR_DIR}/128x128/apps/${APP_ID}.${ICON_EXT}"
+    cp -f "${ICON_PATH}" "${HICOLOR_DIR}/256x256/apps/${APP_ID}.${ICON_EXT}"
+    cat > "${HICOLOR_DIR}/index.theme" <<'INDEXEOF'
+[Icon Theme]
+Name=hicolor
+Comment=Default fallback icon theme
+Inherits=default
+
+[128x128/actions]
+Size=128
+
+[128x128/apps]
+Size=128
+
+[256x256/actions]
+Size=256
+
+[256x256/apps]
+Size=256
+INDEXEOF
     
     # ---------------------------------------------------------------------
     # Build Debian Package
@@ -439,10 +458,18 @@ EOF
     cat > "${DEB_ROOT}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
-update-desktop-database -q || true
+update-desktop-database -q /usr/share/applications || true
 gtk-update-icon-cache -q /usr/share/icons/hicolor || true
 EOF
     chmod 755 "${DEB_ROOT}/DEBIAN/postinst"
+
+    cat > "${DEB_ROOT}/DEBIAN/postrm" <<'EOF'
+#!/bin/sh
+set -e
+update-desktop-database -q /usr/share/applications || true
+gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+EOF
+    chmod 755 "${DEB_ROOT}/DEBIAN/postrm"
     
     # Remove existing package file if present
     rm -f "${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"

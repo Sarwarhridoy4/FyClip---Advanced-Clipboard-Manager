@@ -438,10 +438,29 @@ main() {
     grep -q '^NoDisplay=' "${DESKTOP_PATH}" || echo "NoDisplay=false" >> "${DESKTOP_PATH}"
     grep -q '^Keywords=' "${DESKTOP_PATH}" || echo "Keywords=clipboard;copy;paste;history;" >> "${DESKTOP_PATH}"
     
-    # Install icon in hicolor
-    HICOLOR_APPS_DIR="${USR_NORMALIZED}/share/icons/hicolor/256x256/apps"
-    mkdir -p "${HICOLOR_APPS_DIR}"
-    cp -f "${ICON_PATH}" "${HICOLOR_APPS_DIR}/${APP_ID}.${ICON_EXT}"
+    # Install icon in hicolor (both 128x128 and 256x256 for GNOME Shell/dock)
+    HICOLOR_DIR="${USR_NORMALIZED}/share/icons/hicolor"
+    mkdir -p "${HICOLOR_DIR}/128x128/apps" "${HICOLOR_DIR}/256x256/apps"
+    cp -f "${ICON_PATH}" "${HICOLOR_DIR}/128x128/apps/${APP_ID}.${ICON_EXT}"
+    cp -f "${ICON_PATH}" "${HICOLOR_DIR}/256x256/apps/${APP_ID}.${ICON_EXT}"
+    cat > "${HICOLOR_DIR}/index.theme" <<'INDEXEOF'
+[Icon Theme]
+Name=hicolor
+Comment=Default fallback icon theme
+Inherits=default
+
+[128x128/actions]
+Size=128
+
+[128x128/apps]
+Size=128
+
+[256x256/actions]
+Size=256
+
+[256x256/apps]
+Size=256
+INDEXEOF
     
     # ---------------------------------------------------------------------
     # Build Debian Package
@@ -476,10 +495,18 @@ EOF
     cat > "${DEB_ROOT}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
-update-desktop-database -q || true
+update-desktop-database -q /usr/share/applications || true
 gtk-update-icon-cache -q /usr/share/icons/hicolor || true
 EOF
     chmod 755 "${DEB_ROOT}/DEBIAN/postinst"
+
+    cat > "${DEB_ROOT}/DEBIAN/postrm" <<'EOF'
+#!/bin/sh
+set -e
+update-desktop-database -q /usr/share/applications || true
+gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+EOF
+    chmod 755 "${DEB_ROOT}/DEBIAN/postrm"
     
     # Remove existing package file if present
     rm -f "${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.deb"
@@ -560,8 +587,10 @@ EOF
     mkdir -p "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/applications"
     cp -f "${DESKTOP_PATH}" "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/applications/${APP_ID}.desktop"
     
-    # Copy icon files
+    # Copy icon files (both 128x128 and 256x256)
+    mkdir -p "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/icons/hicolor/128x128/apps"
     mkdir -p "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/icons/hicolor/256x256/apps"
+    cp -f "${ICON_PATH}" "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/icons/hicolor/128x128/apps/${APP_ID}.${ICON_EXT}"
     cp -f "${ICON_PATH}" "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/share/icons/hicolor/256x256/apps/${APP_ID}.${ICON_EXT}"
     
     # Copy LICENSE file
@@ -677,8 +706,8 @@ If you prefer manual installation:
 2. Copy desktop file:
    sudo cp share/applications/com.sarwar.fyclip.desktop /usr/share/applications/
 
-3. Copy icon files:
-   sudo cp -r share/icons/* /usr/share/icons/
+ 3. Copy icon files:
+    sudo cp -r share/icons/hicolor /usr/share/icons/
 
 4. Update icon cache:
    sudo gtk-update-icon-cache -f /usr/share/icons/hicolor
@@ -691,7 +720,8 @@ Run (as root):
 Or manually remove:
    sudo rm /usr/local/bin/fyclip
    sudo rm /usr/share/applications/com.sarwar.fyclip.desktop
-   sudo rm -rf /usr/share/icons/hicolor/apps/com.sarwar.fyclip*
+    sudo rm -f /usr/share/icons/hicolor/128x128/apps/com.sarwar.fyclip.png
+    sudo rm -f /usr/share/icons/hicolor/256x256/apps/com.sarwar.fyclip.png
 TARBALL_INSTALL
     
     # Create install/uninstall scripts
@@ -709,14 +739,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 install -d "${DESTDIR:-}/usr/local/bin"
 install -d "${DESTDIR:-}/usr/share/applications"
+install -d "${DESTDIR:-}/usr/share/icons/hicolor/128x128/apps"
 install -d "${DESTDIR:-}/usr/share/icons/hicolor/256x256/apps"
 
 install -m 755 "${SCRIPT_DIR}/bin/${BIN_NAME}" "${DESTDIR:-}/usr/local/bin/${BIN_NAME}"
 install -m 644 "${SCRIPT_DIR}/share/applications/${APP_ID}.desktop" "${DESTDIR:-}/usr/share/applications/${APP_ID}.desktop"
+install -m 644 "${SCRIPT_DIR}/share/icons/hicolor/128x128/apps/${APP_ID}.png" "${DESTDIR:-}/usr/share/icons/hicolor/128x128/apps/${APP_ID}.png"
 install -m 644 "${SCRIPT_DIR}/share/icons/hicolor/256x256/apps/${APP_ID}.png" "${DESTDIR:-}/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png"
 
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
+fi
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database /usr/share/applications 2>/dev/null || true
 fi
 
 echo "FyClip installed successfully!"
@@ -736,10 +772,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 rm -f "/usr/local/bin/${BIN_NAME}"
 rm -f "/usr/share/applications/${APP_ID}.desktop"
+rm -f "/usr/share/icons/hicolor/128x128/apps/${APP_ID}.png"
 rm -f "/usr/share/icons/hicolor/256x256/apps/${APP_ID}.png"
 
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
+fi
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database /usr/share/applications 2>/dev/null || true
 fi
 
 echo "FyClip uninstalled successfully!"
