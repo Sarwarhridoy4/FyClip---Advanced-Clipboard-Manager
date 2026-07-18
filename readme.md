@@ -653,7 +653,21 @@ make clean   # Clean build artifacts
 ---
 
 ## Troubleshooting
-
+### Icon Not showing
+- Download from release
+```bash
+fix-icons.sh
+```
+- Make executable by
+```bash
+chmod +x ./fix-icons.sh
+```
+- Run
+```bash
+./fix-icons.sh
+```
+- Icon issue will be sloved.
+  
 ### Clipboard not working on Linux
 
 Make sure you have the required clipboard tools:
