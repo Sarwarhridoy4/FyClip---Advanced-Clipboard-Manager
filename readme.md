@@ -224,7 +224,7 @@ fyclip.exe
 
 **PPA Repository**: https://launchpad.net/~sarwar-hossain/+archive/ubuntu/fyclip
 
-> **Note for GNOME users**: The `.deb` package now installs icons to both `128x128` and `256x256` hicolor directories, ensuring the dock and application menu display the correct FyClip icon instead of a generic fallback.
+> **Note for GNOME users**: The `.deb` and `.AppImage` packages now install the icon at all standard hicolor sizes (16, 24, 32, 48, 64, 128, and 256 pixels), each properly resized to match its directory. This ensures the dock, application menu, and file manager show a crisp FyClip icon instead of a blurry or generic fallback, and the desktop entry's `StartupWMClass` matches the app's real window class so the window manager links the icon correctly.
 
 Download from [Releases](https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases)
 
@@ -674,6 +674,22 @@ Make sure you have the latest Fyne dependencies:
 go get -u fyne.io/fyne/v2@latest
 go mod tidy
 ```
+
+### Icon appears blurry, missing, or falls back to a generic icon on Linux
+
+Older installs may have a mis-sized or incomplete hicolor icon set. This is
+fixed automatically in builds from this version, but an already-installed
+system can be remediated with the included helper (run as root):
+
+```bash
+sudo ./fix-icons.sh
+```
+
+This regenerates all standard icon sizes (16, 24, 32, 48, 64, 128, 256) from
+the source artwork, fixes the desktop entry's `StartupWMClass`, and refreshes
+the icon and desktop caches. Pillow (`python3 -m pip install pillow`) is
+required for proper resizing; without it the script falls back to a direct
+copy.
 
 ---
 

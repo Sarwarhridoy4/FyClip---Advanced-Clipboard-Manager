@@ -289,6 +289,47 @@ get_version() {
     fi
 }
 
+# Generate properly sized hicolor icons from a single source image.
+# Each generated PNG is resized to EXACTLY the target dimensions so the
+# file dimensions match the hicolor directory name (fixes blurry/scaled icons).
+# Arguments: <source_image> <output_hicolor_root_dir>
+generate_hicolor_icons() {
+    local src="$1"
+    local out_root="$2"
+    if [ ! -f "${src}" ]; then
+        log_error "Icon source not found: ${src}"
+        return 1
+    fi
+
+    local sizes=(16 24 32 48 64 128 256)
+    local python_script
+    python_script=$(cat <<'PYEOF'
+import sys
+from PIL import Image
+src, out_root = sys.argv[1], sys.argv[2]
+sizes = [int(x) for x in sys.argv[3:]]
+img = Image.open(src).convert("RGBA")
+for s in sizes:
+    d = f"{out_root}/{s}x{s}/apps"
+    import os
+    os.makedirs(d, exist_ok=True)
+    out = f"{d}/com.sarwar.fyclip.png"
+    img.resize((s, s), getattr(Image, 'Resampling', Image).LANCZOS).save(out)
+print("hicolor icons generated")
+PYEOF
+    )
+
+    if command -v python3 >/dev/null 2>&1 && python3 -c "import PIL" >/dev/null 2>&1; then
+        python3 -c "${python_script}" "${src}" "${out_root}" "${sizes[@]}"
+    else
+        log_warn "PIL/python3 not available - falling back to direct copy (icon sizes may mismatch)"
+        for s in "${sizes[@]}"; do
+            mkdir -p "${out_root}/${s}x${s}/apps"
+            cp -f "${src}" "${out_root}/${s}x${s}/apps/com.sarwar.fyclip.png"
+        done
+    fi
+}
+
 # Main build function
 main() {
     echo -e "${BLUE}========================================${NC}"
@@ -413,11 +454,12 @@ main() {
     grep -q '^NoDisplay=' "${DESKTOP_PATH}" || echo "NoDisplay=false" >> "${DESKTOP_PATH}"
     grep -q '^Keywords=' "${DESKTOP_PATH}" || echo "Keywords=clipboard;copy;paste;history;" >> "${DESKTOP_PATH}"
     
-    # Install icon in hicolor (both 128x128 and 256x256 for GNOME Shell/dock)
+    # Install icon in hicolor at all standard sizes (properly resized so each
+    # file matches its directory name: fixes blurry/scaled icon issues).
     HICOLOR_DIR="${USR_NORMALIZED}/share/icons/hicolor"
-    mkdir -p "${HICOLOR_DIR}/128x128/apps" "${HICOLOR_DIR}/256x256/apps"
-    cp -f "${ICON_PATH}" "${HICOLOR_DIR}/128x128/apps/${APP_ID}.${ICON_EXT}"
-    cp -f "${ICON_PATH}" "${HICOLOR_DIR}/256x256/apps/${APP_ID}.${ICON_EXT}"
+    generate_hicolor_icons "${ICON_PATH}" "${HICOLOR_DIR}"
+    ICON_PATH="${HICOLOR_DIR}/256x256/apps/${APP_ID}.png"
+    ICON_EXT="png"
     
     # ---------------------------------------------------------------------
     # Build Debian Package

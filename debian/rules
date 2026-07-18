@@ -22,9 +22,16 @@ override_dh_auto_install:
 	# Install desktop file
 	install -m 0644 debian/fyclip.desktop $(CURDIR)/debian/fyclip/usr/share/applications/com.sarwar.fyclip.desktop
 	
-	# Install icon in both 128x128 and 256x256
-	install -m 0644 icon.png $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/128x128/apps/com.sarwar.fyclip.png
-	install -m 0644 icon.png $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/256x256/apps/com.sarwar.fyclip.png
+	# Install icon at all standard hicolor sizes, properly resized so each
+	# file matches its directory name (fixes blurry/scaled icon issues).
+	for s in 16 24 32 48 64 128 256; do \
+		install -d $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/$$s x$$s/apps; \
+		if command -v python3 >/dev/null 2>&1 && python3 -c "import PIL" >/dev/null 2>&1; then \
+			python3 -c "from PIL import Image; img=Image.open('icon.png').convert('RGBA').resize(($$s,$$s), getattr(Image, 'Resampling', Image).LANCZOS).save('$(CURDIR)/debian/fyclip/usr/share/icons/hicolor/$$s x$$s/apps/com.sarwar.fyclip.png')"; \
+		else \
+			install -m 0644 icon.png $(CURDIR)/debian/fyclip/usr/share/icons/hicolor/$$s x$$s/apps/com.sarwar.fyclip.png; \
+		fi; \
+	done
 	
 	# Install screenshots
 	install -m 0644 internal/app/assets/screenshots/screenshot1.png $(CURDIR)/debian/fyclip/usr/share/fyclip/screenshots/

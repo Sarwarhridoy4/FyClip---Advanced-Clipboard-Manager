@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Icon Size Mismatch**: Packages now install the icon at all standard hicolor sizes (16, 24, 32, 48, 64, 128, 256), each properly resized to match its directory instead of copying a single 512x512 image. Fixes blurry/scaled icons and generic fallbacks in panels, menus, and file managers.
+- **Missing Icon Sizes**: Previously missing 16x16, 24x24, 32x32, 48x48, and 64x64 hicolor icons are now generated and shipped.
+- **StartupWMClass Mismatch**: Desktop entry `StartupWMClass` is set to `FyClip - Clipboard Manager` to match the application's real window class, so the window manager links the icon correctly.
+- Added `fix-icons.sh` to remediate already-installed systems (regenerates sized icons, fixes `StartupWMClass`, and refreshes caches).
+
 ## [2.3.0] - 2026-07-13
 
 ### Added
