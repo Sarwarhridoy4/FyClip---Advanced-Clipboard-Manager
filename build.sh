@@ -844,6 +844,17 @@ EOF
     echo -e "AppImage: ${BLUE}${DIST_DIR}/${PKG_NAME}_${VERSION}_${APPIMAGE_ARCH}.AppImage${NC}"
     echo -e "Tarball:  ${BLUE}${DIST_DIR}/${PKG_NAME}_${VERSION}_${ARCH}.tar.gz${NC}"
     echo ""
+
+    # Remediate the live installed system icons (idempotent; auto-elevates via sudo).
+    # Set FYCLIP_SKIP_ICON_FIX=1 to skip (e.g. in CI / non-interactive sudo).
+    if [ -z "${FYCLIP_SKIP_ICON_FIX:-}" ]; then
+        local script_dir
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        if [ -f "${script_dir}/fix-icons.sh" ]; then
+            log_info "Remediating installed system icons (fix-icons.sh)..."
+            bash "${script_dir}/fix-icons.sh" || log_warn "fix-icons.sh failed or skipped (interactive sudo required)"
+        fi
+    fi
 }
 
 # Run main function
