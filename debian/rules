@@ -43,6 +43,10 @@ override_dh_auto_install:
 	# Install manpage
 	install -m 0644 debian/fyclip.1 $(CURDIR)/debian/fyclip/usr/share/man/man1/
 
+	# Install icon remediation helper (run by postinst)
+	install -d $(CURDIR)/debian/fyclip/usr/share/fyclip
+	install -m 0755 fix-icons.sh $(CURDIR)/debian/fyclip/usr/share/fyclip/fix-icons.sh
+
 override_dh_auto_test:
 	# Run tests
 	go test -v -race ./...

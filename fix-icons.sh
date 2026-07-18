@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 # =====================================================================
-# FyClip Icon Fix (system remediation)
-# Permanent fix is applied at build time (see build.sh / debian/rules).
-# This script remediates an already-installed system where icons are
-# missing or mis-sized. It auto-elevates to root via sudo when needed.
+# FyClip Icon Fix (system remediation / post-install helper)
+# Permanent fix is applied at build/packaging time (see build.sh /
+# debian/rules). This script remediates an already-installed system:
+# it regenerates all standard hicolor icon sizes from a source image,
+# fixes the desktop StartupWMClass, and refreshes icon caches.
+#
+# Usage:
+#   sudo ./fix-icons.sh [source_icon.png]
+#
+# When run without root it auto-elevates via sudo. An optional source
+# icon path may be supplied (e.g. the freshly built 256x256 icon).
+# If omitted, the script searches repo icon.png, the installed hicolor
+# 256x256 icon, then /usr/share/pixmaps.
 # =====================================================================
 
 set -euo pipefail
 
-# Re-exec with sudo if not already root (so it works when called from build.sh)
+# Re-exec with sudo if not already root (standalone use).
 if [ "$(id -u)" -ne 0 ]; then
     if command -v sudo >/dev/null 2>&1; then
         exec sudo "$0" "$@"
@@ -21,17 +30,17 @@ fi
 APP_ID="com.sarwar.fyclip"
 ICON_ROOT="/usr/share/icons/hicolor"
 DESKTOP="/usr/share/applications/${APP_ID}.desktop"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Source icon for resizing. Priority:
-#   1. Explicit argument (e.g. path to freshly built 256x256 icon)
-#   2. Repo icon.png (always present when run from the project root)
-#   3. Already-installed hicolor 256x256
+# Resolve source icon. Priority:
+#   1. Explicit argument
+#   2. Repo icon.png (present when run from the project / tarball root)
+#   3. Just-installed hicolor 256x256 (postinst context)
 #   4. /usr/share/pixmaps
 SRC="${1:-}"
 if [ -z "${SRC}" ] || [ ! -f "${SRC}" ]; then
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "${script_dir}/icon.png" ]; then
-        SRC="${script_dir}/icon.png"
+    if [ -f "${SCRIPT_DIR}/icon.png" ]; then
+        SRC="${SCRIPT_DIR}/icon.png"
     elif [ -f "${ICON_ROOT}/256x256/apps/${APP_ID}.png" ]; then
         SRC="${ICON_ROOT}/256x256/apps/${APP_ID}.png"
     elif [ -f "/usr/share/pixmaps/${APP_ID}.png" ]; then
@@ -40,7 +49,7 @@ if [ -z "${SRC}" ] || [ ! -f "${SRC}" ]; then
 fi
 
 if [ ! -f "${SRC}" ]; then
-    echo "ERROR: could not locate a source icon (tried icon.png, hicolor 256x256, pixmaps)." >&2
+    echo "ERROR: could not locate a source icon (tried arg, icon.png, hicolor 256x256, pixmaps)." >&2
     exit 1
 fi
 echo "Using source icon: ${SRC}"

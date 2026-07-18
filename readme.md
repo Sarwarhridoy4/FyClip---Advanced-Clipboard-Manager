@@ -677,19 +677,21 @@ go mod tidy
 
 ### Icon appears blurry, missing, or falls back to a generic icon on Linux
 
-Older installs may have a mis-sized or incomplete hicolor icon set. This is
-fixed automatically in builds from this version, but an already-installed
-system can be remediated with the included helper (run as root):
+The icon is now fixed automatically as a **post-install step**: the
+`.deb` package runs `fix-icons.sh` from its `postinst`, and the tarball's
+`install.sh` runs it after deploying files. This regenerates all standard
+hicolor sizes (16, 24, 32, 48, 64, 128, 256) from the source artwork, fixes
+the desktop entry's `StartupWMClass`, and refreshes the icon/desktop caches.
+Pillow (`python3 -m pip install pillow`) is required for proper resizing.
+
+To remediate an already-installed system manually, run the bundled helper as
+root:
 
 ```bash
+sudo /usr/share/fyclip/fix-icons.sh   # if installed via .deb
+# or from a source checkout:
 sudo ./fix-icons.sh
 ```
-
-This regenerates all standard icon sizes (16, 24, 32, 48, 64, 128, 256) from
-the source artwork, fixes the desktop entry's `StartupWMClass`, and refreshes
-the icon and desktop caches. Pillow (`python3 -m pip install pillow`) is
-required for proper resizing; without it the script falls back to a direct
-copy.
 
 ---
 

@@ -1,6 +1,11 @@
 #!/bin/sh
 set -e
 
+# Remediate installed icon sizes and StartupWMClass (idempotent).
+if [ -x /usr/share/fyclip/fix-icons.sh ]; then
+    /usr/share/fyclip/fix-icons.sh || true
+fi
+
 # Update desktop database
 if [ -x /usr/bin/update-desktop-database ]; then
     update-desktop-database -q /usr/share/applications || true
@@ -8,7 +13,7 @@ fi
 
 # Update icon cache
 if [ -x /usr/bin/gtk-update-icon-cache ]; then
-    gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+    gtk-update-icon-cache -f -q /usr/share/icons/hicolor || true
 fi
 
 #DEBHELPER#

@@ -616,6 +616,10 @@ EOF
     
     # Copy LICENSE file
     cp -f "Licence" "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/LICENSE"
+
+    # Copy icon remediation helper (run by install.sh as post-install step)
+    cp -f "fix-icons.sh" "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/fix-icons.sh"
+    chmod +x "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/fix-icons.sh"
     
     # Create README for the tarball
     cat > "${TARBALL_ROOT}/${APP_NAME}-${VERSION}-linux-${ARCH}/README.md" <<'TARBALL_README'
@@ -776,6 +780,11 @@ fi
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database /usr/share/applications 2>/dev/null || true
+fi
+
+# Remediate installed icon sizes and StartupWMClass (idempotent, may elevate)
+if [ -x "${SCRIPT_DIR}/fix-icons.sh" ]; then
+    "${SCRIPT_DIR}/fix-icons.sh" || true
 fi
 
 echo "FyClip installed successfully!"
