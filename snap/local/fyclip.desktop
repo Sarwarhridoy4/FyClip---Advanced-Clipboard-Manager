@@ -11,3 +11,4 @@ Categories=Utility;
 Keywords=clipboard;manager;history;copy;paste;
 StartupNotify=true
 StartupWMClass=FyClip - Clipboard Manager
+NoDisplay=false
