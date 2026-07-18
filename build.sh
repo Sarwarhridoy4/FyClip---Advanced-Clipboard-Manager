@@ -852,7 +852,8 @@ EOF
         script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
         if [ -f "${script_dir}/fix-icons.sh" ]; then
             log_info "Remediating installed system icons (fix-icons.sh)..."
-            bash "${script_dir}/fix-icons.sh" || log_warn "fix-icons.sh failed or skipped (interactive sudo required)"
+            local src_icon="${script_dir}/icon.png"
+            bash "${script_dir}/fix-icons.sh" "${src_icon}" || log_warn "fix-icons.sh failed or skipped (interactive sudo required)"
         fi
     fi
 }

@@ -21,8 +21,29 @@ fi
 APP_ID="com.sarwar.fyclip"
 ICON_ROOT="/usr/share/icons/hicolor"
 DESKTOP="/usr/share/applications/${APP_ID}.desktop"
-SRC="${ICON_ROOT}/256x256/apps/${APP_ID}.png"
-[ -f "${SRC}" ] || SRC="/usr/share/pixmaps/${APP_ID}.png"
+
+# Source icon for resizing. Priority:
+#   1. Explicit argument (e.g. path to freshly built 256x256 icon)
+#   2. Repo icon.png (always present when run from the project root)
+#   3. Already-installed hicolor 256x256
+#   4. /usr/share/pixmaps
+SRC="${1:-}"
+if [ -z "${SRC}" ] || [ ! -f "${SRC}" ]; then
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "${script_dir}/icon.png" ]; then
+        SRC="${script_dir}/icon.png"
+    elif [ -f "${ICON_ROOT}/256x256/apps/${APP_ID}.png" ]; then
+        SRC="${ICON_ROOT}/256x256/apps/${APP_ID}.png"
+    elif [ -f "/usr/share/pixmaps/${APP_ID}.png" ]; then
+        SRC="/usr/share/pixmaps/${APP_ID}.png"
+    fi
+fi
+
+if [ ! -f "${SRC}" ]; then
+    echo "ERROR: could not locate a source icon (tried icon.png, hicolor 256x256, pixmaps)." >&2
+    exit 1
+fi
+echo "Using source icon: ${SRC}"
 
 # 1. Fix StartupWMClass mismatch (ensure it matches xprop's window class)
 if [ -f "${DESKTOP}" ]; then
