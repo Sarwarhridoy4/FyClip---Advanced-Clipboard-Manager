@@ -290,6 +290,15 @@ get_version() {
     fi
 }
 
+# Get project SHA256
+get_project_sha256() {
+    if git rev-parse --git-dir >/dev/null 2>&1; then
+        git ls-files | sort | xargs -d '\n' sha256sum 2>/dev/null | sha256sum | awk '{print $1}'
+    else
+        echo "unavailable"
+    fi
+}
+
 # Generate properly sized hicolor icons from a single source image.
 # Each generated PNG is resized to EXACTLY the target dimensions so the
 # file dimensions match the hicolor directory name (fixes blurry/scaled icons).
@@ -379,6 +388,9 @@ main() {
     esac
     
     log_info "Building ${APP_NAME} ${VERSION} (${ARCH})"
+    
+    PROJECT_SHA256=$(get_project_sha256)
+    log_info "Project SHA256: ${PROJECT_SHA256}"
     
     # Generate version.go file with version embedded
     generate_version_file "${VERSION}"
@@ -830,6 +842,7 @@ ARCH=${ARCH}
 BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 AUTHOR=${AUTHOR}
 EMAIL=${EMAIL}
+SHA256=${PROJECT_SHA256}
 EOF
     
     # Create tarball
