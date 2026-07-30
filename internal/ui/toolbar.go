@@ -72,79 +72,38 @@ func NewToolbar(window fyne.Window, app fyne.App, manager *clipboard.Manager, li
 func (t *Toolbar) Build() fyne.CanvasObject {
 	copyBtn := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), t.onCopy)
 	pinBtn := widget.NewButtonWithIcon("Pin", theme.ConfirmIcon(), t.onPin)
-	t.favoritesBtn = widget.NewButtonWithIcon("", theme.ConfirmIcon(), t.onFavorites)
-	t.pauseBtn = widget.NewButtonWithIcon("", theme.MediaPauseIcon(), t.onPause)
+	t.favoritesBtn = widget.NewButtonWithIcon("Pinned Only", theme.RadioButtonIcon(), t.onFavorites)
+	t.pauseBtn = widget.NewButtonWithIcon("Pause", theme.MediaPauseIcon(), t.onPause)
 	deleteBtn := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), t.onDelete)
 	clearBtn := widget.NewButtonWithIcon("Clear", theme.ContentClearIcon(), t.onClear)
 	snippetsBtn := widget.NewButtonWithIcon("Snippets", theme.FolderOpenIcon(), t.onSnippets)
-	_ = snippetsBtn // Silence unused warning
+	_ = snippetsBtn
 	settingsBtn := widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), t.onSettings)
 	exportBtn := widget.NewButtonWithIcon("Export", theme.DocumentSaveIcon(), t.onExport)
 	refreshBtn := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), t.onRefresh)
 	backupBtn := widget.NewButtonWithIcon("Backup", theme.DocumentSaveIcon(), t.onBackup)
 	restoreBtn := widget.NewButtonWithIcon("Restore", theme.DocumentIcon(), t.onRestore)
-	t.sortBtn = widget.NewButtonWithIcon("Sort Date", theme.CalendarIcon(), t.onToggleSortDate)
-	t.dateFilterBtn = widget.NewButtonWithIcon("Filter Date", theme.CalendarIcon(), t.onFilterByDate)
-
-	// Theme selector with icons using a button that opens a popup menu
+	t.sortBtn = widget.NewButtonWithIcon("Sort", theme.CalendarIcon(), t.onToggleSortDate)
+	t.dateFilterBtn = widget.NewButtonWithIcon("Filter", theme.CalendarIcon(), t.onFilterByDate)
 	t.themeBtn = widget.NewButtonWithIcon("Theme", theme.ColorPaletteIcon(), t.onThemeButtonClicked)
-	// Create the theme popup menu
 	t.createThemeMenu()
-
-	// Selection mode buttons
 	t.selectModeBtn = widget.NewButtonWithIcon("Select", theme.CheckButtonIcon(), t.onToggleSelectMode)
 	t.bulkSelectAll = widget.NewButtonWithIcon("All", theme.MenuIcon(), t.onSelectAll)
 	t.bulkClearSel = widget.NewButtonWithIcon("None", theme.CancelIcon(), t.onClearSelection)
 	t.bulkPinBtn = widget.NewButtonWithIcon("Pin", theme.ConfirmIcon(), t.onBulkPin)
 	t.bulkUnpinBtn = widget.NewButtonWithIcon("Unpin", theme.RadioButtonIcon(), t.onBulkUnpin)
 	t.bulkDeleteBtn = widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), t.onBulkDelete)
-
-	// Hide bulk action buttons initially
 	t.bulkSelectAll.Hide()
 	t.bulkClearSel.Hide()
 	t.bulkPinBtn.Hide()
 	t.bulkUnpinBtn.Hide()
 	t.bulkDeleteBtn.Hide()
 
-	// First row: primary actions
-	row1 := container.NewHBox(
-		copyBtn,
-		pinBtn,
-		t.favoritesBtn,
-		t.pauseBtn,
-		deleteBtn,
-		clearBtn,
-	)
+	row1 := container.NewGridWithColumns(6, copyBtn, pinBtn, t.favoritesBtn, t.pauseBtn, deleteBtn, clearBtn)
+	row2 := container.NewGridWithColumns(9, snippetsBtn, t.themeBtn, t.sortBtn, t.dateFilterBtn, settingsBtn, exportBtn, refreshBtn, backupBtn, restoreBtn)
+	row3 := container.NewHBox(t.selectModeBtn, t.bulkSelectAll, t.bulkClearSel, widget.NewSeparator(), t.bulkPinBtn, t.bulkUnpinBtn, t.bulkDeleteBtn)
 
-	// Second row: secondary actions
-	row2 := container.NewHBox(
-		snippetsBtn,
-		t.themeBtn,
-		t.sortBtn,
-		t.dateFilterBtn,
-		settingsBtn,
-		exportBtn,
-		refreshBtn,
-		backupBtn,
-		restoreBtn,
-	)
-
-	// Third row: selection mode and bulk actions
-	row3 := container.NewHBox(
-		t.selectModeBtn,
-		t.bulkSelectAll,
-		t.bulkClearSel,
-		widget.NewSeparator(),
-		t.bulkPinBtn,
-		t.bulkUnpinBtn,
-		t.bulkDeleteBtn,
-	)
-
-	t.container = container.NewVBox(
-		row1,
-		row2,
-		row3,
-	)
+	t.container = container.NewVBox(row1, row2, row3)
 	t.refreshToggleLabels()
 	return t.container
 }
