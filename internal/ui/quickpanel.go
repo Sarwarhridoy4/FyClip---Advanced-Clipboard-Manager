@@ -1,98 +1,124 @@
-// File: internal/ui/quickpanel.go
 package ui
 
 import (
 	"fmt"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
 )
 
-// QuickPanel manages the quick paste overlay
 type QuickPanel struct {
 	manager    *clipboard.Manager
 	window     fyne.Window
-	dialog     *dialog.CustomDialog
+	popup      *widget.PopUp
 	visible    bool
 	onSelect   func(item clipboard.Item)
-	keyTypedID fyne.CanvasObject
+	items      []clipboard.Item
+	list       *widget.List
+	selectedID widget.ListItemID
 }
 
-// NewQuickPanel creates a new quick panel
 func NewQuickPanel(manager *clipboard.Manager, window fyne.Window, onSelect func(item clipboard.Item)) *QuickPanel {
-	q := &QuickPanel{
-		manager:  manager,
-		window:   window,
+	return &QuickPanel{
+		manager: manager,
+		window:  window,
 		onSelect: onSelect,
 	}
-	
-	return q
 }
 
-// Show displays the quick panel
 func (q *QuickPanel) Show() {
 	if q.visible {
 		return
 	}
-	
-	items := q.manager.GetFiltered()
-	if len(items) > 9 {
-		items = items[:9]
+
+	q.items = q.manager.GetFiltered()
+	if len(q.items) == 0 {
+		return
 	}
 
-	list := widget.NewList(
-		func() int { return len(items) },
+	maxItems := 15
+	if len(q.items) > maxItems {
+		q.items = q.items[:maxItems]
+	}
+
+	q.selectedID = 0
+	q.list = widget.NewList(
+		func() int { return len(q.items) },
 		func() fyne.CanvasObject {
-			return widget.NewLabel("")
+			return container.NewHBox(
+				widget.NewLabel(""),
+				canvas.NewRectangle(nil),
+			)
 		},
 		func(id widget.ListItemID, item fyne.CanvasObject) {
-			if id < len(items) {
-				itm := items[id]
-				item.(*widget.Label).SetText(fmt.Sprintf("%d. %s", id+1, q.truncate(itm.DisplayText(50))))
+			if id >= len(q.items) {
+				return
+			}
+			itm := q.items[id]
+			row := item.(*fyne.Container)
+			label := row.Objects[0].(*widget.Label)
+			bg := row.Objects[1].(*canvas.Rectangle)
+			text := fmt.Sprintf("%d. %s", id+1, q.truncate(itm.DisplayText(80)))
+			if itm.Pinned {
+				text = "★ " + text
+			}
+			label.SetText(text)
+			if id == q.selectedID {
+				bg.FillColor = theme.Color(theme.ColorNamePrimary)
+				bg.Show()
+			} else {
+				bg.Hide()
 			}
 		},
 	)
-	
-	list.OnSelected = func(id widget.ListItemID) {
-		q.selectItem(id, items)
+
+	q.list.OnSelected = func(id widget.ListItemID) {
+		q.selectItem(id)
 		q.Hide()
 	}
-	
-	instructions := widget.NewLabel("↑↓ to navigate • Enter to select • Esc to close")
+
+	instructions := widget.NewLabel("↑↓ navigate • Enter select • Esc close")
 	instructions.Alignment = fyne.TextAlignCenter
-	
-	content := container.NewVBox(
-		container.NewMax(list),
-		widget.NewSeparator(),
-		instructions,
-	)
-	
-	q.dialog = dialog.NewCustomWithoutButtons("Quick Paste", content, q.window)
-	q.dialog.SetOnClosed(func() {
-		q.visible = false
-	})
-	
+	instructions.TextStyle.Italic = true
+
+	content := container.NewBorder(nil, instructions, nil, nil, q.list)
+
+	width := float32(420)
+	height := float32(320)
+	if len(q.items) < 5 {
+		height = float32(len(q.items)*40 + 60)
+	}
+
+	popup := widget.NewPopUp(content, q.window.Canvas())
+	popup.Resize(fyne.NewSize(width, height))
+
+	canvasSize := q.window.Canvas().Size()
+	x := (canvasSize.Width - width) / 2
+	y := float32(40)
+	popup.ShowAtPosition(fyne.NewPos(x, y))
+
+	q.popup = popup
 	q.visible = true
-	q.dialog.Show()
+
+	q.window.Canvas().Focus(q.list)
 }
 
-// Hide hides the quick panel
 func (q *QuickPanel) Hide() {
 	if !q.visible {
 		return
 	}
-	
 	q.visible = false
-	if q.dialog != nil {
-		q.dialog.Hide()
+	if q.popup != nil {
+		q.popup.Hide()
+		q.popup = nil
 	}
 }
 
-// Toggle shows or hides the quick panel
 func (q *QuickPanel) Toggle() {
 	if q.visible {
 		q.Hide()
@@ -101,28 +127,67 @@ func (q *QuickPanel) Toggle() {
 	}
 }
 
-// IsVisible returns whether the panel is visible
 func (q *QuickPanel) IsVisible() bool {
 	return q.visible
 }
 
-// selectItem selects an item at the given index
-func (q *QuickPanel) selectItem(index int, items []clipboard.Item) {
-	if index < 0 || index >= len(items) {
+func (q *QuickPanel) selectItem(index int) {
+	if index < 0 || index >= len(q.items) {
 		return
 	}
-	
-	item := items[index]
-	
+	item := q.items[index]
 	if q.onSelect != nil {
 		q.onSelect(item)
 	}
 }
 
-// truncate truncates text to max length
 func (q *QuickPanel) truncate(s string) string {
-	if len(s) > 50 {
-		return s[:47] + "..."
+	if len(s) > 80 {
+		return s[:77] + "..."
 	}
 	return s
+}
+
+func (q *QuickPanel) Navigate(delta int) {
+	if !q.visible || q.list == nil || len(q.items) == 0 {
+		return
+	}
+	newIndex := int(q.selectedID) + delta
+	if newIndex < 0 {
+		newIndex = 0
+	} else if newIndex >= len(q.items) {
+		newIndex = len(q.items) - 1
+	}
+	q.selectedID = widget.ListItemID(newIndex)
+	q.list.Select(q.selectedID)
+	q.list.Refresh()
+}
+
+func (q *QuickPanel) SelectCurrent() {
+	if !q.visible || q.list == nil {
+		return
+	}
+	q.selectItem(int(q.selectedID))
+	q.Hide()
+}
+
+func (q *QuickPanel) HandleKeyEvent(key *fyne.KeyEvent) bool {
+	if !q.visible {
+		return false
+	}
+	switch key.Name {
+	case fyne.KeyDown:
+		q.Navigate(1)
+		return true
+	case fyne.KeyUp:
+		q.Navigate(-1)
+		return true
+	case fyne.KeyEnter, fyne.KeyTab:
+		q.SelectCurrent()
+		return true
+	case fyne.KeyEscape:
+		q.Hide()
+		return true
+	}
+	return false
 }

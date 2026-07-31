@@ -144,7 +144,11 @@ func New() *App {
 	a.window.SetContent(a.mainUI.Build())
 
 	// Setup system tray
-	a.tray = tray.New(a.fyneApp, a.window, a.manager, icon)
+	a.tray = tray.New(a.fyneApp, a.window, a.manager, icon, func() {
+		if a.mainUI != nil {
+			a.mainUI.ShowQuickPanel()
+		}
+	})
 	a.tray.Setup()
 
 	// Hide window instead of exit

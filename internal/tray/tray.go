@@ -25,10 +25,15 @@ type SystemTray struct {
 	pauseItem       *fyne.MenuItem
 	recentMenu     *fyne.Menu
 	restartCount   int
+	quickPaster    func()
+}
+
+type quickPasteApp interface {
+	ShowQuickPanel()
 }
 
 // New creates a new system tray
-func New(app fyne.App, window fyne.Window, manager *clipboard.Manager, icon fyne.Resource) *SystemTray {
+func New(app fyne.App, window fyne.Window, manager *clipboard.Manager, icon fyne.Resource, quickPasteFn func()) *SystemTray {
 	execPath, err := os.Executable()
 	if err != nil {
 		log.Printf("Warning: Failed to get executable path: %v", err)
@@ -41,6 +46,7 @@ func New(app fyne.App, window fyne.Window, manager *clipboard.Manager, icon fyne
 		manager:      manager,
 		autoStartMgr: platform.NewAutoStart(execPath),
 		icon:         icon,
+		quickPaster:  quickPasteFn,
 	}
 }
 
@@ -80,6 +86,7 @@ func (st *SystemTray) Setup() {
 // buildMenu creates the tray menu
 func (st *SystemTray) buildMenu() *fyne.Menu {
 	items := []*fyne.MenuItem{
+		fyne.NewMenuItem("Quick Paste", st.onQuickPaste),
 		fyne.NewMenuItem("Show", st.onShow),
 		fyne.NewMenuItemSeparator(),
 		st.pauseItem,
@@ -166,6 +173,17 @@ func (st *SystemTray) onShow() {
 	if st.window != nil {
 		st.window.Show()
 		st.window.RequestFocus()
+	}
+}
+
+// onQuickPaste handles quick paste menu item
+func (st *SystemTray) onQuickPaste() {
+	if st.window != nil {
+		st.window.Show()
+		st.window.RequestFocus()
+	}
+	if st.quickPaster != nil {
+		st.quickPaster()
 	}
 }
 

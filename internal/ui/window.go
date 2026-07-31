@@ -47,6 +47,13 @@ func (kh *KeyHandler) FocusLost() {
 
 // TypedKey handles keyboard input
 func (kh *KeyHandler) TypedKey(key *fyne.KeyEvent) {
+	if kh.mw.quickPanel != nil && kh.mw.quickPanel.IsVisible() {
+		handled := kh.mw.quickPanel.HandleKeyEvent(key)
+		if handled {
+			return
+		}
+	}
+
 	switch key.Name {
 	case fyne.KeyDown:
 		kh.mw.moveSelection(1)
