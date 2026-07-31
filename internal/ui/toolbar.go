@@ -405,25 +405,23 @@ func (t *Toolbar) onFilterByDate() {
 	}
 
 	from, to, _ := t.manager.GetDateFilter()
-	picker := NewDateRangePicker(from, to, func(selectedFrom, selectedTo time.Time) {
-		from = selectedFrom
-		to = selectedTo
-	})
+	fromEntry := widget.NewEntry()
+	toEntry := widget.NewEntry()
+	fromEntry.SetPlaceHolder("YYYY-MM-DD")
+	toEntry.SetPlaceHolder("YYYY-MM-DD")
+	if !from.IsZero() {
+		fromEntry.SetText(from.Format("2006-01-02"))
+	}
+	if !to.IsZero() {
+		toEntry.SetText(to.Format("2006-01-02"))
+	}
 
 	applyBtn := widget.NewButton("Apply", func() {
+		from, to := parseDateRange(fromEntry.Text, toEntry.Text)
 		if from.IsZero() && to.IsZero() {
 			t.manager.ClearDateFilter()
 			ShowNotification(t.app, "Date filter cleared")
 		} else {
-			if from.IsZero() {
-				from = to
-			}
-			if to.IsZero() {
-				to = from
-			}
-			if from.After(to) {
-				from, to = to, from
-			}
 			t.manager.SetDateFilter(from, to)
 			ShowNotification(t.app, fmt.Sprintf("Filtering %s to %s", from.Format("2006-01-02"), to.Format("2006-01-02")))
 		}
@@ -436,6 +434,8 @@ func (t *Toolbar) onFilterByDate() {
 
 	clearBtn := widget.NewButton("Clear", func() {
 		t.manager.ClearDateFilter()
+		fromEntry.SetText("")
+		toEntry.SetText("")
 		if t.list != nil {
 			t.list.UnselectAll()
 			t.list.Refresh()
@@ -444,15 +444,39 @@ func (t *Toolbar) onFilterByDate() {
 		ShowNotification(t.app, "Date filter cleared")
 	})
 
+	fromRow := container.NewGridWithColumns(2, widget.NewLabel("From:"), fromEntry)
+	toRow := container.NewGridWithColumns(2, widget.NewLabel("To:"), toEntry)
 	buttons := container.NewHBox(applyBtn, clearBtn)
 	content := container.NewVBox(
-		widget.NewLabel("Select start and end dates:"),
-		picker,
+		widget.NewLabel("Enter dates as YYYY-MM-DD"),
+		fromRow,
+		toRow,
 		buttons,
 	)
 
 	dialog.ShowCustom("Filter by Date Range", "Close", content, t.window)
 	t.updateDateFilterButton()
+}
+
+func parseDateRange(fromText, toText string) (time.Time, time.Time) {
+	var from, to time.Time
+	var err error
+	if fromText != "" {
+		from, err = time.Parse("2006-01-02", fromText)
+		if err != nil {
+			return time.Time{}, time.Time{}
+		}
+	}
+	if toText != "" {
+		to, err = time.Parse("2006-01-02", toText)
+		if err != nil {
+			return time.Time{}, time.Time{}
+		}
+	}
+	if from.After(to) && !from.IsZero() && !to.IsZero() {
+		from, to = to, from
+	}
+	return from, to
 }
 
 func (t *Toolbar) onPause() {
