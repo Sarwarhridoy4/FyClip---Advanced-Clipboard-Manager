@@ -19,7 +19,7 @@
 
 > A secure, fast clipboard manager for text, images, HTML, and files, built with Go and Fyne v2.7+
 
-**Current Version**: 2.3.0
+**Current Version**: 2.4.0
 
 ---
 
@@ -307,7 +307,7 @@ The build script follows Fyne's official Linux packaging flow:
 ./build.sh
 
 # Build with explicit version
-./build.sh 2.3.0
+./build.sh 2.4.0
 ```
 
 This produces:

@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "FyClip"
-#define MyAppVersion "2.2.3"
+#define MyAppVersion "2.4.0"
 #define MyAppPublisher "Sarwar Hossain"
 #define MyAppURL "https://github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/releases"
 #define MyAppExeName "FyClip---Advanced-Clipboard-Manager.exe"
