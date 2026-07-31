@@ -7,11 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Quick Paste Overlay**: Replaced modal quick-paste dialog with a larger floating popup overlay
+  - Shows up to 15 recent items instead of 9
+  - Opens centered at top of window like Windows+V
+  - Keyboard navigation: ↑↓ to move, Enter to select, Esc to close
+  - Selected item is highlighted with primary theme color
+- **Quick Paste from System Tray**: Added Quick Paste option to system tray menu for fast access while app is running
+- **Equal-Width Toolbar Buttons**: Toolbar rows now use grid layout so buttons share equal width
+- **Simplified Date Filtering**: Replaced custom calendar widget with straightforward From/To date inputs in YYYY-MM-DD format
+
 ### Fixed
-- **Icon Size Mismatch**: Packages now install the icon at all standard hicolor sizes (16, 24, 32, 48, 64, 128, 256), each properly resized to match its directory instead of copying a single 512x512 image. Fixes blurry/scaled icons and generic fallbacks in panels, menus, and file managers.
-- **Missing Icon Sizes**: Previously missing 16x16, 24x24, 32x32, 48x48, and 64x64 hicolor icons are now generated and shipped.
-- **StartupWMClass Mismatch**: Desktop entry `StartupWMClass` is set to `FyClip - Clipboard Manager` to match the application's real window class, so the window manager links the icon correctly.
-- Added `fix-icons.sh` and wired it as a **post-install step** (`.deb` `postinst` and tarball `install.sh`) so the installed icon set is remediated automatically on install/upgrade, with no manual action required.
+- **Quick Paste Keyboard Handling**: Navigation keys no longer fall through to main list when quick paste popup is open
 
 ## [2.3.0] - 2026-07-13
 
