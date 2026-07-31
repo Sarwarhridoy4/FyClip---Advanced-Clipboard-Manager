@@ -72,79 +72,38 @@ func NewToolbar(window fyne.Window, app fyne.App, manager *clipboard.Manager, li
 func (t *Toolbar) Build() fyne.CanvasObject {
 	copyBtn := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), t.onCopy)
 	pinBtn := widget.NewButtonWithIcon("Pin", theme.ConfirmIcon(), t.onPin)
-	t.favoritesBtn = widget.NewButtonWithIcon("", theme.ConfirmIcon(), t.onFavorites)
-	t.pauseBtn = widget.NewButtonWithIcon("", theme.MediaPauseIcon(), t.onPause)
+	t.favoritesBtn = widget.NewButtonWithIcon("Pinned Only", theme.RadioButtonIcon(), t.onFavorites)
+	t.pauseBtn = widget.NewButtonWithIcon("Pause", theme.MediaPauseIcon(), t.onPause)
 	deleteBtn := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), t.onDelete)
 	clearBtn := widget.NewButtonWithIcon("Clear", theme.ContentClearIcon(), t.onClear)
 	snippetsBtn := widget.NewButtonWithIcon("Snippets", theme.FolderOpenIcon(), t.onSnippets)
-	_ = snippetsBtn // Silence unused warning
+	_ = snippetsBtn
 	settingsBtn := widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), t.onSettings)
 	exportBtn := widget.NewButtonWithIcon("Export", theme.DocumentSaveIcon(), t.onExport)
 	refreshBtn := widget.NewButtonWithIcon("Refresh", theme.ViewRefreshIcon(), t.onRefresh)
 	backupBtn := widget.NewButtonWithIcon("Backup", theme.DocumentSaveIcon(), t.onBackup)
 	restoreBtn := widget.NewButtonWithIcon("Restore", theme.DocumentIcon(), t.onRestore)
-	t.sortBtn = widget.NewButtonWithIcon("Sort Date", theme.CalendarIcon(), t.onToggleSortDate)
-	t.dateFilterBtn = widget.NewButtonWithIcon("Filter Date", theme.CalendarIcon(), t.onFilterByDate)
-
-	// Theme selector with icons using a button that opens a popup menu
+	t.sortBtn = widget.NewButtonWithIcon("Sort", theme.CalendarIcon(), t.onToggleSortDate)
+	t.dateFilterBtn = widget.NewButtonWithIcon("Filter", theme.CalendarIcon(), t.onFilterByDate)
 	t.themeBtn = widget.NewButtonWithIcon("Theme", theme.ColorPaletteIcon(), t.onThemeButtonClicked)
-	// Create the theme popup menu
 	t.createThemeMenu()
-
-	// Selection mode buttons
 	t.selectModeBtn = widget.NewButtonWithIcon("Select", theme.CheckButtonIcon(), t.onToggleSelectMode)
 	t.bulkSelectAll = widget.NewButtonWithIcon("All", theme.MenuIcon(), t.onSelectAll)
 	t.bulkClearSel = widget.NewButtonWithIcon("None", theme.CancelIcon(), t.onClearSelection)
 	t.bulkPinBtn = widget.NewButtonWithIcon("Pin", theme.ConfirmIcon(), t.onBulkPin)
 	t.bulkUnpinBtn = widget.NewButtonWithIcon("Unpin", theme.RadioButtonIcon(), t.onBulkUnpin)
 	t.bulkDeleteBtn = widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), t.onBulkDelete)
-
-	// Hide bulk action buttons initially
 	t.bulkSelectAll.Hide()
 	t.bulkClearSel.Hide()
 	t.bulkPinBtn.Hide()
 	t.bulkUnpinBtn.Hide()
 	t.bulkDeleteBtn.Hide()
 
-	// First row: primary actions
-	row1 := container.NewHBox(
-		copyBtn,
-		pinBtn,
-		t.favoritesBtn,
-		t.pauseBtn,
-		deleteBtn,
-		clearBtn,
-	)
+	row1 := container.NewGridWithColumns(6, copyBtn, pinBtn, t.favoritesBtn, t.pauseBtn, deleteBtn, clearBtn)
+	row2 := container.NewGridWithColumns(9, snippetsBtn, t.themeBtn, t.sortBtn, t.dateFilterBtn, settingsBtn, exportBtn, refreshBtn, backupBtn, restoreBtn)
+	row3 := container.NewHBox(t.selectModeBtn, t.bulkSelectAll, t.bulkClearSel, widget.NewSeparator(), t.bulkPinBtn, t.bulkUnpinBtn, t.bulkDeleteBtn)
 
-	// Second row: secondary actions
-	row2 := container.NewHBox(
-		snippetsBtn,
-		t.themeBtn,
-		t.sortBtn,
-		t.dateFilterBtn,
-		settingsBtn,
-		exportBtn,
-		refreshBtn,
-		backupBtn,
-		restoreBtn,
-	)
-
-	// Third row: selection mode and bulk actions
-	row3 := container.NewHBox(
-		t.selectModeBtn,
-		t.bulkSelectAll,
-		t.bulkClearSel,
-		widget.NewSeparator(),
-		t.bulkPinBtn,
-		t.bulkUnpinBtn,
-		t.bulkDeleteBtn,
-	)
-
-	t.container = container.NewVBox(
-		row1,
-		row2,
-		row3,
-	)
+	t.container = container.NewVBox(row1, row2, row3)
 	t.refreshToggleLabels()
 	return t.container
 }
@@ -446,25 +405,23 @@ func (t *Toolbar) onFilterByDate() {
 	}
 
 	from, to, _ := t.manager.GetDateFilter()
-	picker := NewDateRangePicker(from, to, func(selectedFrom, selectedTo time.Time) {
-		from = selectedFrom
-		to = selectedTo
-	})
+	fromEntry := widget.NewEntry()
+	toEntry := widget.NewEntry()
+	fromEntry.SetPlaceHolder("YYYY-MM-DD")
+	toEntry.SetPlaceHolder("YYYY-MM-DD")
+	if !from.IsZero() {
+		fromEntry.SetText(from.Format("2006-01-02"))
+	}
+	if !to.IsZero() {
+		toEntry.SetText(to.Format("2006-01-02"))
+	}
 
 	applyBtn := widget.NewButton("Apply", func() {
+		from, to := parseDateRange(fromEntry.Text, toEntry.Text)
 		if from.IsZero() && to.IsZero() {
 			t.manager.ClearDateFilter()
 			ShowNotification(t.app, "Date filter cleared")
 		} else {
-			if from.IsZero() {
-				from = to
-			}
-			if to.IsZero() {
-				to = from
-			}
-			if from.After(to) {
-				from, to = to, from
-			}
 			t.manager.SetDateFilter(from, to)
 			ShowNotification(t.app, fmt.Sprintf("Filtering %s to %s", from.Format("2006-01-02"), to.Format("2006-01-02")))
 		}
@@ -477,6 +434,8 @@ func (t *Toolbar) onFilterByDate() {
 
 	clearBtn := widget.NewButton("Clear", func() {
 		t.manager.ClearDateFilter()
+		fromEntry.SetText("")
+		toEntry.SetText("")
 		if t.list != nil {
 			t.list.UnselectAll()
 			t.list.Refresh()
@@ -485,15 +444,39 @@ func (t *Toolbar) onFilterByDate() {
 		ShowNotification(t.app, "Date filter cleared")
 	})
 
+	fromRow := container.NewGridWithColumns(2, widget.NewLabel("From:"), fromEntry)
+	toRow := container.NewGridWithColumns(2, widget.NewLabel("To:"), toEntry)
 	buttons := container.NewHBox(applyBtn, clearBtn)
 	content := container.NewVBox(
-		widget.NewLabel("Select start and end dates:"),
-		picker,
+		widget.NewLabel("Enter dates as YYYY-MM-DD"),
+		fromRow,
+		toRow,
 		buttons,
 	)
 
 	dialog.ShowCustom("Filter by Date Range", "Close", content, t.window)
 	t.updateDateFilterButton()
+}
+
+func parseDateRange(fromText, toText string) (time.Time, time.Time) {
+	var from, to time.Time
+	var err error
+	if fromText != "" {
+		from, err = time.Parse("2006-01-02", fromText)
+		if err != nil {
+			return time.Time{}, time.Time{}
+		}
+	}
+	if toText != "" {
+		to, err = time.Parse("2006-01-02", toText)
+		if err != nil {
+			return time.Time{}, time.Time{}
+		}
+	}
+	if from.After(to) && !from.IsZero() && !to.IsZero() {
+		from, to = to, from
+	}
+	return from, to
 }
 
 func (t *Toolbar) onPause() {
