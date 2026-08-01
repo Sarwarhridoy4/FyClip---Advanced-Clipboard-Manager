@@ -237,7 +237,7 @@ func (nc *NativeClipboard) ReadFilePaths() []string {
 	// Try reading as text (some systems send file paths as text)
 	textData := nc.ReadText()
 	if len(textData) > 0 {
-		text := string(textData)
+		text := SafeString(textData)
 		// Check if it looks like a file path
 		if isFilePath(text) {
 			return []string{text}
@@ -252,7 +252,7 @@ func (nc *NativeClipboard) ReadFilePaths() []string {
 		cmd := exec.CommandContext(ctx, "xclip", "-o", "-selection", "clipboard", "-t", "text/uri-list")
 		out, err := cmd.Output()
 		if err == nil && len(out) > 0 {
-			return parseURIList(string(out))
+			return parseURIList(SafeString(out))
 		}
 	}
 
@@ -264,7 +264,7 @@ func (nc *NativeClipboard) ReadFilePaths() []string {
 		cmd := exec.CommandContext(ctx, "wl-paste", "-t", "text/uri-list", "-n")
 		out, err := cmd.Output()
 		if err == nil && len(out) > 0 {
-			return parseURIList(string(out))
+			return parseURIList(SafeString(out))
 		}
 	}
 
