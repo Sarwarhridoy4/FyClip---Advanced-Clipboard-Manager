@@ -19,6 +19,40 @@ import (
 	"github.com/Sarwarhridoy4/FyClip---Advanced-Clipboard-Manager/internal/clipboard"
 )
 
+func escapeHTML(s string) string {
+	var buf strings.Builder
+	for _, r := range s {
+		switch r {
+		case '<':
+			buf.WriteString("&lt;")
+		case '>':
+			buf.WriteString("&gt;")
+		case '&':
+			buf.WriteString("&amp;")
+		case '"':
+			buf.WriteString("&quot;")
+		case '\'':
+			buf.WriteString("&#39;")
+		default:
+			buf.WriteRune(r)
+		}
+	}
+	return buf.String()
+}
+
+func escapeMarkdown(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "`", "\\`")
+	s = strings.ReplaceAll(s, "*", "\\*")
+	s = strings.ReplaceAll(s, "_", "\\_")
+	s = strings.ReplaceAll(s, "#", "\\#")
+	s = strings.ReplaceAll(s, "[", "\\[")
+	s = strings.ReplaceAll(s, "]", "\\]")
+	s = strings.ReplaceAll(s, "(", "\\(")
+	s = strings.ReplaceAll(s, ")", "\\)")
+	return s
+}
+
 // PreviewPane displays preview of selected item
 type PreviewPane struct {
 	manager   *clipboard.Manager
@@ -131,15 +165,15 @@ func (pp *PreviewPane) showText(item clipboard.Item) {
 	if isJSON(content) {
 		if prettyJSON, err := json.MarshalIndent(json.RawMessage(content), "", "  "); err == nil {
 			content = string(prettyJSON)
-			content = "**JSON (Pretty)**\n\n```json\n" + content + "\n```"
+			content = "**JSON (Pretty)**\n\n```json\n" + escapeMarkdown(content) + "\n```"
 		}
 	} else if isCodeContent(content) {
 		// Detect language and wrap in code block
 		lang := detectCodeLanguage(content)
 		if lang != "" {
-			content = "**" + strings.ToUpper(lang) + " Code**\n\n```" + lang + "\n" + content + "\n```"
+			content = "**" + strings.ToUpper(lang) + " Code**\n\n```" + lang + "\n" + escapeMarkdown(content) + "\n```"
 		} else {
-			content = "**Code**\n\n```\n" + content + "\n```"
+			content = "**Code**\n\n```\n" + escapeMarkdown(content) + "\n```"
 		}
 	}
 
@@ -164,7 +198,7 @@ func (pp *PreviewPane) showCode(item clipboard.Item) {
 	pp.rawText = item.Content
 
 	// Show HTML as code block
-	content := "```html\n" + item.HTMLContent + "\n```"
+	content := "```html\n" + escapeHTML(item.HTMLContent) + "\n```"
 
 	content += fmt.Sprintf("\n---\n\n*Copied: %s*", item.Timestamp.Format("2006-01-02 15:04:05"))
 
@@ -193,8 +227,8 @@ func (pp *PreviewPane) showFile(item clipboard.Item) {
 		fileType = "Directory"
 	}
 
-	content := fmt.Sprintf("**%s: %s**\n\n", fileType, fi.Name)
-	content += fmt.Sprintf("Path: `%s`\n", fi.Path)
+	content := fmt.Sprintf("**%s: %s**\n\n", fileType, escapeMarkdown(fi.Name))
+	content += fmt.Sprintf("Path: `%s`\n", escapeMarkdown(fi.Path))
 	content += fmt.Sprintf("Size: %s\n", formatFileSize(fi.Size))
 	content += fmt.Sprintf("Modified: %s\n", fi.ModTime.Format("2006-01-02 15:04:05"))
 	content += fmt.Sprintf("Copied: %s\n", item.Timestamp.Format("2006-01-02 15:04:05"))
