@@ -208,6 +208,7 @@ func showNotification(message string) {
 
 	switch runtime.GOOS {
 	case "windows":
+		// Use PowerShell to show a toast notification on Windows
 		script := fmt.Sprintf(`[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
 $template = '<visual><binding template="ToastText02"><text id="1">FyClip</text><text id="2">%s</text></binding></visual>'
@@ -236,6 +237,7 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
 		cmd.Run()
 
 	case "darwin":
+		// Use osascript to show a notification on macOS
 		cmd := exec.Command("osascript", "-e",
 			fmt.Sprintf(`display notification "%s" with title "FyClip"`, safeMessage))
 		if err := validateCommandArgs(cmd.Args); err != nil {
@@ -245,12 +247,14 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
 		cmd.Run()
 
 	default: // linux
+		// Try shownotification first
 		cmd := exec.Command("shownotification", "-u", "critical", "-t", "3000", "FyClip", safeMessage)
 		if err := validateCommandArgs(cmd.Args); err != nil {
 			log.Printf("Command validation failed: %v", err)
 			return
 		}
 
+		// Set a timeout to prevent hanging
 		timer := time.AfterFunc(2*time.Second, func() {
 			if cmd.Process != nil {
 				cmd.Process.Kill()
@@ -259,6 +263,7 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
 		defer timer.Stop()
 		if err := cmd.Run(); err != nil {
 			log.Printf("shownotification failed: %v, trying zenity", err)
+			// Try zenity as fallback
 			cmd := exec.Command("zenity", "--info", "--text", safeMessage, "--title=FyClip")
 			if err := validateCommandArgs(cmd.Args); err != nil {
 				log.Printf("Command validation failed: %v", err)
