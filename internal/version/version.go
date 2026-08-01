@@ -3,7 +3,7 @@
 package version
 
 // Version is the application version, set during build
-var Version = "2.4.0"
+var Version = "2.5.0"
 
 // BuildTime is the build timestamp, set during build
-var BuildTime = "2026-07-31 05:14:10 UTC"
+var BuildTime = "2026-08-01 12:00:00 UTC"

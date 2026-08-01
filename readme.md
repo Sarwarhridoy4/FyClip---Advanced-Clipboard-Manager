@@ -19,7 +19,7 @@
 
 > A secure, fast clipboard manager for text, images, HTML, and files, built with Go and Fyne v2.7+
 
-**Current Version**: 2.4.0
+**Current Version**: 2.5.0
 
 ---
 
@@ -77,7 +77,7 @@ FyClip is built for people who copy a lot and want fast recall, reliable history
 | **Organize** | Pinning, pinned-only view, smart categories, custom tags, snippets |
 | **Actions** | Copy, export, bulk select, bulk delete, pin/unpin |
 | **Date** | Calendar date sorting, date range filtering, filter by exact date |
-| **Security** | AES-256-GCM storage, PBKDF2 key derivation, encrypted backups, sensitive-pattern detection, clipboard/path validation |
+| **Security** | AES-256-GCM storage, PBKDF2 key derivation, encrypted backups, sensitive-pattern detection, clipboard/path validation, command validation, ReDoS protection, UTF-8 sanitization, display sanitization, update asset/hash verification |
 | **System** | Autostart, pause capture, system tray actions, GitHub-based auto updates |
 
 ### Auto Update Feature
@@ -151,11 +151,14 @@ fyclip --update
 
 | Feature | Description |
 |---------|-------------|
-| 🔒 **Encrypted Storage** | Clipboard history is encrypted at rest |
-| 🔐 **PBKDF2 Key Derivation** | Derived keys with migration support for legacy installs |
-| ☁️ **Encrypted Backup** | Password-protected backup and restore |
+| 🔒 **Encrypted Storage** | Clipboard history is encrypted at rest with AES-256-GCM |
+| 🔐 **PBKDF2 Key Derivation** | Storage and backup keys are derived with 100,000 iterations |
+| ☁️ **Encrypted Backup** | Password-protected backup and restore with per-backup salting |
 | 🧼 **Memory-Safer Writes** | Programmatic copy hashing and temporary buffer wiping where practical |
 | 🚫 **Validation Guards** | Clipboard size limits plus file-path and command validation |
+| 🔍 **Security Hardening** | Path validation, command allowlisting, ReDoS protection, UTF-8 sanitization, display sanitization, and integrity checks across update, storage, clipboard, and UI paths |
+
+For the full security audit and remediation details, see [`SECURITY_VULNERABILITIES.md`](./SECURITY_VULNERABILITIES.md).
 
 ---
 
@@ -307,7 +310,7 @@ The build script follows Fyne's official Linux packaging flow:
 ./build.sh
 
 # Build with explicit version
-./build.sh 2.4.0
+./build.sh 2.5.0
 ```
 
 This produces:
