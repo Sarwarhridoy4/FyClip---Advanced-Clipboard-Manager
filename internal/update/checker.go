@@ -55,6 +55,7 @@ type UpdateInfo struct {
 	AssetName      string
 	AssetSize      int64
 	IsPrerelease   bool
+	ExpectedHash   string
 }
 
 // Cache entry for update check responses
@@ -125,6 +126,21 @@ func validateCommandExists(cmd string) error {
 		return fmt.Errorf("command path is outside temp directory: %s", absPath)
 	}
 	return nil
+}
+
+func computeFileHash(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file for hashing: %w", err)
+	}
+	defer file.Close()
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", fmt.Errorf("failed to compute file hash: %w", err)
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
 // Global cache and rate limiter (shared across all checkers)
@@ -692,6 +708,31 @@ func (d *Downloader) GetDownloadPath() string {
 	return d.downloadPath
 }
 
+// Verify verifies the downloaded file integrity
+func (d *Downloader) Verify() error {
+	if d.downloadPath == "" {
+		return fmt.Errorf("no download path set")
+	}
+
+	hash, err := computeFileHash(d.downloadPath)
+	if err != nil {
+		return err
+	}
+
+	d.log.Info(fmt.Sprintf("Downloaded file SHA-256: %s", hash))
+
+	if d.updateInfo.ExpectedHash != "" {
+		if hash != d.updateInfo.ExpectedHash {
+			return fmt.Errorf("hash mismatch: expected %s, got %s", d.updateInfo.ExpectedHash, hash)
+		}
+		d.log.Info("Hash verification passed")
+	} else {
+		d.log.Info("Warning: no expected hash provided, skipping verification")
+	}
+
+	return nil
+}
+
 // Installer handles installing the update
 type Installer struct {
 	downloadPath string
@@ -722,6 +763,12 @@ func (i *Installer) Install() error {
 	if err := validatePathInTemp(i.downloadPath); err != nil {
 		return fmt.Errorf("invalid download path: %w", err)
 	}
+
+	hash, err := computeFileHash(i.downloadPath)
+	if err != nil {
+		return fmt.Errorf("failed to verify download: %w", err)
+	}
+	i.log.Info(fmt.Sprintf("Downloaded file SHA-256: %s", hash))
 
 	i.log.Info(fmt.Sprintf("Installing %s...", filename))
 
