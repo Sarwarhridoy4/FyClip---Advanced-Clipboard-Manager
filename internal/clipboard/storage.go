@@ -8,14 +8,16 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"golang.org/x/crypto/pbkdf2"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"golang.org/x/crypto/pbkdf2"
 )
 
 const historyFileName = "clipboard_history.json"
@@ -302,7 +304,9 @@ func wipeSensitiveData(data []byte) {
 	}
 	// Overwrite with random data multiple times
 	for i := 0; i < 3; i++ {
-		rand.Read(data)
+		if _, err := rand.Read(data); err != nil {
+			log.Printf("WARNING: failed to read from crypto/rand during secure wipe: %v", err)
+		}
 	}
 	// Final overwrite with zeros
 	for i := range data {
