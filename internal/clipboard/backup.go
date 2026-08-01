@@ -150,10 +150,14 @@ func (bm *BackupManager) ImportBackup(path string, password string, merge bool) 
 
 // encryptWithPassword encrypts data using AES-256-GCM with password-derived key
 func (bm *BackupManager) encryptWithPassword(data []byte, password string) ([]byte, error) {
-	// Derive key from password using simple hash (in production, use PBKDF2)
-	key := sha256.Sum256([]byte(password))
+	salt := make([]byte, saltLen)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, fmt.Errorf("failed to generate salt: %w", err)
+	}
 
-	block, err := aes.NewCipher(key[:])
+	key := deriveKeyFromPassword([]byte(password), salt)
+
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
@@ -169,12 +173,43 @@ func (bm *BackupManager) encryptWithPassword(data []byte, password string) ([]by
 	}
 
 	ciphertext := gcm.Seal(nonce, nonce, data, nil)
-	return ciphertext, nil
+
+	result := make([]byte, len(salt)+len(ciphertext))
+	copy(result, salt)
+	copy(result[len(salt):], ciphertext)
+
+	return result, nil
 }
 
 // decryptWithPassword decrypts data using AES-256-GCM with password-derived key
 func (bm *BackupManager) decryptWithPassword(data []byte, password string) ([]byte, error) {
-	// Derive key from password
+	if len(data) >= saltLen {
+		salt := data[:saltLen]
+		ciphertext := data[saltLen:]
+
+		key := deriveKeyFromPassword([]byte(password), salt)
+
+		block, err := aes.NewCipher(key)
+		if err == nil {
+			gcm, err := cipher.NewGCM(block)
+			if err == nil {
+				nonceSize := gcm.NonceSize()
+				if len(ciphertext) >= nonceSize {
+					nonce, ct := ciphertext[:nonceSize], ciphertext[nonceSize:]
+					plaintext, err := gcm.Open(nil, nonce, ct, nil)
+					if err == nil {
+						return plaintext, nil
+					}
+				}
+			}
+		}
+	}
+
+	return bm.decryptWithPasswordLegacy(data, password)
+}
+
+// decryptWithPasswordLegacy decrypts data using the old raw SHA-256 key derivation
+func (bm *BackupManager) decryptWithPasswordLegacy(data []byte, password string) ([]byte, error) {
 	key := sha256.Sum256([]byte(password))
 
 	block, err := aes.NewCipher(key[:])
