@@ -3,7 +3,7 @@ package update
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -198,7 +198,8 @@ func NewChecker(owner, repo, currentVersion string, opts ...Option) *Checker {
 // getCacheKey generates a cache key for the current checker configuration
 func (c *Checker) getCacheKey() string {
 	key := fmt.Sprintf("%s/%s", c.owner, c.repo)
-	return fmt.Sprintf("%x", md5.Sum([]byte(key)))
+	hash := sha256.Sum256([]byte(key))
+	return fmt.Sprintf("%x", hash[:])
 }
 
 // checkCache looks up a cached update check result
