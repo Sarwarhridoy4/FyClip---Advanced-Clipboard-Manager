@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func getAutoStartPath() string {
@@ -25,21 +26,40 @@ func getAutoStartPath() string {
 	)
 }
 
+func escapePowerShellString(s string) string {
+	s = strings.ReplaceAll(s, "'", "''")
+	return s
+}
+
 func (as *AutoStart) enable() error {
-	cmd := fmt.Sprintf(`
-$ws = New-Object -ComObject WScript.Shell
-$lnk = $ws.CreateShortcut("%s")
-$lnk.TargetPath = "%s"
+	script := fmt.Sprintf(`$ws = New-Object -ComObject WScript.Shell
+$lnk = $ws.CreateShortcut('%s')
+$lnk.TargetPath = '%s'
 $lnk.Save()
-`, as.filePath, as.execPath)
+`, escapePowerShellString(as.filePath), escapePowerShellString(as.execPath))
+
+	tmpFile, err := os.CreateTemp("", "fyclip-autostart-*.ps1")
+	if err != nil {
+		return fmt.Errorf("failed to create temp autostart script: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(script); err != nil {
+		return fmt.Errorf("failed to write autostart script: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close autostart script: %w", err)
+	}
 
 	return exec.Command(
 		"powershell",
 		"-NoProfile",
 		"-WindowStyle",
 		"Hidden",
-		"-Command",
-		cmd,
+		"-ExecutionPolicy",
+		"Bypass",
+		"-File",
+		tmpFile.Name(),
 	).Run()
 }
 
