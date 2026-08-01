@@ -1386,25 +1386,28 @@ func (m *Manager) OpenFileLocation(index int) error {
 	dirPath := path
 	if !item.FileInfo.IsDirectory {
 		// Get the directory containing the file
-		lastSlash := strings.LastIndex(path, "/")
-		if lastSlash > 0 {
-			dirPath = path[:lastSlash]
-		}
+		dirPath = filepath.Dir(path)
+	}
+
+	// Resolve and validate the final directory path
+	absDirPath, err := filepath.Abs(dirPath)
+	if err != nil {
+		return fmt.Errorf("invalid file path: %w", err)
 	}
 
 	// Validate the directory path before executing command
-	if err := validateFilePath(dirPath); err != nil {
+	if err := validateFilePath(absDirPath); err != nil {
 		return fmt.Errorf("invalid file path: %w", err)
 	}
 
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "linux":
-		cmd = exec.Command("xdg-open", dirPath)
+		cmd = exec.Command("xdg-open", absDirPath)
 	case "darwin":
-		cmd = exec.Command("open", dirPath)
+		cmd = exec.Command("open", absDirPath)
 	case "windows":
-		cmd = exec.Command("explorer", dirPath)
+		cmd = exec.Command("explorer", absDirPath)
 	default:
 		return fmt.Errorf("unsupported platform")
 	}
