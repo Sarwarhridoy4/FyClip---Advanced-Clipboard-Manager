@@ -4,9 +4,12 @@ package clipboard
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 // SensitiveFlag marks items as sensitive (never save certain content)
@@ -185,8 +188,11 @@ func (i *Item) SecureWipe() {
 func GenerateSecureID() string {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to random hex
-		return hex.EncodeToString(bytes)
+		return fallbackSecureID()
 	}
 	return hex.EncodeToString(bytes)
+}
+
+func fallbackSecureID() string {
+	return hex.EncodeToString(fmt.Appendf(nil, "%d-%d", time.Now().UnixNano(), os.Getpid()))
 }
