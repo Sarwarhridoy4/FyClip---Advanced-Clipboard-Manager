@@ -57,31 +57,30 @@ func NewSingleInstanceLock() (*singleInstanceLock, error) {
 }
 
 func tryAcquireLock(lockPath string) (*os.File, error) {
-	// Create the lock file with exclusive access
-	// O_EXCL ensures atomic creation - fails if file already exists
-	// O_RDWR allows us to write our PID and read to check
 	lockFile, err := os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
-	if err != nil {
-		if os.IsExist(err) {
-			if isPreviousInstanceRunning(lockPath) {
-				return nil, fmt.Errorf("another instance is already running")
-			}
-			if err := os.Remove(lockPath); err != nil {
-				if isPermissionError(err) {
-					return nil, err
-				}
-				return nil, fmt.Errorf("failed to remove stale lock file: %w", err)
-			}
-			lockFile, err = os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create lock file: %w", err)
-			}
-		} else {
-			return nil, fmt.Errorf("failed to create lock file: %w", err)
-		}
+	if err == nil {
+		return lockFile, nil
 	}
 
-	// Write our PID to the lock file
+	if !os.IsExist(err) {
+		return nil, fmt.Errorf("failed to create lock file: %w", err)
+	}
+
+	if err := os.Remove(lockPath); err != nil {
+		if isPermissionError(err) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to remove stale lock file: %w", err)
+	}
+
+	lockFile, err = os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		if os.IsExist(err) {
+			return nil, fmt.Errorf("another instance is already running")
+		}
+		return nil, fmt.Errorf("failed to create lock file: %w", err)
+	}
+
 	pid := os.Getpid()
 	execPath, execErr := os.Executable()
 	if execErr != nil {
@@ -95,7 +94,6 @@ func tryAcquireLock(lockPath string) (*os.File, error) {
 		return nil, fmt.Errorf("failed to write PID to lock file: %w", err)
 	}
 
-	// Sync to ensure data is written to disk
 	if err := lockFile.Sync(); err != nil {
 		lockFile.Close()
 		os.Remove(lockPath)
