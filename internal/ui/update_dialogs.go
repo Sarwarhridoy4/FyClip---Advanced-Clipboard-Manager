@@ -174,10 +174,17 @@ func ShowDownloadProgressDialog(window fyne.Window, app fyne.App, checker *updat
 	// Start download
 	go func() {
 		log.Printf("Starting download goroutine...")
-		downloader := update.NewDownloader(checker, updateInfo)
+		downloader, err := update.NewDownloader(checker, updateInfo)
+		if err != nil {
+			fyne.Do(func() {
+				statusLabel.SetText(fmt.Sprintf("Download failed: %v", err))
+				log.Printf("Downloader creation error: %v", err)
+			})
+			return
+		}
 		log.Printf("Downloader created, starting download...")
 		
-		err := downloader.Download(context.Background(), func(downloaded, total int64) {
+		err = downloader.Download(context.Background(), func(downloaded, total int64) {
 			fyne.Do(func() {
 				if total > 0 {
 					progress.SetValue(float64(downloaded) / float64(total))

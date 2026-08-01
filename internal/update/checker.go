@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -77,6 +78,54 @@ const (
 	updateRateLimitWindow      = 5 * time.Minute // Rate limit window
 	updateMaxRequestsPerWindow = 5               // Max requests per window
 )
+
+var (
+	safeAssetNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
+)
+
+func validateAssetName(name string) error {
+	if name == "" {
+		return fmt.Errorf("asset name is empty")
+	}
+	if !safeAssetNameRegex.MatchString(name) {
+		return fmt.Errorf("asset name contains invalid characters: %s", name)
+	}
+	return nil
+}
+
+func validatePathInTemp(path string) error {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+	absTemp, err := filepath.Abs(os.TempDir())
+	if err != nil {
+		return fmt.Errorf("failed to resolve temp directory: %w", err)
+	}
+	if !strings.HasPrefix(absPath, absTemp+string(filepath.Separator)) && absPath != absTemp {
+		return fmt.Errorf("path is outside temp directory: %s", absPath)
+	}
+	return nil
+}
+
+func validateCommandExists(cmd string) error {
+	path, err := exec.LookPath(cmd)
+	if err != nil {
+		return fmt.Errorf("command not found: %s", cmd)
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to resolve command path: %w", err)
+	}
+	absTemp, err := filepath.Abs(os.TempDir())
+	if err != nil {
+		return fmt.Errorf("failed to resolve temp directory: %w", err)
+	}
+	if !strings.HasPrefix(absPath, absTemp+string(filepath.Separator)) && absPath != absTemp {
+		return fmt.Errorf("command path is outside temp directory: %s", absPath)
+	}
+	return nil
+}
 
 // Global cache and rate limiter (shared across all checkers)
 var (
@@ -554,13 +603,20 @@ type Downloader struct {
 }
 
 // NewDownloader creates a new downloader
-func NewDownloader(checker *Checker, updateInfo *UpdateInfo) *Downloader {
+func NewDownloader(checker *Checker, updateInfo *UpdateInfo) (*Downloader, error) {
+	if err := validateAssetName(updateInfo.AssetName); err != nil {
+		return nil, fmt.Errorf("invalid asset name: %w", err)
+	}
+	downloadPath := filepath.Join(os.TempDir(), updateInfo.AssetName)
+	if err := validatePathInTemp(downloadPath); err != nil {
+		return nil, fmt.Errorf("invalid download path: %w", err)
+	}
 	return &Downloader{
 		checker:      checker,
 		updateInfo:   updateInfo,
-		downloadPath: filepath.Join(os.TempDir(), updateInfo.AssetName),
+		downloadPath: downloadPath,
 		log:          logger.Get(),
-	}
+	}, nil
 }
 
 // Download downloads the update asset
@@ -662,6 +718,10 @@ func (i *Installer) Install() error {
 	filename := filepath.Base(i.downloadPath)
 	ext := strings.ToLower(filepath.Ext(filename))
 
+	if err := validatePathInTemp(i.downloadPath); err != nil {
+		return fmt.Errorf("invalid download path: %w", err)
+	}
+
 	i.log.Info(fmt.Sprintf("Installing %s...", filename))
 
 	switch runtime.GOOS {
@@ -690,12 +750,20 @@ func (i *Installer) installLinux(ext string) error {
 
 // installDeb installs a .deb package
 func (i *Installer) installDeb() error {
-	// Try pkexec first (graphical sudo), fall back to sudo
 	var cmd *exec.Cmd
 	if _, err := exec.LookPath("pkexec"); err == nil {
+		if err := validateCommandExists("pkexec"); err != nil {
+			return err
+		}
 		cmd = exec.Command("pkexec", "dpkg", "-i", i.downloadPath)
 	} else {
+		if err := validateCommandExists("sudo"); err != nil {
+			return err
+		}
 		cmd = exec.Command("sudo", "dpkg", "-i", i.downloadPath)
+	}
+	if err := validateCommandExists("dpkg"); err != nil {
+		return err
 	}
 	cmd.Stdout = &i.output
 	cmd.Stderr = &i.output
@@ -737,6 +805,9 @@ func (i *Installer) installWindows(ext string) error {
 
 // installExe runs the installer executable
 func (i *Installer) installExe() error {
+	if err := validatePathInTemp(i.downloadPath); err != nil {
+		return fmt.Errorf("invalid installer path: %w", err)
+	}
 	cmd := exec.Command(i.downloadPath, "/S") // Silent install
 	cmd.Stdout = &i.output
 	cmd.Stderr = &i.output
@@ -752,6 +823,12 @@ func (i *Installer) installExe() error {
 
 // installMsi installs an MSI package
 func (i *Installer) installMsi() error {
+	if err := validatePathInTemp(i.downloadPath); err != nil {
+		return fmt.Errorf("invalid installer path: %w", err)
+	}
+	if err := validateCommandExists("msiexec"); err != nil {
+		return err
+	}
 	cmd := exec.Command("msiexec", "/i", i.downloadPath, "/quiet")
 	cmd.Stdout = &i.output
 	cmd.Stderr = &i.output
@@ -779,6 +856,16 @@ func (i *Installer) installDarwin(ext string) error {
 
 // installDmg mounts and installs from DMG
 func (i *Installer) installDmg() error {
+	if err := validatePathInTemp(i.downloadPath); err != nil {
+		return fmt.Errorf("invalid download path: %w", err)
+	}
+	if err := validateCommandExists("hdiutil"); err != nil {
+		return err
+	}
+	if err := validateCommandExists("cp"); err != nil {
+		return err
+	}
+
 	// Mount DMG
 	mountCmd := exec.Command("hdiutil", "attach", i.downloadPath, "-nobrowse")
 	mountOut, err := mountCmd.Output()
@@ -795,11 +882,15 @@ func (i *Installer) installDmg() error {
 	// Find .app in mounted volume
 	appPath := filepath.Join(mountPoint, i.appName+".app")
 	if _, err := os.Stat(appPath); os.IsNotExist(err) {
-		// Try to find any .app
 		files, _ := filepath.Glob(filepath.Join(mountPoint, "*.app"))
 		if len(files) > 0 {
 			appPath = files[0]
 		}
+	}
+
+	// Validate appPath is within the mounted volume
+	if !strings.HasPrefix(appPath, mountPoint) {
+		return fmt.Errorf("app path is outside mount point: %s", appPath)
 	}
 
 	// Copy to Applications
@@ -828,7 +919,20 @@ func (i *Installer) installDmg() error {
 func (i *Installer) installZip() error {
 	// Extract to temp
 	tmpDir := filepath.Join(os.TempDir(), "fyclip-update")
+	if err := validatePathInTemp(tmpDir); err != nil {
+		return fmt.Errorf("invalid temp directory: %w", err)
+	}
 	os.MkdirAll(tmpDir, 0755)
+
+	if err := validatePathInTemp(i.downloadPath); err != nil {
+		return fmt.Errorf("invalid download path: %w", err)
+	}
+	if err := validateCommandExists("unzip"); err != nil {
+		return err
+	}
+	if err := validateCommandExists("cp"); err != nil {
+		return err
+	}
 
 	cmd := exec.Command("unzip", "-o", i.downloadPath, "-d", tmpDir)
 	cmd.Stdout = &i.output
@@ -845,6 +949,11 @@ func (i *Installer) installZip() error {
 		if len(files) > 0 {
 			appPath = files[0]
 		}
+	}
+
+	// Validate appPath is within tmpDir
+	if !strings.HasPrefix(appPath, tmpDir) {
+		return fmt.Errorf("app path is outside temp directory: %s", appPath)
 	}
 
 	// Copy to Applications
@@ -899,7 +1008,10 @@ func (a *AutoUpdater) CheckAndDownload(ctx context.Context) (*UpdateInfo, *Downl
 	a.log.Info(fmt.Sprintf("Update available: %s -> %s", updateInfo.CurrentVersion, updateInfo.LatestVersion))
 
 	// Download the update
-	downloader := NewDownloader(a.checker, updateInfo)
+	downloader, err := NewDownloader(a.checker, updateInfo)
+	if err != nil {
+		return nil, nil, err
+	}
 	if err := downloader.Download(ctx, nil); err != nil {
 		return nil, nil, err
 	}
