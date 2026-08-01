@@ -209,29 +209,37 @@ func showNotification(message string) {
 	switch runtime.GOOS {
 	case "windows":
 		// Use PowerShell to show a toast notification on Windows
-		// Escape single quotes in PowerShell
-		escapedMessage := strings.ReplaceAll(safeMessage, "'", "''")
-		psCommand := fmt.Sprintf(`[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; `+
-			`[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null; `+
-			`$template = '<visual><binding template="ToastText02"><text id="1">FyClip</text><text id="2">%s</text></binding></visual>'; `+
-			`$xml = New-Object Windows.Data.Xml.Dom.XmlDocument; `+
-			`$xml.LoadXml($template); `+
-			`$toast = [Windows.UI.Notifications.ToastNotification]::new($xml); `+
-			`[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("FyClip").Show($toast)`, escapedMessage)
+		script := fmt.Sprintf(`[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+$template = '<visual><binding template="ToastText02"><text id="1">FyClip</text><text id="2">%s</text></binding></visual>'
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml($template)
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("FyClip").Show($toast)`, safeMessage)
 
-		cmd := exec.Command("powershell", "-Command", psCommand)
-		if err := validateCommandArgs(cmd.Args); err != nil {
-			log.Printf("Command validation failed: %v", err)
+		tmpFile, err := os.CreateTemp("", "fyclip-notify-*.ps1")
+		if err != nil {
+			log.Printf("Failed to create temp script: %v", err)
 			return
 		}
-		cmd.Run() // Ignore errors - this is a best-effort notification
+		defer os.Remove(tmpFile.Name())
+
+		if _, err := tmpFile.WriteString(script); err != nil {
+			log.Printf("Failed to write notification script: %v", err)
+			return
+		}
+		if err := tmpFile.Close(); err != nil {
+			log.Printf("Failed to close notification script: %v", err)
+			return
+		}
+
+		cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-File", tmpFile.Name())
+		cmd.Run()
 
 	case "darwin":
 		// Use osascript to show a notification on macOS
-		// Escape double quotes for AppleScript
-		escapedMessage := strings.ReplaceAll(safeMessage, `"`, `\"`)
 		cmd := exec.Command("osascript", "-e",
-			fmt.Sprintf(`display notification "%s" with title "FyClip"`, escapedMessage))
+			fmt.Sprintf(`display notification "%s" with title "FyClip"`, safeMessage))
 		if err := validateCommandArgs(cmd.Args); err != nil {
 			log.Printf("Command validation failed: %v", err)
 			return
@@ -256,7 +264,7 @@ func showNotification(message string) {
 		if err := cmd.Run(); err != nil {
 			log.Printf("shownotification failed: %v, trying zenity", err)
 			// Try zenity as fallback
-			cmd := exec.Command("zenity", "--info", "--text="+safeMessage, "--title=FyClip")
+			cmd := exec.Command("zenity", "--info", "--text", safeMessage, "--title=FyClip")
 			if err := validateCommandArgs(cmd.Args); err != nil {
 				log.Printf("Command validation failed: %v", err)
 				return
