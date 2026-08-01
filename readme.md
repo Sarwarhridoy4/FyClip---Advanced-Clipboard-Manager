@@ -165,18 +165,18 @@ For the full security audit and remediation details, see [`SECURITY_VULNERABILIT
 ## Screenshots
 
 <div align="center">
-  <img src="internal/app/assets/screenshots/screenshot1.png" alt="Main Window - Clipboard History with Search and Preview" width="800"/>
+  <img src="internal/app/assets/screenshots/main_window.png" alt="Main Window - Clipboard History with Search and Preview" width="800"/>
   <p><em>Main Window - Clipboard History with Search and Preview</em></p>
 </div>
 
 <div align="center">
-  <img src="internal/app/assets/screenshots/screenshot2.png" alt="Preview Pane with JSON Formatting" width="800"/>
-  <p><em>Preview Pane with JSON Formatting</em></p>
+  <img src="internal/app/assets/screenshots/quick_paste.png" alt="Quick Panel - Global Hotkey Access" width="800"/>
+  <p><em>Quick Panel - Global Hotkey Access</em></p>
 </div>
 
 <div align="center">
-  <img src="internal/app/assets/screenshots/screenshot3.png" alt="Quick Panel - Global Hotkey Access" width="800"/>
-  <p><em>Quick Panel - Global Hotkey Access</em></p>
+  <img src="internal/app/assets/screenshots/updater.png" alt="Update Dialog" width="800"/>
+  <p><em>Update Dialog</em></p>
 </div>
 
 ---
