@@ -2,9 +2,12 @@
 package clipboard
 
 import (
+	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 // SearchOptions contains search configuration
@@ -13,6 +16,11 @@ type SearchOptions struct {
 	RegexEnabled  bool // Enable regex matching
 	FuzzyEnabled  bool // Enable fuzzy matching
 }
+
+const (
+	regexMatchTimeout = 100 * time.Millisecond
+	regexMaxInputLen  = 10000
+)
 
 // DefaultSearchOptions returns default search options
 func DefaultSearchOptions() *SearchOptions {
@@ -83,6 +91,9 @@ func searchWithRegex(content, pattern string) bool {
 	re, exists := regexCache[pattern]
 
 	if !exists {
+		if err := validateRegexPattern(pattern); err != nil {
+			return strings.Contains(content, pattern)
+		}
 		var err error
 		re, err = regexp.Compile(pattern)
 		if err != nil {
@@ -91,7 +102,37 @@ func searchWithRegex(content, pattern string) bool {
 		}
 		regexCache[pattern] = re
 	}
-	return re.MatchString(content)
+
+	if len(content) > regexMaxInputLen {
+		content = content[:regexMaxInputLen]
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), regexMatchTimeout)
+	defer cancel()
+
+	type result struct {
+		matched bool
+	}
+	done := make(chan result, 1)
+	go func() {
+		done <- result{matched: re.MatchString(content)}
+	}()
+
+	select {
+	case res := <-done:
+		return res.matched
+	case <-ctx.Done():
+		return false
+	}
+}
+
+var nestedQuantifierRegex = regexp.MustCompile(`\([^)]*[+*][^)]*\)[+*]`)
+
+func validateRegexPattern(pattern string) error {
+	if nestedQuantifierRegex.MatchString(pattern) {
+		return fmt.Errorf("regex pattern contains nested quantifier which may cause catastrophic backtracking")
+	}
+	return nil
 }
 
 // searchWithFuzzy performs fuzzy matching (simple Levenshtein-based)
