@@ -51,7 +51,23 @@ func (sm *SnippetManager) LoadSnippets() error {
 		return err
 	}
 	
-	return json.Unmarshal(data, &sm.snippets)
+	if err := json.Unmarshal(data, &sm.snippets); err != nil {
+		return fmt.Errorf("failed to parse snippets: %w", err)
+	}
+
+	return validateSnippets(sm.snippets)
+}
+
+func validateSnippets(snippets []Snippet) error {
+	for i, s := range snippets {
+		if s.ID == "" {
+			return fmt.Errorf("snippet %d has empty ID", i)
+		}
+		if s.Title == "" {
+			return fmt.Errorf("snippet %d has empty title", i)
+		}
+	}
+	return nil
 }
 
 // SaveSnippets saves snippets to storage
