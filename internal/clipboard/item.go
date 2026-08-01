@@ -107,15 +107,34 @@ func (i *Item) DisplayText(maxLen int) string {
 		return fmt.Sprintf("File: %s", i.Timestamp.Format("15:04:05"))
 	}
 
-	text := strings.ReplaceAll(i.Content, "\n", " ")
-	text = strings.ReplaceAll(text, "\r", "")
-	text = strings.ReplaceAll(text, "\x00", "")
+	text := sanitizeDisplayText(i.Content)
 	text = strings.TrimSpace(text)
 
 	if len(text) > maxLen {
 		text = text[:maxLen-3] + "..."
 	}
 	return text
+}
+
+func sanitizeDisplayText(s string) string {
+	var buf strings.Builder
+	prevRune := rune(0)
+	for _, r := range s {
+		if r == '\r' || r == '\n' {
+			if prevRune != ' ' && prevRune != '\n' && prevRune != '\r' {
+				buf.WriteRune(' ')
+			}
+			prevRune = ' '
+			continue
+		}
+		if r == '\x00' || (r >= 0x00 && r <= 0x1F) || (r >= 0x7F && r <= 0x9F) {
+			prevRune = r
+			continue
+		}
+		buf.WriteRune(r)
+		prevRune = r
+	}
+	return buf.String()
 }
 
 // Size returns approximate size in bytes
