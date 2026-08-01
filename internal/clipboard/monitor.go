@@ -225,7 +225,7 @@ func (m *Monitor) checkClipboard() {
 
 // handleText processes text clipboard content
 func (m *Monitor) handleText(data []byte, programmaticHash string) {
-	content := string(data)
+	content := SafeString(data)
 	if len(content) == 0 {
 		return
 	}
@@ -350,7 +350,10 @@ func (m *Monitor) handleHTML(data []byte, programmaticHash string) {
 		return
 	}
 
-	htmlContent := string(data)
+	htmlContent := SafeString(data)
+	if len(htmlContent) == 0 {
+		return
+	}
 
 	hash := sha256.Sum256(data)
 	hashStr := hex.EncodeToString(hash[:])

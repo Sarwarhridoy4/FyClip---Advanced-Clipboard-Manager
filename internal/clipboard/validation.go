@@ -70,9 +70,24 @@ func ValidateItem(item *Item) error {
 		if len(item.HTMLContent) > MaxContentSize {
 			return ErrContentTooLarge
 		}
+		if !utf8.ValidString(item.HTMLContent) {
+			return ErrInvalidUTF8
+		}
 	}
 
 	return nil
+}
+
+// SafeString converts byte slice to string with UTF-8 validation
+// Returns empty string if data is not valid UTF-8
+func SafeString(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+	if !utf8.ValidString(string(data)) {
+		return ""
+	}
+	return string(data)
 }
 
 // ValidateMaxHistory validates the max history value
