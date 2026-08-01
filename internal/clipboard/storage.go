@@ -15,6 +15,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"golang.org/x/crypto/pbkdf2"
@@ -208,6 +209,15 @@ func (s *Storage) Load() ([]Item, error) {
 	if err != nil {
 		// If decompression fails, try using the data as-is (for backward compatibility)
 		decompressedData = decryptedData
+	}
+
+	if len(decompressedData) == 0 {
+		return nil, fmt.Errorf("empty decrypted data")
+	}
+
+	trimmed := strings.TrimLeft(string(decompressedData), " \t\n\r")
+	if len(trimmed) > 0 && trimmed[0] != '{' && trimmed[0] != '[' {
+		return nil, fmt.Errorf("decrypted data does not appear to be JSON")
 	}
 
 	var items []Item
