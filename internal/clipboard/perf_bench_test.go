@@ -38,8 +38,8 @@ func BenchmarkUpdateFilteredSearch1000(b *testing.B) {
 		m.idIndexMap[item.ID] = i
 	}
 	m.searchQuery = "clip 99"
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	
+	for b.Loop() {
 		m.updateFiltered()
 	}
 }
@@ -58,8 +58,8 @@ func BenchmarkAddItemWithDuplicateScan1000(b *testing.B) {
 		m.idIndexMap[item.ID] = i
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	
+	for i := 0; b.Loop(); i++ {
 		item := Item{
 			Type:    TypeText,
 			Content: fmt.Sprintf("new clip %d", i),
@@ -88,8 +88,8 @@ func BenchmarkStorageSave1000(b *testing.B) {
 	items := makeBenchmarkItems(1000)
 	_ = filepath.Join(dir, "noop")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	
+	for b.Loop() {
 		if err := s.Save(items); err != nil {
 			b.Fatalf("save: %v", err)
 		}
