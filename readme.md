@@ -310,7 +310,7 @@ The build script follows Fyne's official Linux packaging flow:
 ./build.sh
 
 # Build with explicit version
-./build.sh 2.4.0
+./build.sh 2.5.0
 ```
 
 This produces:
