@@ -55,6 +55,12 @@ func (sm *SnippetManager) LoadSnippets() error {
 		return fmt.Errorf("failed to parse snippets: %w", err)
 	}
 
+	for i := range sm.snippets {
+		if sm.snippets[i].ID == "" {
+			sm.snippets[i].ID = fmt.Sprintf("snippet-%d", i)
+		}
+	}
+
 	return validateSnippets(sm.snippets)
 }
 
