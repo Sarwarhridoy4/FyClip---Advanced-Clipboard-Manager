@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -23,6 +25,32 @@ const (
 	githubOwner = "Sarwarhridoy4"
 	githubRepo  = "FyClip---Advanced-Clipboard-Manager"
 )
+
+func formatUpdateError(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	errMsg := err.Error()
+
+	if strings.Contains(errMsg, "status 403") {
+		return fmt.Sprintf("Error checking for updates:\n%s\n\nThis may be due to GitHub API rate limiting. Please try again later.", errMsg)
+	}
+	if strings.Contains(errMsg, "status 404") {
+		return fmt.Sprintf("Error checking for updates:\n%s\n\nRepository not found or may be private.", errMsg)
+	}
+	if strings.Contains(errMsg, "status 500") || strings.Contains(errMsg, "status 502") || strings.Contains(errMsg, "status 503") {
+		return fmt.Sprintf("Error checking for updates:\n%s\n\nGitHub API is experiencing issues. Please try again later.", errMsg)
+	}
+	if strings.Contains(errMsg, "no compatible asset found") {
+		return fmt.Sprintf("Error checking for updates:\n%s\n\nNo compatible update is available for your platform (%s/%s).", errMsg, runtime.GOOS, runtime.GOARCH)
+	}
+	if strings.Contains(errMsg, "rate limit exceeded") {
+		return fmt.Sprintf("Error checking for updates:\n%s\n\nPlease try again in a few minutes.", errMsg)
+	}
+
+	return fmt.Sprintf("Error checking for updates:\n%s\n\nMake sure you have an internet connection.", errMsg)
+}
 
 // ShowUpdateDialog checks for updates and shows a dialog with the result
 func ShowUpdateDialog(window fyne.Window, app fyne.App, currentVersion string) {
@@ -77,11 +105,11 @@ func ShowUpdateDialog(window fyne.Window, app fyne.App, currentVersion string) {
 			progress.Hide()
 			statusLabel.Hide()
 
-			if err != nil {
-				resultLabel.SetText(fmt.Sprintf("Error checking for updates:\n%v\n\nMake sure you have an internet connection.", err))
-				updateWindow.Resize(fyne.NewSize(450, 250))
-				return
-			}
+		if err != nil {
+			resultLabel.SetText(formatUpdateError(err))
+			updateWindow.Resize(fyne.NewSize(450, 250))
+			return
+		}
 
 			// Compare versions exactly
 			if updateInfo.LatestVersion == currentVersion {
