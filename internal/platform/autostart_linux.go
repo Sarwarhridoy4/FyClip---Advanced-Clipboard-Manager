@@ -18,7 +18,7 @@ func getAutoStartPath() string {
 }
 
 func (as *AutoStart) enable() error {
-	if err := os.MkdirAll(filepath.Dir(as.filePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(as.filePath), 0700); err != nil {
 		return err
 	}
 
@@ -34,7 +34,7 @@ Name=FyClip
 Comment=Clipboard Manager
 `, as.execPath)
 
-	return os.WriteFile(as.filePath, []byte(content), 0644)
+	return os.WriteFile(as.filePath, []byte(content), 0600)
 }
 
 func (as *AutoStart) disable() error {

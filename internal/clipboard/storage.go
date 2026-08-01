@@ -47,7 +47,7 @@ func NewStorage(basePath string) (*Storage, error) {
 
 	// Create directory if it doesn't exist
 	configDir := filepath.Join(basePath, ".fyclip")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -242,7 +242,7 @@ func (s *Storage) Save(items []Item) error {
 
 	// Write to temp file first
 	tempFile := s.filePath + ".tmp"
-	if err := os.WriteFile(tempFile, encryptedData, 0644); err != nil {
+	if err := os.WriteFile(tempFile, encryptedData, 0600); err != nil {
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 

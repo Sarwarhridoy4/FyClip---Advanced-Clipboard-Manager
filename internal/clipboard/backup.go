@@ -79,7 +79,7 @@ func (bm *BackupManager) ExportBackup(path string, password string) error {
 		return err
 	}
 
-	return os.WriteFile(path, backupData, 0644)
+	return os.WriteFile(path, backupData, 0600)
 }
 
 // ImportBackup restores clipboard history from a backup file
