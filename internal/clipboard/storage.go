@@ -213,12 +213,28 @@ func (s *Storage) Load() ([]Item, error) {
 		return nil, fmt.Errorf("failed to parse history file: %w", err)
 	}
 
+	if err := validateItems(items); err != nil {
+		return nil, fmt.Errorf("invalid history data: %w", err)
+	}
+
 	// Generate thumbnails for items that don't have them (backward compatibility)
 	for i := range items {
 		items[i].EnsureThumbnail()
 	}
 
 	return items, nil
+}
+
+func validateItems(items []Item) error {
+	for i, item := range items {
+		if item.ID == "" {
+			return fmt.Errorf("item %d has empty ID", i)
+		}
+		if item.Type < TypeText || item.Type > TypeFile {
+			return fmt.Errorf("item %d has invalid type: %d", i, item.Type)
+		}
+	}
+	return nil
 }
 
 // Save writes clipboard history to disk

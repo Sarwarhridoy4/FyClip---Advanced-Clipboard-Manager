@@ -109,6 +109,10 @@ func (bm *BackupManager) ImportBackup(path string, password string, merge bool) 
 		return fmt.Errorf("failed to parse backup: %w", err)
 	}
 
+	if err := validateBackup(&backup); err != nil {
+		return fmt.Errorf("invalid backup data: %w", err)
+	}
+
 	// Verify checksum
 	dataToCheck, err := json.Marshal(backup.Items)
 	if err != nil {
@@ -236,6 +240,19 @@ func (bm *BackupManager) decryptWithPasswordLegacy(data []byte, password string)
 	return plaintext, nil
 }
 
+func validateBackup(backup *Backup) error {
+	if backup == nil {
+		return fmt.Errorf("backup is nil")
+	}
+	if backup.Version == "" {
+		return fmt.Errorf("backup version is empty")
+	}
+	if backup.Checksum == "" {
+		return fmt.Errorf("backup checksum is empty")
+	}
+	return nil
+}
+
 // GetBackupInfo returns information about a backup file without decrypting
 func (bm *BackupManager) GetBackupInfo(path string) (Backup, error) {
 	var backup Backup
@@ -248,6 +265,13 @@ func (bm *BackupManager) GetBackupInfo(path string) (Backup, error) {
 	// Try to parse as JSON (without password)
 	if err := json.Unmarshal(data, &backup); err != nil {
 		// File might be encrypted, return minimal info
+		return Backup{
+			Version:   "encrypted",
+			Timestamp: time.Now(),
+		}, nil
+	}
+
+	if err := validateBackup(&backup); err != nil {
 		return Backup{
 			Version:   "encrypted",
 			Timestamp: time.Now(),
