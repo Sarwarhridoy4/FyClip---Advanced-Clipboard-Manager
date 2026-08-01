@@ -28,6 +28,13 @@ const (
 	appCopyright = "© 2024-2026"
 )
 
+func getContactEmail() string {
+	if email := os.Getenv("FYCLIP_CONTACT_EMAIL"); email != "" {
+		return email
+	}
+	return "contact@example.com"
+}
+
 // ShowAboutDialog displays a professional about dialog with enhanced styling
 func ShowAboutDialog(window fyne.Window, app fyne.App) {
 	aboutWindow := app.NewWindow("About FyClip")
@@ -115,7 +122,7 @@ func ShowAboutDialog(window fyne.Window, app fyne.App) {
 	emailIcon := widget.NewIcon(theme.MailSendIcon())
 	emailIcon.Resize(fyne.NewSize(16, 16))
 	emailLink := widget.NewHyperlink("Email", nil)
-	_ = emailLink.SetURLFromString("mailto:sarwarhridoy4@gmail.com")
+	_ = emailLink.SetURLFromString("mailto:" + getContactEmail())
 	emailLink.Alignment = fyne.TextAlignCenter
 
 	contactBox := container.NewHBox(
