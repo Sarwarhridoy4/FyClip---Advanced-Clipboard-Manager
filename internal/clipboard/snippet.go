@@ -182,6 +182,7 @@ func getDefaultSnippets() []Snippet {
 	now := time.Now()
 	return []Snippet{
 		{
+			ID:           "system-email-signature",
 			Title:        "Email Signature",
 			Content:      "Best regards,\n{{date}}",
 			Abbreviation: "sig",
@@ -191,6 +192,7 @@ func getDefaultSnippets() []Snippet {
 			UpdatedAt:    now,
 		},
 		{
+			ID:           "system-current-date",
 			Title:        "Current Date",
 			Content:      "{{date}}",
 			Abbreviation: "date",
@@ -200,6 +202,7 @@ func getDefaultSnippets() []Snippet {
 			UpdatedAt:    now,
 		},
 		{
+			ID:           "system-current-datetime",
 			Title:        "Current DateTime",
 			Content:      "{{datetime}}",
 			Abbreviation: "dt",
@@ -209,6 +212,7 @@ func getDefaultSnippets() []Snippet {
 			UpdatedAt:    now,
 		},
 		{
+			ID:           "system-current-time",
 			Title:        "Current Time",
 			Content:      "{{time}}",
 			Abbreviation: "time",
@@ -218,6 +222,7 @@ func getDefaultSnippets() []Snippet {
 			UpdatedAt:    now,
 		},
 		{
+			ID:           "system-clipboard-content",
 			Title:        "Clipboard Content",
 			Content:      "{{clipboard}}",
 			Abbreviation: "clip",

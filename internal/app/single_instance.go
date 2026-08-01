@@ -66,6 +66,10 @@ func tryAcquireLock(lockPath string) (*os.File, error) {
 		return nil, fmt.Errorf("failed to create lock file: %w", err)
 	}
 
+	if isPreviousInstanceRunning(lockPath) {
+		return nil, fmt.Errorf("another instance is already running")
+	}
+
 	if err := os.Remove(lockPath); err != nil {
 		if isPermissionError(err) {
 			return nil, err
