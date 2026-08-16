@@ -59,6 +59,14 @@ func NewSingleInstanceLock() (*singleInstanceLock, error) {
 func tryAcquireLock(lockPath string) (*os.File, error) {
 	lockFile, err := os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
 	if err == nil {
+		if err := tryLockFile(lockFile); err != nil {
+			lockFile.Close()
+			os.Remove(lockPath)
+			if isWouldBlockError(err) {
+				return nil, fmt.Errorf("another instance is already running")
+			}
+			return nil, fmt.Errorf("failed to lock lock file: %w", err)
+		}
 		return lockFile, nil
 	}
 
@@ -83,6 +91,15 @@ func tryAcquireLock(lockPath string) (*os.File, error) {
 			return nil, fmt.Errorf("another instance is already running")
 		}
 		return nil, fmt.Errorf("failed to create lock file: %w", err)
+	}
+
+	if err := tryLockFile(lockFile); err != nil {
+		lockFile.Close()
+		os.Remove(lockPath)
+		if isWouldBlockError(err) {
+			return nil, fmt.Errorf("another instance is already running")
+		}
+		return nil, fmt.Errorf("failed to lock lock file: %w", err)
 	}
 
 	pid := os.Getpid()
@@ -166,6 +183,13 @@ func isPermissionError(err error) bool {
 	return os.IsPermission(err) || errors.Is(err, syscall.EROFS)
 }
 
+func isWouldBlockError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN)
+}
+
 // isPreviousInstanceRunning checks if a previous instance is still running
 func isPreviousInstanceRunning(lockPath string) bool {
 	// Try to open the lock file
@@ -175,6 +199,18 @@ func isPreviousInstanceRunning(lockPath string) bool {
 		return false
 	}
 	defer file.Close()
+
+	// Try OS-level lock first
+	if err := tryLockFile(file); err != nil {
+		if isWouldBlockError(err) {
+			// Lock is held by another instance
+			return true
+		}
+		// Other error, fall through to PID check
+	} else {
+		// We acquired the lock, so no one else is holding it.
+		// But check PID for backward compatibility with old lock files.
+	}
 
 	// Read the PID
 	var pid int

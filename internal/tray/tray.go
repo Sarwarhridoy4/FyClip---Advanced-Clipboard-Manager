@@ -24,12 +24,7 @@ type SystemTray struct {
 	autoStartItem   *fyne.MenuItem
 	pauseItem       *fyne.MenuItem
 	recentMenu     *fyne.Menu
-	restartCount   int
 	quickPaster    func()
-}
-
-type quickPasteApp interface {
-	ShowQuickPanel()
 }
 
 // New creates a new system tray
@@ -132,7 +127,7 @@ func (st *SystemTray) buildRecentMenuItems() []*fyne.MenuItem {
 		item := history[i]
 		text := item.DisplayText(40)
 		if item.Pinned {
-			text = "★ " + text
+			text = "[PINNED] " + text
 		}
 
 		index := i
@@ -235,7 +230,7 @@ func (st *SystemTray) updateAutoStartLabel() {
 	}
 
 	if st.autoStartMgr.IsEnabled() {
-		st.autoStartItem.Label = "✓ Auto-Start"
+		st.autoStartItem.Label = "Auto-Start [ON]"
 	} else {
 		st.autoStartItem.Label = "Auto-Start"
 	}
@@ -246,9 +241,9 @@ func (st *SystemTray) updatePauseLabel() {
 		return
 	}
 	if st.manager != nil && st.manager.IsMonitoringPaused() {
-		st.pauseItem.Label = "▶ Resume Monitoring"
+		st.pauseItem.Label = "Resume Monitoring"
 	} else {
-		st.pauseItem.Label = "⏸ Pause Monitoring"
+		st.pauseItem.Label = "Pause Monitoring"
 	}
 }
 

@@ -10,6 +10,11 @@ import (
 	"syscall"
 )
 
+// tryLockFile attempts to acquire an exclusive non-blocking flock on the given file.
+func tryLockFile(file *os.File) error {
+	return syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+}
+
 // isProcessRunning checks if a process with the given PID is running
 // On Unix systems, we use syscall.Kill with signal 0 to check process existence
 func isProcessRunning(pid int, expectedExecPath string) bool {
@@ -20,11 +25,11 @@ func isProcessRunning(pid int, expectedExecPath string) bool {
 
 	runningExecPath, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
 	if err != nil {
-		return false
+		return true
 	}
 
 	if runningExecPath == "" {
-		return false
+		return true
 	}
 
 	if expectedExecPath != "" {

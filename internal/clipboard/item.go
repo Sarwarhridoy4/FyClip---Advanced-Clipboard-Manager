@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -102,7 +103,11 @@ func (i *Item) DisplayText(maxLen int) string {
 
 	if i.Type == TypeFile {
 		if i.FileInfo != nil {
-			return fmt.Sprintf("📁 %s (%s)", i.FileInfo.Name, formatFileSize(i.FileInfo.Size))
+			safeName := sanitizeDisplayText(i.FileInfo.Name)
+			if safeName == "" {
+				safeName = "unnamed"
+			}
+			return fmt.Sprintf("[FILE] %s (%s)", safeName, formatFileSize(i.FileInfo.Size))
 		}
 		return fmt.Sprintf("File: %s", i.Timestamp.Format("15:04:05"))
 	}
@@ -110,16 +115,20 @@ func (i *Item) DisplayText(maxLen int) string {
 	text := sanitizeDisplayText(i.Content)
 	text = strings.TrimSpace(text)
 
-	if len(text) > maxLen {
-		text = text[:maxLen-3] + "..."
+	runes := []rune(text)
+	if len(runes) > maxLen {
+		runes = append(runes[:maxLen-3], []rune("...")...)
 	}
-	return text
+	return string(runes)
 }
 
 func sanitizeDisplayText(s string) string {
 	var buf strings.Builder
 	prevRune := rune(0)
 	for _, r := range s {
+		if r == utf8.RuneError {
+			continue
+		}
 		if r == '\r' || r == '\n' {
 			if prevRune != ' ' && prevRune != '\n' && prevRune != '\r' {
 				buf.WriteRune(' ')
